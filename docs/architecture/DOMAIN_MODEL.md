@@ -16,6 +16,24 @@ User
 
 `CustomerPaymentIdentity` contains the verified ShamCash sender name and sender account used as the comparison baseline for later receipts.
 
+### CustomerPaymentIdentity
+
+```text
+verified_name
+verified_shamcash_account
+status
+```
+
+Allowed status values:
+
+```text
+PENDING
+VERIFIED
+REJECTED
+```
+
+The identity is established once and reused as the baseline for future ShamCash receipt comparisons.
+
 ### Wallet
 
 Represents a customer's USDT destination wallet.
@@ -44,6 +62,7 @@ status
 version
 financial_snapshot
 payment_snapshot
+shamcash_operation_number
 receipt_source
 created_at
 updated_at
@@ -61,24 +80,57 @@ net_usdt_amount
 payment_currency
 exchange_rate
 local_amount
+total_amount_user_pays
 rounding_policy
+precision
+tolerance
 ```
 
-All values are `Decimal` where monetary precision matters.
+All monetary values use `Decimal` with an explicit precision and quantization policy.
+
+Invariants:
+
+```text
+fee_amount = requested_amount * fee_percent
+net_usdt_amount = requested_amount - fee_amount
+USD local_amount = requested_amount
+NEW.SYP local_amount = requested_amount * exchange_rate
+total_amount_user_pays = local_amount
+```
+
+The service fee is deducted from the USDT delivered after approval. It is never added to the customer's ShamCash payment amount.
+
+### PaymentMethod
+
+The current payment provider is ShamCash. A payment method contains:
+
+```text
+id
+provider
+currency
+account_name
+account_number
+qr_image_file_id
+enabled
+created_at
+updated_at
+```
 
 ### PaymentSnapshot
 
-The order records the recipient ShamCash identity used when the order was created:
+An order stores the recipient ShamCash identity used when the order was created:
 
 ```text
+payment_method
 recipient_shamcash_account
 recipient_name
-payment_method
 ```
 
 Changing the administrator's current payment account does not mutate historical orders.
 
 ### ReceiptData
+
+MVP receipt input is image-only: JPEG, PNG, or WEBP.
 
 ```text
 operation_type
@@ -113,6 +165,15 @@ warnings
 
 Network behavior is data-driven and includes enablement, format validation, memo requirements, fee, limits, and presentation metadata.
 
+Launch-enabled networks:
+
+```text
+BEP20
+TRC20
+```
+
+Future disabled records may include TON, ARB, ETH, and SOL. Disabled networks are invisible to customers.
+
 ## Domain services
 
 The first planned authoritative services are:
@@ -142,5 +203,3 @@ The domain/application error taxonomy includes:
 - `PaymentError`
 - `WalletValidationError`
 - `ExchangeRateUnavailableError`
-
-Infrastructure-specific exceptions are translated at the application boundary rather than leaking into Telegram handlers.
