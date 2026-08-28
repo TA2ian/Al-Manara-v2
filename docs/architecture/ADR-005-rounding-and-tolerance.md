@@ -2,24 +2,33 @@
 
 ## Status
 
-Proposed — implementation is blocked until explicit business values are selected.
+Open decision — implementation is blocked until the business values are approved.
 
-## Open decisions
-
-The following values must be approved before financial services are finalized:
+## Required decisions
 
 1. Decimal precision for `local_amount` in USD.
 2. Decimal precision for `local_amount` in `NEW.SYP`.
-3. Rounding mode (`ROUND_HALF_UP`, `ROUND_UP`, or another explicitly selected policy).
-4. Receipt amount tolerance, expressed as an absolute amount and/or percentage.
-5. Whether tolerance applies before or after currency-specific quantization.
+3. Rounding mode.
+4. Receipt amount tolerance, absolute and/or percentage.
+5. Whether tolerance is evaluated before or after currency-specific quantization.
 
-## Required invariant
+## Required invariants
 
-The selected policy must be deterministic, persisted as part of the order financial snapshot, and reused by receipt comparison for that order.
+The selected policy must be deterministic, stored with the order financial snapshot, and reused when interpreting that order's receipt.
 
-No financial calculation may depend on Python binary floating point. Monetary values use `Decimal` with an explicit context and quantization policy.
+No financial calculation may use binary floating point. Monetary values use `Decimal` with an explicit context and quantization policy.
+
+## Technical recommendation (not yet a business decision)
+
+A reasonable baseline for consideration is:
+
+- USD: 2 decimal places.
+- NEW.SYP: 2 decimal places unless the actual ShamCash operational amount requires a different precision.
+- `ROUND_HALF_UP` for customer-facing quote quantization.
+- Receipt tolerance represented explicitly as a policy object rather than a hard-coded percentage.
+
+These values remain recommendations only and are **not accepted business values** until approved.
 
 ## Rationale
 
-Rounding and tolerance affect the amount the customer is asked to pay and the interpretation of a ShamCash receipt. They are business rules, not implementation details, and therefore cannot be silently inferred by the code.
+Rounding and tolerance affect the amount the customer is asked to pay and the interpretation of a ShamCash receipt. They are business rules, not implementation details, and cannot be silently inferred by code.
