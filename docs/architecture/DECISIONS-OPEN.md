@@ -6,36 +6,44 @@ This document is the implementation gate. No production implementation may silen
 
 ### 1. Financial precision
 
-Choose the number of decimal places for `local_amount`:
+Decision:
 
-- USD: pending
-- NEW.SYP: pending
+- USD `local_amount`: 0.01
+- NEW.SYP `local_amount`: 0.01
+- USDT: 0.001
+- Exchange rate: 0.001
+
+All monetary values use `Decimal` with explicit precision and quantization policy.
 
 ### 2. Rounding mode
 
-Choose one explicit policy for customer-facing financial quantization:
+Decision:
 
 - `ROUND_HALF_UP`
-- `ROUND_UP`
-- another explicitly approved policy
+
+This is the explicit policy for customer-facing financial quantization.
 
 ### 3. Receipt amount tolerance
 
-Define the allowed receipt-vs-expected amount difference. The policy may use an absolute amount, percentage, or both.
+Status: pending explicit value.
+
+The tolerance must define the allowed receipt-vs-expected amount difference. The policy may use an absolute amount, percentage, or both.
 
 ### 4. Tolerance timing
 
-Define whether tolerance is evaluated against:
+Decision:
 
-- the raw calculated amount, or
-- the already-quantized/snapshotted `local_amount`.
+- `QUANTIZED_SNAPSHOT`
+
+Receipt tolerance is evaluated against the already-quantized/snapshotted `local_amount`.
 
 ### 5. Backup administrator mode
 
-Choose:
+Decision:
 
-- `EMERGENCY_ONLY`: inactive during normal operation and activated only through the defined emergency procedure.
-- `SECOND_FULL_ADMIN`: normal operational administrator with the same sensitive-action controls.
+- `EMERGENCY_ONLY`
+
+The backup administrator is inactive during normal operation and may be activated only through the defined emergency procedure. The mere presence of a backup administrator ID/configuration does not grant normal operational authority.
 
 ## Engineering decisions
 
