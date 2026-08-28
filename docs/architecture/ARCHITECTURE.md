@@ -24,7 +24,7 @@ Infrastructure implements Domain/Application ports
 Database / Object Storage / Processing Workers
 ```
 
-The Domain layer must not import Telegram, aiogram, database drivers, OCR/PDF libraries, or infrastructure implementations.
+The Domain layer must not import Telegram, aiogram, database drivers, OCR libraries, or infrastructure implementations.
 
 ## Business State Ownership
 
@@ -73,11 +73,18 @@ Every transition is performed by one authoritative application service and requi
 - `fee_amount = requested_amount * fee_percent`.
 - `net_usdt_amount = requested_amount - fee_amount`.
 - `local_amount` is the amount paid through ShamCash.
+- `total_amount_user_pays == local_amount`.
 - Fees never increase `local_amount`.
 - `local_amount` for `NEW.SYP` uses `requested_amount * exchange_rate`.
 - `local_amount` for `USD` equals `requested_amount`.
 - The exchange rate direction is `1 USD = N NEW.SYP`.
 - Financial settings are snapshotted onto the order at creation time.
+- Financial calculations use `Decimal` only.
+- USD and NEW.SYP `local_amount` precision is `0.01`.
+- USDT precision is `0.001`.
+- Exchange rate precision is `0.001`.
+- Customer-facing financial quantization uses `ROUND_HALF_UP`.
+- Receipt amount tolerance is absolute `0.04` in the payment currency and is evaluated against the quantized/snapshotted `local_amount`.
 
 ## Payment Terminology
 
@@ -100,18 +107,31 @@ The following names are mandatory:
 
 Receipt linking uses `public_order_code`; it must not expose or derive the internal UUID.
 
-## Receipt Verification
+## Receipt Verification — MVP
 
-`ReceiptVerificationService` is the single comparison service for customer-uploaded and admin-uploaded receipt files.
+The MVP accepts receipt evidence as JPEG, PNG, or WEBP images.
 
-Extraction may differ by input format:
+PDF processing is explicitly **OUT OF MVP**. The backend does not parse, render, inspect, OCR, or otherwise process PDF receipt files. If the customer has a ShamCash PDF receipt, the user-facing flow instructs them to open the file themselves and send a clear screenshot/image of the receipt.
+
+The supported image path is:
 
 ```text
-PDF -> safe first-page text/layout extraction
-Image -> isolated OCR extraction
+JPEG / PNG / WEBP
+        ↓
+streaming size limit
+        ↓
+real MIME / magic-byte validation
+        ↓
+safe image decode
+        ↓
+isolated OCR extraction
+        ↓
+ReceiptData
+        ↓
+ReceiptVerificationService
 ```
 
-Both produce the same `ReceiptData` contract before comparison.
+`ReceiptVerificationService` is the single comparison service for customer-uploaded and admin-uploaded receipt images. Extraction may occur in an isolated processing worker, but comparison rules are identical for both sources.
 
 A missing or mismatched `public_order_code` is a blocking linkage failure. It prevents the receipt from reaching admin review for that order.
 
@@ -173,23 +193,25 @@ Sensitive actions require:
 6. append-only audit event
 7. security notification where configured
 
-The backup administrator is not active merely because an ID exists in configuration.
+The backup administrator is `EMERGENCY_ONLY` and is not active merely because an ID exists in configuration.
 
 ## Security Boundaries
 
-All Telegram input, callback data, deep links, text, images, PDFs, and QR payloads are untrusted.
+All Telegram input, callback data, deep links, text, images, and QR payloads are untrusted.
 
-File processing must enforce:
+MVP receipt image processing must enforce:
 
 - 5 MB maximum file size
 - streaming download limits
 - real MIME/magic-byte validation
 - safe image decoding limits
 - metadata stripping for stored images
-- isolated PDF/image processing
+- isolated OCR processing
 - processing timeouts
 - bounded memory
 - bounded queues
+
+PDF is not an MVP processing surface.
 
 The application never logs bot tokens, secrets, complete wallet addresses, or receipt contents.
 
