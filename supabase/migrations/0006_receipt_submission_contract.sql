@@ -74,9 +74,9 @@ begin
         return;
     end if;
 
-    select status into v_status
-      from orders
-     where internal_order_id = p_order_id
+    select o.status into v_status
+      from orders o
+     where o.internal_order_id = p_order_id
      for update;
     if not found then raise exception 'order not found'; end if;
     if v_status <> 'PENDING_PAYMENT' then raise exception 'order does not accept receipts in current state'; end if;
