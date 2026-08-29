@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
-from app.application.receipt_ports import ReceiptAttemptRepository
+from app.application.receipt_ports import ReceiptAttemptRepository, ReceiptReservation
 from app.application.submit_receipt import SubmitReceiptCommand, SubmitReceiptService
 from app.domain.receipt_attempt import ReceiptAttempt, ReceiptAttemptStatus
 
@@ -18,17 +18,17 @@ class FixedClock:
 
 
 @pytest.fixture
-def order_id():
+def order_id() -> UUID:
     return uuid4()
 
 
 @pytest.fixture
-def submitted_at():
+def submitted_at() -> datetime:
     return datetime(2026, 8, 29, 18, 30, tzinfo=timezone.utc)
 
 
 def build_attempt(
-    order_id,
+    order_id: UUID,
     submitted_at: datetime,
     *,
     attempt_number: int = 1,
@@ -47,15 +47,15 @@ def build_attempt(
 
 @pytest.mark.asyncio
 async def test_submit_receipt_passes_idempotency_key_to_reservation(
-    order_id,
-    submitted_at,
+    order_id: UUID,
+    submitted_at: datetime,
 ) -> None:
     attempts = AsyncMock(spec=ReceiptAttemptRepository)
     inspector = AsyncMock()
     verifier = AsyncMock()
     escalation = AsyncMock()
     attempt = build_attempt(order_id, submitted_at)
-    attempts.reserve_next_attempt.return_value = attempt
+    attempts.reserve_next_attempt.return_value = ReceiptReservation(attempt=attempt, replayed=False)
     verifier.verify.return_value = ReceiptAttemptStatus.VERIFIED
     attempts.finalize.return_value = attempt
 
@@ -83,12 +83,14 @@ async def test_submit_receipt_passes_idempotency_key_to_reservation(
         mime_type="image/png",
         telegram_file_id="telegram-file-1",
     )
+    inspector.inspect.assert_awaited_once_with("telegram-file-1", "image/png")
+    verifier.verify.assert_awaited_once_with(attempt)
 
 
 @pytest.mark.asyncio
 async def test_replayed_receipt_does_not_reprocess_or_finalize(
-    order_id,
-    submitted_at,
+    order_id: UUID,
+    submitted_at: datetime,
 ) -> None:
     attempts = AsyncMock(spec=ReceiptAttemptRepository)
     inspector = AsyncMock()
@@ -99,7 +101,10 @@ async def test_replayed_receipt_does_not_reprocess_or_finalize(
         submitted_at,
         status=ReceiptAttemptStatus.VERIFIED,
     )
-    attempts.reserve_next_attempt.return_value = (replayed_attempt, True)
+    attempts.reserve_next_attempt.return_value = ReceiptReservation(
+        attempt=replayed_attempt,
+        replayed=True,
+    )
 
     service = SubmitReceiptService(
         attempts=attempts,
@@ -127,8 +132,8 @@ async def test_replayed_receipt_does_not_reprocess_or_finalize(
 
 @pytest.mark.asyncio
 async def test_missing_idempotency_key_is_rejected_before_reservation(
-    order_id,
-    submitted_at,
+    order_id: UUID,
+    submitted_at: datetime,
 ) -> None:
     attempts = AsyncMock(spec=ReceiptAttemptRepository)
     inspector = AsyncMock()
