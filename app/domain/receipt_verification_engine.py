@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.domain.currency import normalize_currency
 from app.domain.network import normalize_network
 from app.domain.receipt_reference import references_match
 from app.domain.receipt_verification import ExtractedReceiptData, FinancialMatchResult, VerificationDecision, match_receipt_amount
@@ -29,7 +30,11 @@ def verify_receipt(
     if extracted.currency is None or extracted.amount is None:
         return VerificationEngineResult(VerificationDecision.INSUFFICIENT_DATA, None, tuple(reasons + ["missing_amount_or_currency"]))
 
-    if extracted.currency != context.payment_currency.value:
+    normalized_extracted_currency = normalize_currency(extracted.currency)
+    if normalized_extracted_currency is None:
+        return VerificationEngineResult(VerificationDecision.SUSPICIOUS, None, tuple(reasons + ["unknown_currency"]))
+
+    if normalized_extracted_currency is not context.payment_currency:
         return VerificationEngineResult(VerificationDecision.MISMATCH, None, tuple(reasons + ["currency_mismatch"]))
 
     financial = match_receipt_amount(context.expected_payment_amount, extracted, context.tolerance)
