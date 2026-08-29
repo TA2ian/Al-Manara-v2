@@ -24,6 +24,10 @@ as $$
 declare
   existing_attempts integer;
 begin
+  -- Serialize attempt allocation per order so concurrent receipt submissions
+  -- cannot observe the same attempt count and claim the same attempt number.
+  perform pg_advisory_xact_lock(hashtextextended(new.internal_order_id::text, 0));
+
   select count(*) into existing_attempts
   from receipt_submissions
   where internal_order_id = new.internal_order_id;
