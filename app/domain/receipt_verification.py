@@ -20,21 +20,31 @@ class VerificationDecision(StrEnum):
 @dataclass(frozen=True, slots=True)
 class ExtractedReceiptData:
     receipt_id: UUID
-    public_order_code: str | None
-    amount: Decimal | None
-    currency: str | None
-    operation_number: str | None
-    network: str | None
-    confidence: Decimal
+    public_order_code: str | None = None
+    amount: Decimal | None = None
+    currency: str | None = None
+    operation_number: str | None = None
+    network: str | None = None
+    confidence: Decimal = Decimal("0")
+    reference: str | None = None
 
     def __post_init__(self) -> None:
         if not self.confidence.is_finite() or not Decimal("0") <= self.confidence <= Decimal("1"):
             raise ValueError("receipt confidence must be between 0 and 1")
         if self.amount is not None and (not self.amount.is_finite() or self.amount <= 0):
             raise ValueError("receipt amount must be positive and finite")
-        for value, field_name in ((self.public_order_code, "public order code"), (self.operation_number, "operation number"), (self.network, "network")):
+        for value, field_name in (
+            (self.public_order_code, "public order code"),
+            (self.operation_number, "operation number"),
+            (self.network, "network"),
+            (self.reference, "reference"),
+        ):
             if value is not None and not value.strip():
                 raise ValueError(f"{field_name} cannot be blank")
+
+    @property
+    def effective_operation_number(self) -> str | None:
+        return self.operation_number or self.reference
 
 
 @dataclass(frozen=True, slots=True)
