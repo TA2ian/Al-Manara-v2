@@ -70,7 +70,7 @@ class SupabaseReceiptAttemptRepository(ReceiptAttemptRepository):
         }
         rows = await self._rpc("finalize_receipt_submission", params)
         row = self._single_row(rows, "finalize_receipt_submission")
-        return self._map_finalized_attempt(row, status)
+        return self._map_attempt(row, expected_status=status)
 
     async def _rpc(self, function_name: str, params: dict[str, Any]) -> list[dict[str, Any]]:
         try:
@@ -106,9 +106,16 @@ class SupabaseReceiptAttemptRepository(ReceiptAttemptRepository):
         return rows[0]
 
     @staticmethod
-    def _map_attempt(row: dict[str, Any]) -> ReceiptAttempt:
+    def _map_attempt(
+        row: dict[str, Any],
+        expected_status: ReceiptAttemptStatus | None = None,
+    ) -> ReceiptAttempt:
         try:
             status = ReceiptAttemptStatus(str(row["processing_status"]).lower())
+            if expected_status is not None and status is not expected_status:
+                raise ReceiptPersistenceError(
+                    "receipt finalization returned an unexpected processing status"
+                )
             return ReceiptAttempt(
                 attempt_id=UUID(str(row["submission_id"])),
                 order_id=UUID(str(row["internal_order_id"])),
@@ -117,36 +124,14 @@ class SupabaseReceiptAttemptRepository(ReceiptAttemptRepository):
                 telegram_file_id=str(row["telegram_file_id"]),
                 submitted_at=SupabaseReceiptAttemptRepository._parse_datetime(row["submitted_at"]),
                 status=status,
-            )
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ReceiptPersistenceError("invalid receipt reservation payload") from exc
-
-    @staticmethod
-    def _map_finalized_attempt(
-        row: dict[str, Any],
-        requested_status: ReceiptAttemptStatus,
-    ) -> ReceiptAttempt:
-        try:
-            actual_status = str(row["processing_status"]).lower()
-            if actual_status != requested_status.value:
-                raise ReceiptPersistenceError(
-                    "receipt finalization returned an unexpected processing status"
-                )
-            failure_reason = row.get("failure_reason")
-            return ReceiptAttempt(
-                attempt_id=UUID(str(row["submission_id"])),
-                order_id=UUID(str(row["internal_order_id"])),
-                attempt_number=int(row["attempt_number"]),
-                mime_type=str(row.get("mime_type") or "image/png"),
-                telegram_file_id=str(row.get("telegram_file_id") or "unknown"),
-                submitted_at=SupabaseReceiptAttemptRepository._parse_datetime(
-                    row.get("submitted_at") or datetime.now().isoformat()
+                failure_reason=(
+                    str(row["failure_reason"])
+                    if row.get("failure_reason") is not None
+                    else None
                 ),
-                status=requested_status,
-                failure_reason=str(failure_reason) if failure_reason is not None else None,
             )
         except (KeyError, TypeError, ValueError) as exc:
-            raise ReceiptPersistenceError("invalid receipt finalization payload") from exc
+            raise ReceiptPersistenceError("invalid receipt persistence payload") from exc
 
     @staticmethod
     def _parse_datetime(value: Any) -> datetime:
