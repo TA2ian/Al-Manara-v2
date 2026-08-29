@@ -45,11 +45,14 @@ class ReceiptSubmissionOrchestrator:
             raw_currency = fields[OcrField.CURRENCY].value if OcrField.CURRENCY in fields else None
             amount = normalize_amount(raw_amount) if raw_amount else None
             currency = normalize_currency_field(raw_currency)
+            operation_number = fields[OcrField.OPERATION_NUMBER].value if OcrField.OPERATION_NUMBER in fields else None
+            public_order_code = fields[OcrField.PUBLIC_ORDER_CODE].value if OcrField.PUBLIC_ORDER_CODE in fields else None
             extracted = ExtractedReceiptData(
                 receipt_id=submission.attempt_id,
+                public_order_code=public_order_code,
                 amount=amount,
                 currency=currency.value if currency is not None else None,
-                reference=fields[OcrField.REFERENCE].value if OcrField.REFERENCE in fields else None,
+                operation_number=operation_number,
                 network=fields[OcrField.NETWORK].value if OcrField.NETWORK in fields else None,
                 confidence=min((field.confidence for field in fields.values()), default=0),
             )
@@ -61,7 +64,7 @@ class ReceiptSubmissionOrchestrator:
                 return await self._finalizer.finalize(submission.attempt_id, ReceiptAttemptStatus.VERIFIED)
 
             reason = ";".join(verification.evidence.reasons) or decision.value
-            status = ReceiptAttemptStatus.ESCALATED if decision is VerificationDecision.SUSPICIOUS and submission.attempt_id is not None and await self._is_third_attempt(submission.attempt_id) else ReceiptAttemptStatus.FAILED
+            status = ReceiptAttemptStatus.ESCALATED if decision is VerificationDecision.SUSPICIOUS and await self._is_third_attempt(submission.attempt_id) else ReceiptAttemptStatus.FAILED
             finalized = True
             return await self._finalizer.finalize(submission.attempt_id, status, reason)
         except Exception as exc:
