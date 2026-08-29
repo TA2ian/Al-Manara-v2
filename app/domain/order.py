@@ -14,13 +14,15 @@ class Order:
     status: OrderStatus
     version: int
 
+    def __post_init__(self) -> None:
+        if self.version < 0:
+            raise ValueError("order version must be non-negative")
+
     def transition_to(self, target: OrderStatus) -> Order:
         if target == self.status:
             return self
         if not can_transition_order(self.status, target):
             raise InvalidTransitionError(self.status.value, target.value)
-        if self.version < 1:
-            raise ValueError("order version must be positive")
         return Order(
             internal_order_id=self.internal_order_id,
             public_order_code=self.public_order_code,
