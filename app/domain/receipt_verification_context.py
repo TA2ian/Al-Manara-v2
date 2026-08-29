@@ -18,6 +18,7 @@ class ReceiptVerificationContext:
     rounding_policy_version: str
     network_code: str
     wallet_address: str
+    expected_reference: str | None = None
     tolerance: Decimal = ABSOLUTE_TOLERANCE
 
     def __post_init__(self) -> None:
@@ -35,5 +36,7 @@ class ReceiptVerificationContext:
             raise ValueError("network code is required")
         if not self.wallet_address.strip():
             raise ValueError("wallet address snapshot is required")
+        if self.expected_reference is not None and not self.expected_reference.strip():
+            raise ValueError("expected reference cannot be blank")
         if not self.tolerance.is_finite() or self.tolerance < 0:
             raise ValueError("tolerance must be finite and non-negative")
