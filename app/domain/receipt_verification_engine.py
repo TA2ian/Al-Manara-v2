@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
 
 from app.domain.network import normalize_network
 from app.domain.receipt_reference import references_match
 from app.domain.receipt_verification import ExtractedReceiptData, FinancialMatchResult, VerificationDecision, match_receipt_amount
 from app.domain.receipt_verification_context import ReceiptVerificationContext
+from app.domain.receipt_verification_policy import DEFAULT_RECEIPT_VERIFICATION_POLICY, ReceiptVerificationPolicy
 
 
 @dataclass(frozen=True, slots=True)
@@ -16,10 +16,14 @@ class VerificationEngineResult:
     reasons: tuple[str, ...]
 
 
-def verify_receipt(context: ReceiptVerificationContext, extracted: ExtractedReceiptData) -> VerificationEngineResult:
+def verify_receipt(
+    context: ReceiptVerificationContext,
+    extracted: ExtractedReceiptData,
+    policy: ReceiptVerificationPolicy = DEFAULT_RECEIPT_VERIFICATION_POLICY,
+) -> VerificationEngineResult:
     reasons: list[str] = []
 
-    if extracted.confidence < Decimal("0.70"):
+    if extracted.confidence < policy.minimum_ocr_confidence:
         reasons.append("ocr_confidence_below_threshold")
 
     if extracted.currency is None or extracted.amount is None:
@@ -32,13 +36,19 @@ def verify_receipt(context: ReceiptVerificationContext, extracted: ExtractedRece
     if financial.decision is VerificationDecision.MISMATCH:
         return VerificationEngineResult(VerificationDecision.MISMATCH, financial, tuple(reasons + ["amount_mismatch"]))
 
-    normalized_network = normalize_network(extracted.network) if extracted.network is not None else None
-    if extracted.network is not None and normalized_network is None:
-        return VerificationEngineResult(VerificationDecision.SUSPICIOUS, financial, tuple(reasons + ["unknown_network"]))
-    if normalized_network is not None and normalized_network.value != context.network_code:
-        return VerificationEngineResult(VerificationDecision.MISMATCH, financial, tuple(reasons + ["network_mismatch"]))
+    if extracted.network is None:
+        if policy.require_network and policy.allow_missing_network_as_suspicious:
+            return VerificationEngineResult(VerificationDecision.SUSPICIOUS, financial, tuple(reasons + ["network_required_but_unavailable"]))
+        if policy.require_network:
+            return VerificationEngineResult(VerificationDecision.INSUFFICIENT_DATA, financial, tuple(reasons + ["network_required_but_unavailable"]))
+    else:
+        normalized_network = normalize_network(extracted.network)
+        if normalized_network is None:
+            return VerificationEngineResult(VerificationDecision.SUSPICIOUS, financial, tuple(reasons + ["unknown_network"]))
+        if normalized_network.value != context.network_code:
+            return VerificationEngineResult(VerificationDecision.MISMATCH, financial, tuple(reasons + ["network_mismatch"]))
 
-    if context.expected_reference is not None:
+    if policy.require_reference or context.expected_reference is not None:
         reference_result = references_match(context.expected_reference, extracted.reference)
         if reference_result is False:
             return VerificationEngineResult(VerificationDecision.MISMATCH, financial, tuple(reasons + ["reference_mismatch"]))
@@ -47,7 +57,7 @@ def verify_receipt(context: ReceiptVerificationContext, extracted: ExtractedRece
     elif extracted.reference is None:
         reasons.append("reference_not_available")
 
-    if extracted.confidence < Decimal("0.70"):
+    if extracted.confidence < policy.minimum_ocr_confidence:
         return VerificationEngineResult(VerificationDecision.SUSPICIOUS, financial, tuple(reasons))
 
     return VerificationEngineResult(VerificationDecision.VERIFIED, financial, tuple(reasons))
