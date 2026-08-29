@@ -18,10 +18,18 @@ class SubmitReceiptCommand:
     order_id: UUID
     telegram_file_id: str
     mime_type: str
+    idempotency_key: str
 
 
 class SubmitReceiptService:
-    def __init__(self, attempts: ReceiptAttemptRepository, inspector: ReceiptImageInspector, verifier: ReceiptVerifier, escalation: ReceiptEscalationPort, clock: ReceiptClock) -> None:
+    def __init__(
+        self,
+        attempts: ReceiptAttemptRepository,
+        inspector: ReceiptImageInspector,
+        verifier: ReceiptVerifier,
+        escalation: ReceiptEscalationPort,
+        clock: ReceiptClock,
+    ) -> None:
         self._attempts = attempts
         self._inspector = inspector
         self._verifier = verifier
@@ -31,22 +39,33 @@ class SubmitReceiptService:
     async def submit(self, command: SubmitReceiptCommand):
         if command.mime_type not in SUPPORTED_RECEIPT_MIME_TYPES:
             raise ValueError("unsupported receipt image type; JPEG, PNG, or WEBP is required")
-        if not command.telegram_file_id.strip():
+
+        telegram_file_id = command.telegram_file_id.strip()
+        if not telegram_file_id:
             raise ValueError("receipt file id is required")
+
+        idempotency_key = command.idempotency_key.strip()
+        if not idempotency_key:
+            raise ValueError("idempotency key is required")
 
         submitted_at = self._clock.now()
         if submitted_at.tzinfo is None:
             raise RuntimeError("receipt clock must return a timezone-aware datetime")
 
-        attempt = await self._attempts.reserve_next_attempt(
+        reservation = await self._attempts.reserve_next_attempt(
             order_id=command.order_id,
+            idempotency_key=idempotency_key,
             submitted_at=submitted_at,
             mime_type=command.mime_type,
-            telegram_file_id=command.telegram_file_id.strip(),
+            telegram_file_id=telegram_file_id,
         )
+        attempt = reservation.attempt
+
+        if reservation.replayed:
+            return attempt
 
         try:
-            await self._inspector.inspect(command.telegram_file_id.strip(), command.mime_type)
+            await self._inspector.inspect(telegram_file_id, command.mime_type)
             verification_status = await self._verifier.verify(attempt)
             if verification_status is ReceiptAttemptStatus.VERIFIED:
                 return await self._attempts.finalize(attempt.attempt_id, ReceiptAttemptStatus.VERIFIED)
@@ -54,7 +73,11 @@ class SubmitReceiptService:
         except Exception as exc:
             reason = str(exc).strip() or "receipt processing failed"
             if attempt.attempt_number == 3:
-                finalized = await self._attempts.finalize(attempt.attempt_id, ReceiptAttemptStatus.ESCALATED, reason)
+                finalized = await self._attempts.finalize(
+                    attempt.attempt_id,
+                    ReceiptAttemptStatus.ESCALATED,
+                    reason,
+                )
                 await self._escalation.escalate(command.order_id, finalized.attempt_id, reason)
                 raise
             await self._attempts.finalize(attempt.attempt_id, ReceiptAttemptStatus.FAILED, reason)
