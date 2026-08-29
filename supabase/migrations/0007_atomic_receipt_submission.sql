@@ -41,10 +41,10 @@ begin
         raise exception 'failure reason is required';
     end if;
 
-    select internal_order_id, attempt_number, processing_status, linkage_status
+    select r.internal_order_id, r.attempt_number, r.processing_status, r.linkage_status
       into v_order_id, v_attempt_number, v_current_status, v_linkage_status
-      from receipt_submissions
-     where id = p_submission_id
+      from receipt_submissions r
+     where r.id = p_submission_id
      for update;
 
     if not found then raise exception 'receipt submission not found'; end if;
@@ -64,7 +64,7 @@ begin
                else null
            end,
            completed_at = now()
-     where id = p_submission_id;
+     where receipt_submissions.id = p_submission_id;
 
     return query
     select r.id, r.internal_order_id, r.attempt_number,
