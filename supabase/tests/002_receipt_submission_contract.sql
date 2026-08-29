@@ -1,6 +1,6 @@
 begin;
 
-select plan(8);
+select plan(9);
 
 select ok(
     exists (
@@ -81,6 +81,18 @@ select ok(
           and pg_get_functiondef(oid) like '%idempotency key belongs to another order%'
     ),
     'idempotency key cannot be rebound to another order'
+);
+
+select ok(
+    exists (
+        select 1
+        from pg_proc
+        where proname = 'finalize_receipt_submission'
+          and pg_get_function_result(oid) like '%telegram_file_id%'
+          and pg_get_function_result(oid) like '%mime_type%'
+          and pg_get_function_result(oid) like '%submitted_at%'
+    ),
+    'receipt finalization returns the complete attempt payload'
 );
 
 select * from finish();
