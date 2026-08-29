@@ -41,13 +41,13 @@ class FinancialMatchResult:
     absolute_difference: Decimal | None
 
 
-def match_receipt_amount(expected_amount: Decimal, extracted: ExtractedReceiptData) -> FinancialMatchResult:
+def match_receipt_amount(expected_amount: Decimal, extracted: ExtractedReceiptData, tolerance: Decimal = ABSOLUTE_TOLERANCE) -> FinancialMatchResult:
+    if not expected_amount.is_finite() or expected_amount <= 0:
+        raise ValueError("expected amount must be positive and finite")
+    if not tolerance.is_finite() or tolerance < 0:
+        raise ValueError("tolerance must be finite and non-negative")
     if extracted.amount is None or extracted.currency is None:
         return FinancialMatchResult(VerificationDecision.INSUFFICIENT_DATA, expected_amount, extracted.amount, None)
-
-    if extracted.currency != "USD":
-        return FinancialMatchResult(VerificationDecision.MISMATCH, expected_amount, extracted.amount, abs(expected_amount - extracted.amount))
-
     difference = abs(expected_amount - extracted.amount)
-    decision = VerificationDecision.VERIFIED if difference <= ABSOLUTE_TOLERANCE else VerificationDecision.MISMATCH
+    decision = VerificationDecision.VERIFIED if difference <= tolerance else VerificationDecision.MISMATCH
     return FinancialMatchResult(decision, expected_amount, extracted.amount, difference)
