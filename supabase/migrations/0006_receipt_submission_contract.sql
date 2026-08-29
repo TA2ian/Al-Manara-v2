@@ -48,10 +48,6 @@ begin
 end;
 $$;
 
-create trigger receipt_submissions_attempt_limit
-before insert on receipt_submissions
-for each row execute function enforce_receipt_attempt_limit();
-
 create or replace function reserve_receipt_submission(
     p_order_id uuid,
     p_idempotency_key text,
