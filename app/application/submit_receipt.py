@@ -21,14 +21,7 @@ class SubmitReceiptCommand:
 
 
 class SubmitReceiptService:
-    def __init__(
-        self,
-        attempts: ReceiptAttemptRepository,
-        inspector: ReceiptImageInspector,
-        verifier: ReceiptVerifier,
-        escalation: ReceiptEscalationPort,
-        clock: ReceiptClock,
-    ) -> None:
+    def __init__(self, attempts: ReceiptAttemptRepository, inspector: ReceiptImageInspector, verifier: ReceiptVerifier, escalation: ReceiptEscalationPort, clock: ReceiptClock) -> None:
         self._attempts = attempts
         self._inspector = inspector
         self._verifier = verifier
@@ -53,23 +46,16 @@ class SubmitReceiptService:
         )
 
         try:
-            await self._inspector.inspect(command.telegram_file_id, command.mime_type)
+            await self._inspector.inspect(command.telegram_file_id.strip(), command.mime_type)
             verification_status = await self._verifier.verify(attempt)
             if verification_status is ReceiptAttemptStatus.VERIFIED:
                 return await self._attempts.finalize(attempt.attempt_id, ReceiptAttemptStatus.VERIFIED)
             raise ValueError("receipt could not be verified")
         except Exception as exc:
             reason = str(exc).strip() or "receipt processing failed"
-            finalized = await self._attempts.finalize(
-                attempt.attempt_id,
-                ReceiptAttemptStatus.FAILED,
-                reason,
-            )
-            if finalized.attempt_number == 3:
-                await self._attempts.finalize(
-                    finalized.attempt_id,
-                    ReceiptAttemptStatus.ESCALATED,
-                    None,
-                )
+            if attempt.attempt_number == 3:
+                finalized = await self._attempts.finalize(attempt.attempt_id, ReceiptAttemptStatus.ESCALATED, reason)
                 await self._escalation.escalate(command.order_id, finalized.attempt_id, reason)
+                raise
+            await self._attempts.finalize(attempt.attempt_id, ReceiptAttemptStatus.FAILED, reason)
             raise
