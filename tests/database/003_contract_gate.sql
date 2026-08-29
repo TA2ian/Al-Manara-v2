@@ -1,5 +1,16 @@
 begin;
-select plan(1);
-select ok((select count(*) from pg_proc where proname='enforce_receipt_attempt_limit')=1,'receipt attempt allocator exists');
+
+select plan(2);
+
+select ok(
+  (select count(*) from pg_proc where proname = 'reserve_receipt_submission') = 1,
+  'canonical receipt reservation RPC exists'
+);
+
+select ok(
+  (select count(*) from pg_proc where proname = 'finalize_receipt_submission') = 1,
+  'canonical receipt finalization RPC exists'
+);
+
 select * from finish();
 rollback;
