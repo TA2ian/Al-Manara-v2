@@ -22,18 +22,17 @@ class NetworkConfig:
     enabled: bool
     address_regex: str
     requires_memo: bool
-    service_fee_percent: Decimal
     min_amount: Decimal
     max_amount: Decimal
 
 
 NETWORKS: tuple[NetworkConfig, ...] = (
-    NetworkConfig(NetworkCode.BEP20, "BEP20", True, r"^0x[0-9a-fA-F]{40}$", False, Decimal("10"), Decimal("1"), Decimal("100000")),
-    NetworkConfig(NetworkCode.TRC20, "TRC20", True, r"^T[1-9A-HJ-NP-Za-km-z]{33}$", False, Decimal("5"), Decimal("1"), Decimal("100000")),
-    NetworkConfig(NetworkCode.TON, "TON", False, r".+", True, Decimal("0"), Decimal("0"), Decimal("0")),
-    NetworkConfig(NetworkCode.ARB, "ARB", False, r"^0x[0-9a-fA-F]{40}$", False, Decimal("0"), Decimal("0"), Decimal("0")),
-    NetworkConfig(NetworkCode.ETH, "ETH", False, r"^0x[0-9a-fA-F]{40}$", False, Decimal("0"), Decimal("0"), Decimal("0")),
-    NetworkConfig(NetworkCode.SOL, "SOL", False, r".+", False, Decimal("0"), Decimal("0"), Decimal("0")),
+    NetworkConfig(NetworkCode.BEP20, "BEP20", True, r"^0x[0-9a-fA-F]{40}$", False, Decimal("1"), Decimal("100000")),
+    NetworkConfig(NetworkCode.TRC20, "TRC20", True, r"^T[1-9A-HJ-NP-Za-km-z]{33}$", False, Decimal("1"), Decimal("100000")),
+    NetworkConfig(NetworkCode.TON, "TON", False, r".+", True, Decimal("0.001"), Decimal("0.001")),
+    NetworkConfig(NetworkCode.ARB, "ARB", False, r"^0x[0-9a-fA-F]{40}$", False, Decimal("0.001"), Decimal("0.001")),
+    NetworkConfig(NetworkCode.ETH, "ETH", False, r"^0x[0-9a-fA-F]{40}$", False, Decimal("0.001"), Decimal("0.001")),
+    NetworkConfig(NetworkCode.SOL, "SOL", False, r".+", False, Decimal("0.001"), Decimal("0.001")),
 )
 
 
