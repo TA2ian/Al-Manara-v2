@@ -8,6 +8,9 @@ returns table (
     submission_id uuid,
     internal_order_id uuid,
     attempt_number integer,
+    telegram_file_id text,
+    mime_type text,
+    submitted_at timestamptz,
     processing_status text,
     linkage_status text,
     failure_reason text
@@ -63,6 +66,7 @@ begin
 
     return query
     select r.id, r.internal_order_id, r.attempt_number,
+           r.telegram_file_id, r.mime_type, r.submitted_at,
            r.processing_status, r.linkage_status, r.failure_reason
       from receipt_submissions r
      where r.id = p_submission_id;
