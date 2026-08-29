@@ -37,7 +37,8 @@ class ReceiptAttempt:
             raise ValueError("telegram file id is required")
         if self.submitted_at.tzinfo is None:
             raise ValueError("submitted_at must be timezone-aware")
-        if self.status is ReceiptAttemptStatus.FAILED and not (self.failure_reason or "").strip():
-            raise ValueError("failed receipt attempts require a failure reason")
-        if self.status is not ReceiptAttemptStatus.FAILED and self.failure_reason is not None:
-            raise ValueError("failure reason is only valid for failed attempts")
+        if self.status in (ReceiptAttemptStatus.FAILED, ReceiptAttemptStatus.ESCALATED):
+            if not (self.failure_reason or "").strip():
+                raise ValueError("failed or escalated receipt attempts require a failure reason")
+        elif self.failure_reason is not None:
+            raise ValueError("failure reason is only valid for failed or escalated attempts")
