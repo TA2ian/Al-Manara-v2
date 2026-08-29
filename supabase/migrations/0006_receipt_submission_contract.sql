@@ -22,32 +22,6 @@ create unique index if not exists receipt_submissions_processing_uq
     on receipt_submissions(internal_order_id)
     where processing_status = 'PROCESSING';
 
-create or replace function enforce_receipt_attempt_limit()
-returns trigger
-language plpgsql
-as $$
-declare
-    existing_attempts integer;
-begin
-    perform pg_advisory_xact_lock(hashtextextended(new.internal_order_id::text, 0));
-
-    select count(*)
-      into existing_attempts
-      from receipt_submissions
-     where internal_order_id = new.internal_order_id;
-
-    if existing_attempts >= 3 then
-        raise exception 'receipt attempt limit exceeded for order %', new.internal_order_id;
-    end if;
-
-    if new.attempt_number <> existing_attempts + 1 then
-        raise exception 'receipt attempt number must be sequential';
-    end if;
-
-    return new;
-end;
-$$;
-
 create or replace function reserve_receipt_submission(
     p_order_id uuid,
     p_idempotency_key text,
@@ -81,12 +55,18 @@ begin
     if p_mime_type not in ('image/jpeg', 'image/png', 'image/webp') then raise exception 'unsupported receipt image type'; end if;
     if p_submitted_at is null then raise exception 'submission time is required'; end if;
 
+    -- Serialize reservations for one order before calculating its next attempt.
+    perform pg_advisory_xact_lock(hashtextextended(p_order_id::text, 0));
+
     select * into v_existing
       from receipt_submissions
      where idempotency_key = btrim(p_idempotency_key)
      for update;
 
     if found then
+        if v_existing.internal_order_id <> p_order_id then
+            raise exception 'idempotency key belongs to another order';
+        end if;
         return query
         select v_existing.id, v_existing.internal_order_id, v_existing.attempt_number,
                v_existing.telegram_file_id, v_existing.mime_type, v_existing.submitted_at,
@@ -132,8 +112,5 @@ begin
            r.mime_type, r.submitted_at, r.processing_status, false
       from receipt_submissions r
      where r.id = v_submission_id;
-exception
-    when unique_violation then
-        raise exception 'receipt submission reservation conflict';
 end;
 $$;
