@@ -55,6 +55,7 @@ declare
     v_max_amount numeric;
     v_identity_name text;
     v_identity_account text;
+    v_identity_verified_at timestamptz;
     v_payment_method_id uuid;
     v_admin_name text;
     v_admin_number text;
@@ -112,12 +113,12 @@ begin
     if not found or not v_network_enabled then raise exception 'network is unavailable'; end if;
     if p_requested_amount < v_min_amount or p_requested_amount > v_max_amount then raise exception 'amount is outside network limits'; end if;
 
-    select verified_name, verified_shamcash_account
-      into v_identity_name, v_identity_account
+    select verified_name, verified_shamcash_account, payment_identity_verified_at
+      into v_identity_name, v_identity_account, v_identity_verified_at
       from users
      where id = v_user_id
      for share;
-    if v_identity_name is null or v_identity_account is null or payment_identity_verified_at is null then
+    if v_identity_name is null or v_identity_account is null or v_identity_verified_at is null then
         raise exception 'customer payment identity is not verified';
     end if;
     if btrim(v_identity_name) <> btrim(p_customer_verified_name_snapshot)
