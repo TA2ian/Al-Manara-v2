@@ -10,7 +10,7 @@ from app.application.receipt_ports import (
     ReceiptImageInspector,
     ReceiptVerifier,
 )
-from app.domain.receipt_attempt import ReceiptAttemptStatus, SUPPORTED_RECEIPT_MIME_TYPES
+from app.domain.receipt_attempt import ReceiptAttempt, ReceiptAttemptStatus, SUPPORTED_RECEIPT_MIME_TYPES
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,7 +86,7 @@ class SubmitReceiptService:
             await self._escalation.escalate(command.order_id, finalized.attempt_id, reason)
         raise ValueError(reason)
 
-    async def _finalize_failure(self, attempt, reason: str):
+    async def _finalize_failure(self, attempt: ReceiptAttempt, reason: str) -> ReceiptAttempt:
         status = (
             ReceiptAttemptStatus.ESCALATED
             if attempt.attempt_number == 3
