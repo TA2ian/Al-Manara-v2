@@ -32,17 +32,19 @@ def verify_receipt(context: ReceiptVerificationContext, extracted: ExtractedRece
     if financial.decision is VerificationDecision.MISMATCH:
         return VerificationEngineResult(VerificationDecision.MISMATCH, financial, tuple(reasons + ["amount_mismatch"]))
 
-    if extracted.network is not None:
-        normalized_network = normalize_network(extracted.network)
-        if normalized_network is None:
-            return VerificationEngineResult(VerificationDecision.SUSPICIOUS, financial, tuple(reasons + ["unknown_network"]))
-        if normalized_network.value != context.network_code:
-            return VerificationEngineResult(VerificationDecision.MISMATCH, financial, tuple(reasons + ["network_mismatch"]))
+    normalized_network = normalize_network(extracted.network) if extracted.network is not None else None
+    if extracted.network is not None and normalized_network is None:
+        return VerificationEngineResult(VerificationDecision.SUSPICIOUS, financial, tuple(reasons + ["unknown_network"]))
+    if normalized_network is not None and normalized_network.value != context.network_code:
+        return VerificationEngineResult(VerificationDecision.MISMATCH, financial, tuple(reasons + ["network_mismatch"]))
 
-    reference_result = references_match(context.wallet_address, extracted.reference)
-    if reference_result is False:
-        return VerificationEngineResult(VerificationDecision.MISMATCH, financial, tuple(reasons + ["reference_mismatch"]))
-    if reference_result is None:
+    if context.expected_reference is not None:
+        reference_result = references_match(context.expected_reference, extracted.reference)
+        if reference_result is False:
+            return VerificationEngineResult(VerificationDecision.MISMATCH, financial, tuple(reasons + ["reference_mismatch"]))
+        if reference_result is None:
+            return VerificationEngineResult(VerificationDecision.INSUFFICIENT_DATA, financial, tuple(reasons + ["reference_required_but_unavailable"]))
+    elif extracted.reference is None:
         reasons.append("reference_not_available")
 
     if extracted.confidence < Decimal("0.70"):
