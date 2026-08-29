@@ -20,6 +20,7 @@ class VerificationDecision(StrEnum):
 @dataclass(frozen=True, slots=True)
 class ExtractedReceiptData:
     receipt_id: UUID
+    public_order_code: str | None
     amount: Decimal | None
     currency: str | None
     operation_number: str | None
@@ -31,8 +32,9 @@ class ExtractedReceiptData:
             raise ValueError("receipt confidence must be between 0 and 1")
         if self.amount is not None and (not self.amount.is_finite() or self.amount <= 0):
             raise ValueError("receipt amount must be positive and finite")
-        if self.operation_number is not None and not self.operation_number.strip():
-            raise ValueError("operation number cannot be blank")
+        for value, field_name in ((self.public_order_code, "public order code"), (self.operation_number, "operation number"), (self.network, "network")):
+            if value is not None and not value.strip():
+                raise ValueError(f"{field_name} cannot be blank")
 
 
 @dataclass(frozen=True, slots=True)
