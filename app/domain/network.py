@@ -36,6 +36,28 @@ NETWORKS: tuple[NetworkConfig, ...] = (
 )
 
 
+_NETWORK_ALIASES: dict[str, NetworkCode] = {
+    "BEP20": NetworkCode.BEP20,
+    "BEP-20": NetworkCode.BEP20,
+    "BNB SMART CHAIN": NetworkCode.BEP20,
+    "TRC20": NetworkCode.TRC20,
+    "TRC-20": NetworkCode.TRC20,
+    "TRON": NetworkCode.TRC20,
+    "TON": NetworkCode.TON,
+    "ARBITRUM": NetworkCode.ARB,
+    "ARB": NetworkCode.ARB,
+    "ETH": NetworkCode.ETH,
+    "ETHEREUM": NetworkCode.ETH,
+    "SOL": NetworkCode.SOL,
+    "SOLANA": NetworkCode.SOL,
+}
+
+
+def normalize_network(raw: str) -> NetworkCode | None:
+    normalized = " ".join(raw.strip().upper().split())
+    return _NETWORK_ALIASES.get(normalized)
+
+
 def get_network(code: NetworkCode) -> NetworkConfig:
     for network in NETWORKS:
         if network.code is code:
