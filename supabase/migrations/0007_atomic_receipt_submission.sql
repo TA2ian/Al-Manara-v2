@@ -1,4 +1,6 @@
-create or replace function finalize_receipt_submission(
+drop function if exists finalize_receipt_submission(uuid, text, text, text);
+
+create function finalize_receipt_submission(
     p_submission_id uuid,
     p_processing_status text,
     p_linkage_status text default null,
