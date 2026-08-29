@@ -34,6 +34,7 @@ class ReceiptSubmissionOrchestrator:
         self._finalizer = finalizer
 
     async def process(self, submission: ReceiptSubmission, image_bytes: bytes):
+        finalized = False
         try:
             inspected = await self._inspector.inspect_bytes(image_bytes, submission.mime_type)
             normalized = self._normalizer.normalize(inspected.content, inspected.mime_type)
@@ -43,12 +44,11 @@ class ReceiptSubmissionOrchestrator:
             raw_amount = fields[OcrField.AMOUNT].value if OcrField.AMOUNT in fields else None
             raw_currency = fields[OcrField.CURRENCY].value if OcrField.CURRENCY in fields else None
             amount = normalize_amount(raw_amount) if raw_amount else None
-            currency = normalize_currency_field(raw_currency).value if raw_currency else None
-
+            currency = normalize_currency_field(raw_currency)
             extracted = ExtractedReceiptData(
                 receipt_id=submission.attempt_id,
                 amount=amount,
-                currency=currency,
+                currency=currency.value if currency is not None else None,
                 reference=fields[OcrField.REFERENCE].value if OcrField.REFERENCE in fields else None,
                 network=fields[OcrField.NETWORK].value if OcrField.NETWORK in fields else None,
                 confidence=min((field.confidence for field in fields.values()), default=0),
@@ -57,13 +57,21 @@ class ReceiptSubmissionOrchestrator:
             decision = verification.evidence.decision
 
             if decision is VerificationDecision.VERIFIED:
+                finalized = True
                 return await self._finalizer.finalize(submission.attempt_id, ReceiptAttemptStatus.VERIFIED)
 
             reason = ";".join(verification.evidence.reasons) or decision.value
-            if decision in (VerificationDecision.MISMATCH, VerificationDecision.INSUFFICIENT_DATA, VerificationDecision.SUSPICIOUS, VerificationDecision.UNREADABLE):
-                return await self._finalizer.finalize(submission.attempt_id, ReceiptAttemptStatus.FAILED, reason)
-            raise RuntimeError("unsupported receipt verification decision")
+            status = ReceiptAttemptStatus.ESCALATED if decision is VerificationDecision.SUSPICIOUS and submission.attempt_id is not None and await self._is_third_attempt(submission.attempt_id) else ReceiptAttemptStatus.FAILED
+            finalized = True
+            return await self._finalizer.finalize(submission.attempt_id, status, reason)
         except Exception as exc:
-            reason = str(exc).strip() or "receipt processing failed"
-            await self._finalizer.finalize(submission.attempt_id, ReceiptAttemptStatus.FAILED, reason)
+            if not finalized:
+                reason = str(exc).strip() or "receipt processing failed"
+                await self._finalizer.finalize(submission.attempt_id, ReceiptAttemptStatus.FAILED, reason)
             raise
+
+    async def _is_third_attempt(self, attempt_id: UUID) -> bool:
+        checker = getattr(self._finalizer, "is_third_attempt", None)
+        if checker is None:
+            return False
+        return bool(await checker(attempt_id))
