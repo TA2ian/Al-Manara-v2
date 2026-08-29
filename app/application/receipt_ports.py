@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 from uuid import UUID
@@ -7,14 +8,21 @@ from uuid import UUID
 from app.domain.receipt_attempt import ReceiptAttempt, ReceiptAttemptStatus
 
 
+@dataclass(frozen=True, slots=True)
+class ReceiptReservation:
+    attempt: ReceiptAttempt
+    replayed: bool
+
+
 class ReceiptAttemptRepository(Protocol):
     async def reserve_next_attempt(
         self,
         order_id: UUID,
+        idempotency_key: str,
         submitted_at: datetime,
         mime_type: str,
         telegram_file_id: str,
-    ) -> ReceiptAttempt: ...
+    ) -> ReceiptReservation: ...
 
     async def finalize(
         self,
