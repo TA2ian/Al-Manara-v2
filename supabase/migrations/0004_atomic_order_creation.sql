@@ -163,7 +163,7 @@ begin
         p_internal_order_id, p_requested_amount, p_fee_percent, p_fee_amount, p_net_usdt_amount,
         p_payment_currency::currency_code, p_exchange_rate, p_local_amount,
         p_rounding_policy_version,
-        (select config_version from network_configs where code = p_network_code::network_code)
+        (select nc.config_version from network_configs nc where nc.code = p_network_code::network_code)
     );
 
     insert into audit_logs (
@@ -189,10 +189,10 @@ begin
     select p_internal_order_id, p_public_order_code, v_status, v_version, false;
 exception
     when unique_violation then
-        if exists (select 1 from orders where public_order_code = p_public_order_code) then
+        if exists (select 1 from orders o where o.public_order_code = p_public_order_code) then
             raise exception 'public order code collision';
         end if;
-        if exists (select 1 from idempotency_keys where telegram_user_id = p_user_id and operation = p_operation and idempotency_key = p_idempotency_key) then
+        if exists (select 1 from idempotency_keys ik where ik.telegram_user_id = p_user_id and ik.operation = p_operation and ik.idempotency_key = p_idempotency_key) then
             raise exception 'idempotency key collision';
         end if;
         raise;
