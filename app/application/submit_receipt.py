@@ -67,18 +67,29 @@ class SubmitReceiptService:
         try:
             await self._inspector.inspect(telegram_file_id, command.mime_type)
             verification_status = await self._verifier.verify(attempt)
-            if verification_status is ReceiptAttemptStatus.VERIFIED:
-                return await self._attempts.finalize(attempt.attempt_id, ReceiptAttemptStatus.VERIFIED)
-            raise ValueError("receipt could not be verified")
         except Exception as exc:
             reason = str(exc).strip() or "receipt processing failed"
+            finalized = await self._finalize_failure(attempt, reason)
             if attempt.attempt_number == 3:
-                finalized = await self._attempts.finalize(
-                    attempt.attempt_id,
-                    ReceiptAttemptStatus.ESCALATED,
-                    reason,
-                )
                 await self._escalation.escalate(command.order_id, finalized.attempt_id, reason)
-                raise
-            await self._attempts.finalize(attempt.attempt_id, ReceiptAttemptStatus.FAILED, reason)
             raise
+
+        if verification_status is ReceiptAttemptStatus.VERIFIED:
+            return await self._attempts.finalize(
+                attempt.attempt_id,
+                ReceiptAttemptStatus.VERIFIED,
+            )
+
+        reason = "receipt could not be verified"
+        finalized = await self._finalize_failure(attempt, reason)
+        if attempt.attempt_number == 3:
+            await self._escalation.escalate(command.order_id, finalized.attempt_id, reason)
+        raise ValueError(reason)
+
+    async def _finalize_failure(self, attempt, reason: str):
+        status = (
+            ReceiptAttemptStatus.ESCALATED
+            if attempt.attempt_number == 3
+            else ReceiptAttemptStatus.FAILED
+        )
+        return await self._attempts.finalize(attempt.attempt_id, status, reason)
