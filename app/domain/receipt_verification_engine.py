@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.domain.network import normalize_network
-from app.domain.receipt_reference import references_match
+from app.domain.receipt_reference import operation_numbers_match
 from app.domain.receipt_verification import ExtractedReceiptData, FinancialMatchResult, VerificationDecision, match_receipt_amount
 from app.domain.receipt_verification_context import ReceiptVerificationContext
 from app.domain.receipt_verification_policy import DEFAULT_RECEIPT_VERIFICATION_POLICY, ReceiptVerificationPolicy
@@ -22,6 +22,11 @@ def verify_receipt(
     policy: ReceiptVerificationPolicy = DEFAULT_RECEIPT_VERIFICATION_POLICY,
 ) -> VerificationEngineResult:
     reasons: list[str] = []
+
+    if extracted.public_order_code is None:
+        return VerificationEngineResult(VerificationDecision.INSUFFICIENT_DATA, None, ("public_order_code_unavailable",))
+    if extracted.public_order_code.strip().upper() != context.public_order_code.strip().upper():
+        return VerificationEngineResult(VerificationDecision.MISMATCH, None, ("public_order_code_mismatch",))
 
     if extracted.confidence < policy.minimum_ocr_confidence:
         reasons.append("ocr_confidence_below_threshold")
@@ -48,14 +53,14 @@ def verify_receipt(
         if normalized_network.value != context.network_code:
             return VerificationEngineResult(VerificationDecision.MISMATCH, financial, tuple(reasons + ["network_mismatch"]))
 
-    if policy.require_reference or context.expected_reference is not None:
-        reference_result = references_match(context.expected_reference, extracted.reference)
-        if reference_result is False:
-            return VerificationEngineResult(VerificationDecision.MISMATCH, financial, tuple(reasons + ["reference_mismatch"]))
-        if reference_result is None:
-            return VerificationEngineResult(VerificationDecision.INSUFFICIENT_DATA, financial, tuple(reasons + ["reference_required_but_unavailable"]))
-    elif extracted.reference is None:
-        reasons.append("reference_not_available")
+    if policy.require_reference or context.expected_operation_number is not None:
+        operation_match = operation_numbers_match(context.expected_operation_number, extracted.operation_number)
+        if operation_match is False:
+            return VerificationEngineResult(VerificationDecision.MISMATCH, financial, tuple(reasons + ["operation_number_mismatch"]))
+        if operation_match is None:
+            return VerificationEngineResult(VerificationDecision.INSUFFICIENT_DATA, financial, tuple(reasons + ["operation_number_required_but_unavailable"]))
+    elif extracted.operation_number is None:
+        reasons.append("operation_number_not_available")
 
     if extracted.confidence < policy.minimum_ocr_confidence:
         return VerificationEngineResult(VerificationDecision.SUSPICIOUS, financial, tuple(reasons))
