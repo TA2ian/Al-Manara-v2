@@ -22,6 +22,36 @@ create unique index if not exists receipt_submissions_processing_uq
     on receipt_submissions(internal_order_id)
     where processing_status = 'PROCESSING';
 
+create or replace function enforce_receipt_attempt_limit()
+returns trigger
+language plpgsql
+as $$
+declare
+    existing_attempts integer;
+begin
+    perform pg_advisory_xact_lock(hashtextextended(new.internal_order_id::text, 0));
+
+    select count(*)
+      into existing_attempts
+      from receipt_submissions
+     where internal_order_id = new.internal_order_id;
+
+    if existing_attempts >= 3 then
+        raise exception 'receipt attempt limit exceeded for order %', new.internal_order_id;
+    end if;
+
+    if new.attempt_number <> existing_attempts + 1 then
+        raise exception 'receipt attempt number must be sequential';
+    end if;
+
+    return new;
+end;
+$$;
+
+create trigger receipt_submissions_attempt_limit
+before insert on receipt_submissions
+for each row execute function enforce_receipt_attempt_limit();
+
 create or replace function reserve_receipt_submission(
     p_order_id uuid,
     p_idempotency_key text,
@@ -73,9 +103,7 @@ begin
      where internal_order_id = p_order_id
      for update;
     if not found then raise exception 'order not found'; end if;
-    if v_status <> 'PENDING_PAYMENT' then
-        raise exception 'order does not accept receipts in current state';
-    end if;
+    if v_status <> 'PENDING_PAYMENT' then raise exception 'order does not accept receipts in current state'; end if;
 
     if exists (
         select 1 from receipt_submissions
@@ -95,27 +123,12 @@ begin
     v_submission_id := gen_random_uuid();
 
     insert into receipt_submissions (
-        id,
-        internal_order_id,
-        source,
-        attempt_number,
-        idempotency_key,
-        telegram_file_id,
-        mime_type,
-        submitted_at,
-        linkage_status,
-        processing_status
+        id, internal_order_id, source, attempt_number, idempotency_key,
+        telegram_file_id, mime_type, submitted_at, linkage_status, processing_status
     ) values (
-        v_submission_id,
-        p_order_id,
-        'customer',
-        v_attempt,
-        btrim(p_idempotency_key),
-        btrim(p_telegram_file_id),
-        p_mime_type,
-        p_submitted_at,
-        'PENDING',
-        'PROCESSING'
+        v_submission_id, p_order_id, 'customer', v_attempt,
+        btrim(p_idempotency_key), btrim(p_telegram_file_id), p_mime_type,
+        p_submitted_at, 'PENDING', 'PROCESSING'
     );
 
     return query
