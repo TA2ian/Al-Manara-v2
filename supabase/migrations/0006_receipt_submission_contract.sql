@@ -82,17 +82,17 @@ begin
     if v_status <> 'PENDING_PAYMENT' then raise exception 'order does not accept receipts in current state'; end if;
 
     if exists (
-        select 1 from receipt_submissions
-         where internal_order_id = p_order_id
-           and processing_status = 'PROCESSING'
+        select 1 from receipt_submissions rs
+         where rs.internal_order_id = p_order_id
+           and rs.processing_status = 'PROCESSING'
     ) then
         raise exception 'receipt is already being processed';
     end if;
 
-    select coalesce(max(attempt_number), 0) + 1
+    select coalesce(max(rs.attempt_number), 0) + 1
       into v_attempt
-      from receipt_submissions
-     where internal_order_id = p_order_id;
+      from receipt_submissions rs
+     where rs.internal_order_id = p_order_id;
 
     if v_attempt > 3 then raise exception 'receipt attempt limit reached'; end if;
 
