@@ -8,7 +8,7 @@ This document is the implementation gate. No production implementation may silen
 
 **Status: CLOSED.**
 
-The financial and administrator policy decisions previously listed here have been accepted and recorded in their authoritative ADRs.
+The financial and administrator policy decisions are accepted and recorded in their authoritative ADRs.
 
 See:
 
@@ -17,19 +17,20 @@ See:
 
 ## Engineering decisions
 
-The following must be proposed and then explicitly accepted before implementation is considered architecture-locked:
+**Status: CLOSED for the initial implementation baseline.**
 
-- Python version.
-- aiogram version.
-- PostgreSQL version.
-- Migration tooling.
-- Redis/shared-state implementation.
-- Object storage implementation.
-- OCR engine and isolation strategy.
-- Worker/queue implementation.
-- Container/runtime deployment model.
-- Structured logging and monitoring stack.
-- CI tooling and quality gates.
+The following decisions are accepted and recorded:
+
+- Python 3.13.x — `ADR-007-python-runtime.md`.
+- aiogram 3.31.0, confined to Telegram presentation — `ADR-008-aiogram-runtime.md`.
+- PostgreSQL 17 with SQLAlchemy 2.x and Alembic — `ADR-009-postgresql-and-persistence.md`.
+- Redis for shared ephemeral state, rate limiting, idempotency, and coordination — `ADR-012-redis-shared-ephemeral-state.md`.
+- Private durable object storage behind a storage port; initial low-cost target Cloudflare R2 — `ADR-015-object-storage.md` and `ADR-016-initial-hosting-and-cost-boundary.md`.
+- Isolated bounded OCR/image processing — `ADR-013-receipt-processing-boundaries.md` and `ADR-017-ocr-worker-contract.md`.
+- Redis Streams consumer group for the initial receipt worker queue — `ADR-019-operational-quality-and-worker-baseline.md`.
+- Standard-library JSON logs, liveness/readiness checks, operational alerts, and GitHub Actions quality gates — `ADR-019-operational-quality-and-worker-baseline.md`.
+
+Any change to these choices requires a new ADR before implementation changes are merged.
 
 ## Already locked
 
