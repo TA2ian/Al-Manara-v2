@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - main
+      - integration/main-canonical-v2
     paths:
       - 'supabase/**'
       - 'tests/database/**'
