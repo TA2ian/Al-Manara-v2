@@ -2,20 +2,12 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 import re
-from uuid import UUID
 
+from app.domain.currency import CurrencyCode, normalize_currency
 from app.domain.receipt_ocr import OcrField, OcrFieldValue, OcrResult
 
 
 _AMOUNT_RE = re.compile(r"[^0-9,.-]")
-_CURRENCY_ALIASES = {
-    "USD": "USD",
-    "$": "USD",
-    "US DOLLAR": "USD",
-    "SYP": "NEW.SYP",
-    "NEW.SYP": "NEW.SYP",
-    "ل.س": "NEW.SYP",
-}
 
 
 def normalize_amount(raw: str) -> Decimal | None:
@@ -29,9 +21,8 @@ def normalize_amount(raw: str) -> Decimal | None:
     return amount if amount.is_finite() and amount > 0 else None
 
 
-def normalize_currency(raw: str) -> str | None:
-    normalized = " ".join(raw.strip().upper().split())
-    return _CURRENCY_ALIASES.get(normalized)
+def normalize_currency_field(raw: str) -> CurrencyCode | None:
+    return normalize_currency(raw)
 
 
 def normalize_ocr_result(result: OcrResult) -> dict[OcrField, OcrFieldValue]:
@@ -40,12 +31,14 @@ def normalize_ocr_result(result: OcrResult) -> dict[OcrField, OcrFieldValue]:
         value = field_value.value.strip()
         if field is OcrField.AMOUNT:
             amount = normalize_amount(value)
-            if amount is not None:
-                value = format(amount, "f")
+            if amount is None:
+                continue
+            value = format(amount, "f")
         elif field is OcrField.CURRENCY:
-            currency = normalize_currency(value)
-            if currency is not None:
-                value = currency
+            currency = normalize_currency_field(value)
+            if currency is None:
+                continue
+            value = currency.value
         elif field in (OcrField.REFERENCE, OcrField.NETWORK):
             value = " ".join(value.split())
         if value:
