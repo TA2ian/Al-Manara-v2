@@ -1,0 +1,32 @@
+from __future__ import annotations
+
+from typing import Protocol
+from uuid import UUID
+
+from app.domain.network import NetworkConfig
+from app.domain.payment_identity import AdminPaymentAccountSnapshot, CustomerPaymentIdentity
+from app.domain.wallet import Wallet
+
+
+class CustomerRepository(Protocol):
+    async def get_payment_identity(self, user_id: int) -> CustomerPaymentIdentity | None: ...
+
+
+class PaymentSettingsRepository(Protocol):
+    async def get_admin_payment_account(self) -> AdminPaymentAccountSnapshot | None: ...
+
+
+class WalletOrderRepository(Protocol):
+    async def get_verified_for_user(self, wallet_id: UUID, user_id: int) -> Wallet | None: ...
+
+
+class NetworkOrderRepository(Protocol):
+    async def get_enabled(self, code: str) -> NetworkConfig | None: ...
+
+
+class PublicOrderCodeGenerator(Protocol):
+    def generate(self) -> str: ...
+
+
+class OrderCreationRepository(Protocol):
+    async def create_order_atomically(self, draft) -> object: ...

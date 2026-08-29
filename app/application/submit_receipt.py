@@ -1,0 +1,61 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from uuid import UUID
+
+from app.application.receipt_ports import (
+    ReceiptAttemptRepository,
+    ReceiptClock,
+    ReceiptEscalationPort,
+    ReceiptImageInspector,
+    ReceiptVerifier,
+)
+from app.domain.receipt_attempt import ReceiptAttemptStatus, SUPPORTED_RECEIPT_MIME_TYPES
+
+
+@dataclass(frozen=True, slots=True)
+class SubmitReceiptCommand:
+    order_id: UUID
+    telegram_file_id: str
+    mime_type: str
+
+
+class SubmitReceiptService:
+    def __init__(self, attempts: ReceiptAttemptRepository, inspector: ReceiptImageInspector, verifier: ReceiptVerifier, escalation: ReceiptEscalationPort, clock: ReceiptClock) -> None:
+        self._attempts = attempts
+        self._inspector = inspector
+        self._verifier = verifier
+        self._escalation = escalation
+        self._clock = clock
+
+    async def submit(self, command: SubmitReceiptCommand):
+        if command.mime_type not in SUPPORTED_RECEIPT_MIME_TYPES:
+            raise ValueError("unsupported receipt image type; JPEG, PNG, or WEBP is required")
+        if not command.telegram_file_id.strip():
+            raise ValueError("receipt file id is required")
+
+        submitted_at = self._clock.now()
+        if submitted_at.tzinfo is None:
+            raise RuntimeError("receipt clock must return a timezone-aware datetime")
+
+        attempt = await self._attempts.reserve_next_attempt(
+            order_id=command.order_id,
+            submitted_at=submitted_at,
+            mime_type=command.mime_type,
+            telegram_file_id=command.telegram_file_id.strip(),
+        )
+
+        try:
+            await self._inspector.inspect(command.telegram_file_id.strip(), command.mime_type)
+            verification_status = await self._verifier.verify(attempt)
+            if verification_status is ReceiptAttemptStatus.VERIFIED:
+                return await self._attempts.finalize(attempt.attempt_id, ReceiptAttemptStatus.VERIFIED)
+            raise ValueError("receipt could not be verified")
+        except Exception as exc:
+            reason = str(exc).strip() or "receipt processing failed"
+            if attempt.attempt_number == 3:
+                finalized = await self._attempts.finalize(attempt.attempt_id, ReceiptAttemptStatus.ESCALATED, reason)
+                await self._escalation.escalate(command.order_id, finalized.attempt_id, reason)
+                raise
+            await self._attempts.finalize(attempt.attempt_id, ReceiptAttemptStatus.FAILED, reason)
+            raise
