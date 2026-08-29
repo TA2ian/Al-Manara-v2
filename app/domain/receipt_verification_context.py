@@ -11,6 +11,7 @@ from app.domain.receipt_verification import ABSOLUTE_TOLERANCE
 @dataclass(frozen=True, slots=True)
 class ReceiptVerificationContext:
     order_id: UUID
+    public_order_code: str
     payment_currency: CurrencyCode
     expected_payment_amount: Decimal
     exchange_rate: Decimal | None
@@ -18,10 +19,12 @@ class ReceiptVerificationContext:
     rounding_policy_version: str
     network_code: str
     wallet_address: str
-    expected_reference: str | None = None
+    expected_operation_number: str | None = None
     tolerance: Decimal = ABSOLUTE_TOLERANCE
 
     def __post_init__(self) -> None:
+        if not self.public_order_code.strip():
+            raise ValueError("public order code is required")
         if not self.expected_payment_amount.is_finite() or self.expected_payment_amount <= 0:
             raise ValueError("expected payment amount must be positive and finite")
         if self.payment_currency is CurrencyCode.NEW_SYP and (self.exchange_rate is None or not self.exchange_rate.is_finite() or self.exchange_rate <= 0):
@@ -36,7 +39,7 @@ class ReceiptVerificationContext:
             raise ValueError("network code is required")
         if not self.wallet_address.strip():
             raise ValueError("wallet address snapshot is required")
-        if self.expected_reference is not None and not self.expected_reference.strip():
-            raise ValueError("expected reference cannot be blank")
+        if self.expected_operation_number is not None and not self.expected_operation_number.strip():
+            raise ValueError("expected operation number cannot be blank")
         if not self.tolerance.is_finite() or self.tolerance < 0:
             raise ValueError("tolerance must be finite and non-negative")
