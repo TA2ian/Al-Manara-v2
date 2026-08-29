@@ -8,10 +8,19 @@ from uuid import UUID
 
 
 class OcrField(StrEnum):
+    PUBLIC_ORDER_CODE = "public_order_code"
     AMOUNT = "amount"
     CURRENCY = "currency"
+    OPERATION_NUMBER = "operation_number"
+    OPERATION_DATE = "operation_date"
+    SENDER_NAME = "sender_name"
+    SENDER_ACCOUNT = "sender_account"
+    RECIPIENT_NAME = "recipient_name"
+    RECIPIENT_ACCOUNT = "recipient_account"
     REFERENCE = "reference"
     NETWORK = "network"
+    NOTE = "note"
+    FINGERPRINT_TEXT = "fingerprint_text"
 
 
 @dataclass(frozen=True, slots=True)
