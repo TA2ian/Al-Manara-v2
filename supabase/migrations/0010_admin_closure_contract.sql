@@ -89,8 +89,8 @@ begin
         raise exception 'admin session is invalid or expired';
     end if;
 
-    select status, version into v_status, v_version
-      from orders where internal_order_id = p_order_id for update;
+    select o.status, o.version into v_status, v_version
+      from orders o where o.internal_order_id = p_order_id for update;
     if not found then raise exception 'order not found'; end if;
     if v_version <> p_expected_version then
         raise exception using errcode='P0001', message='stale order version', detail=format('expected=%s current=%s', p_expected_version, v_version);
@@ -101,12 +101,12 @@ begin
         raise exception 'order has an active fulfillment claim';
     end if;
 
-    update orders
+    update orders as o
        set status = 'CLOSED_WITHOUT_FULFILLMENT',
-           version = version + 1,
+           version = o.version + 1,
            updated_at = now()
-     where internal_order_id = p_order_id
-       and version = p_expected_version;
+     where o.internal_order_id = p_order_id
+       and o.version = p_expected_version;
 
     if not found then raise exception 'order changed concurrently'; end if;
 
@@ -123,7 +123,7 @@ begin
     insert into idempotency_keys (telegram_user_id, operation, idempotency_key, response_json)
     values (
         p_admin_telegram_user_id, 'close_order_without_fulfillment', p_idempotency_key,
-        jsonb_build_object('internal_order_id', p_order_id, 'public_order_code', (select public_order_code from orders where internal_order_id=p_order_id), 'status', 'CLOSED_WITHOUT_FULFILLMENT', 'version', p_expected_version + 1)
+        jsonb_build_object('internal_order_id', p_order_id, 'public_order_code', (select o.public_order_code from orders o where o.internal_order_id=p_order_id), 'status', 'CLOSED_WITHOUT_FULFILLMENT', 'version', p_expected_version + 1)
     );
 
     return query select o.internal_order_id, o.public_order_code, o.status, o.version, false
