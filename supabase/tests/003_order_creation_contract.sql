@@ -13,10 +13,10 @@ select ok(
 
 select ok(
     exists (
-        select 1 from pg_indexes
-        where schemaname = 'public'
-          and tablename = 'idempotency_keys'
-          and indexdef ilike '%primary%'
+        select 1
+        from pg_constraint
+        where conrelid = 'public.idempotency_keys'::regclass
+          and contype = 'p'
     ),
     'order idempotency key has a primary key'
 );
@@ -101,7 +101,7 @@ select throws_ok($$
 select throws_ok($$
     select * from create_purchase_order_atomic(
         '10000000-0000-0000-0000-000000000006', 'ORD-CONTRACT-BAD-IDENTITY', 990000001,
-        (select id from wallets where normalized_address = 'tqj7f9wr7qfj9nqk4sj2mr7vf4px6ny8z1'),
+        (select id from wallets where normalized_address = 'tqj7f9wr7qfj9nQk4sJ2mR7Vf4px6ny8z1'),
         'TRC20', 'TQJ7f9wR7QfJ9nQk4sJ2mR7Vf4pX6nY8Z1', 10, 5, 0.5, 9.5,
         'USD', null, 10, 'ROUND_HALF_UP:USD=0.01', 'Wrong Name', 'SC-CONTRACT-001',
         'USD Contract Account', 'USD-ACCOUNT-001', 'USD-QR-001', now(), now() + interval '10 minutes',
