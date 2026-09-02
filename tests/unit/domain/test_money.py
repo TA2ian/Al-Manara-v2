@@ -54,7 +54,7 @@ def test_new_syp_requires_positive_exchange_rate() -> None:
 
 
 def test_fee_cannot_reduce_net_amount_to_zero() -> None:
-    with pytest.raises(MoneyError, match="fee_percent must be in \[0, 100\)"):
+    with pytest.raises(MoneyError, match=r"fee_percent must be in \[0, 100\)"):
         OrderFinancials.calculate(
             Decimal("10"), Decimal("100"), "USD", None, POLICY
         )
