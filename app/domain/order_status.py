@@ -10,6 +10,7 @@ class OrderStatus(StrEnum):
     UNDER_REVIEW = "UNDER_REVIEW"
     APPROVED = "APPROVED"
     COMPLETED = "COMPLETED"
+    CLOSED_WITHOUT_FULFILLMENT = "CLOSED_WITHOUT_FULFILLMENT"
     REJECTED = "REJECTED"
     CANCELLED = "CANCELLED"
     EXPIRED = "EXPIRED"
@@ -36,8 +37,11 @@ _ALLOWED_TRANSITIONS: dict[OrderStatus, frozenset[OrderStatus]] = {
             OrderStatus.CANCELLED,
         }
     ),
-    OrderStatus.APPROVED: frozenset({OrderStatus.COMPLETED}),
+    OrderStatus.APPROVED: frozenset(
+        {OrderStatus.COMPLETED, OrderStatus.CLOSED_WITHOUT_FULFILLMENT}
+    ),
     OrderStatus.COMPLETED: frozenset(),
+    OrderStatus.CLOSED_WITHOUT_FULFILLMENT: frozenset(),
     OrderStatus.REJECTED: frozenset(),
     OrderStatus.CANCELLED: frozenset(),
     OrderStatus.EXPIRED: frozenset(),
