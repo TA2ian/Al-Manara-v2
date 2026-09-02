@@ -55,11 +55,11 @@ begin
     if length(v_reason) < 3 or length(v_reason) > 1000 then raise exception 'closure reason is required'; end if;
     if p_idempotency_key is null or length(btrim(p_idempotency_key)) = 0 then raise exception 'idempotency key is required'; end if;
 
-    select response_json into v_existing
-      from idempotency_keys
-     where telegram_user_id = p_admin_telegram_user_id
-       and operation = 'close_order_without_fulfillment'
-       and idempotency_key = p_idempotency_key
+    select ik.response_json into v_existing
+      from idempotency_keys ik
+     where ik.telegram_user_id = p_admin_telegram_user_id
+       and ik.operation = 'close_order_without_fulfillment'
+       and ik.idempotency_key = p_idempotency_key
      for update;
     if found then
         return query select
@@ -71,20 +71,20 @@ begin
         return;
     end if;
 
-    select actor_type into v_actor_type
-      from admin_users
-     where telegram_user_id = p_admin_telegram_user_id
-       and enabled
-       and (actor_type = 'primary' or emergency_only)
+    select au.actor_type into v_actor_type
+      from admin_users au
+     where au.telegram_user_id = p_admin_telegram_user_id
+       and au.enabled
+       and (au.actor_type = 'primary' or au.emergency_only)
      for share;
     if not found then raise exception 'admin is not enabled'; end if;
 
     if not exists (
-        select 1 from admin_sessions
-         where id = p_session_id
-           and admin_telegram_user_id = p_admin_telegram_user_id
-           and revoked_at is null
-           and expires_at > now()
+        select 1 from admin_sessions s
+         where s.id = p_session_id
+           and s.admin_telegram_user_id = p_admin_telegram_user_id
+           and s.revoked_at is null
+           and s.expires_at > now()
     ) then
         raise exception 'admin session is invalid or expired';
     end if;
@@ -97,7 +97,7 @@ begin
     end if;
     if v_status <> 'APPROVED' then raise exception 'order is not eligible for administrative closure'; end if;
 
-    if exists (select 1 from order_fulfillment_claims where internal_order_id = p_order_id) then
+    if exists (select 1 from order_fulfillment_claims fc where fc.internal_order_id = p_order_id) then
         raise exception 'order has an active fulfillment claim';
     end if;
 
