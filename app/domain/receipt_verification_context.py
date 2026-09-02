@@ -4,14 +4,14 @@ from dataclasses import dataclass
 from decimal import Decimal
 from uuid import UUID
 
-from app.domain.currency import CurrencyCode
+from app.domain.currency import CurrencyCode, normalize_currency
 from app.domain.receipt_verification import ABSOLUTE_TOLERANCE
 
 
 @dataclass(frozen=True, slots=True)
 class ReceiptVerificationContext:
     order_id: UUID
-    payment_currency: CurrencyCode
+    payment_currency: CurrencyCode | str
     expected_payment_amount: Decimal
     exchange_rate: Decimal | None
     fee_percent: Decimal
@@ -22,6 +22,11 @@ class ReceiptVerificationContext:
     tolerance: Decimal = ABSOLUTE_TOLERANCE
 
     def __post_init__(self) -> None:
+        normalized_currency = normalize_currency(str(self.payment_currency))
+        if normalized_currency is None:
+            raise ValueError("unsupported payment currency")
+        object.__setattr__(self, "payment_currency", normalized_currency)
+
         if not self.expected_payment_amount.is_finite() or self.expected_payment_amount <= 0:
             raise ValueError("expected payment amount must be positive and finite")
         if self.payment_currency is CurrencyCode.NEW_SYP and (self.exchange_rate is None or not self.exchange_rate.is_finite() or self.exchange_rate <= 0):
