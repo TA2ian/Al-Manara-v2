@@ -111,7 +111,7 @@ select throws_ok($$
 select throws_ok($$
     select * from create_purchase_order_atomic(
         '10000000-0000-0000-0000-000000000007', 'ORD-CONTRACT-BAD-ADMIN', 990000001,
-        (select id from wallets where normalized_address = 'tqj7f9wr7qfj9nq4sJ2mR7Vf4pX6nY8Z1'),
+        (select id from wallets where normalized_address = 'tqj7f9wr7qfj9nqk4sj2mr7vf4px6ny8z1'),
         'TRC20', 'TQJ7f9wR7QfJ9nQk4sJ2mR7Vf4pX6nY8Z1', 10, 5, 0.5, 9.5,
         'USD', null, 10, 'ROUND_HALF_UP:USD=0.01', 'Contract Customer', 'SC-CONTRACT-001',
         'Wrong USD Account', 'USD-ACCOUNT-001', 'USD-QR-001', now(), now() + interval '10 minutes',
