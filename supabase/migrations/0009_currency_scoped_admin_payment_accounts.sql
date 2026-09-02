@@ -6,4 +6,4 @@
 drop index if exists admin_payment_accounts_payment_method_id_key;
 
 create unique index if not exists admin_payment_accounts_method_currency_uq
-    on admin_payment_accounts(payment_method_id, account_currency);
+    on admin_payment_accounts(payment_method_id, currency);
