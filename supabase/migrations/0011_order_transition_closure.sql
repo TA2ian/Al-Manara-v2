@@ -1,7 +1,6 @@
 -- Keep the generic transition contract aligned with the domain state machine.
--- Administrative closure still uses close_order_without_fulfillment() for its
--- privileged guards; this merely allows the resulting terminal state to be
--- represented by the common transition function where explicitly requested.
+-- Administrative closure is intentionally NOT reachable here: it has mandatory
+-- session, reason, and fulfillment-claim guards and uses its dedicated function.
 
 create or replace function transition_order_if_version(
     p_order_id uuid,
@@ -42,7 +41,7 @@ begin
         (v_current_status='PAYMENT_SUBMITTED' and p_target_status='UNDER_REVIEW') or
         (v_current_status='UNDER_REVIEW' and p_target_status in ('APPROVED','REJECTED','CLARIFICATION_REQUIRED')) or
         (v_current_status='CLARIFICATION_REQUIRED' and p_target_status in ('PAYMENT_SUBMITTED','UNDER_REVIEW','CANCELLED')) or
-        (v_current_status='APPROVED' and p_target_status in ('COMPLETED','CLOSED_WITHOUT_FULFILLMENT'))
+        (v_current_status='APPROVED' and p_target_status='COMPLETED')
     ) then raise exception 'invalid order transition: % -> %', v_current_status, p_target_status; end if;
 
     v_new_version := v_current_version + 1;
