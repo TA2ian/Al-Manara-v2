@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
+from app.domain.currency import CurrencyCode
 from app.domain.network import NetworkConfig
+from app.domain.order_draft import PurchaseOrderDraft
 from app.domain.payment_identity import AdminPaymentAccountSnapshot, CustomerPaymentIdentity
 from app.domain.wallet import Wallet
 
@@ -13,7 +15,9 @@ class CustomerRepository(Protocol):
 
 
 class PaymentSettingsRepository(Protocol):
-    async def get_admin_payment_account(self) -> AdminPaymentAccountSnapshot | None: ...
+    async def get_admin_payment_account(
+        self, currency: CurrencyCode
+    ) -> AdminPaymentAccountSnapshot | None: ...
 
 
 class WalletOrderRepository(Protocol):
@@ -29,4 +33,4 @@ class PublicOrderCodeGenerator(Protocol):
 
 
 class OrderCreationRepository(Protocol):
-    async def create_order_atomically(self, draft) -> object: ...
+    async def create_order_atomically(self, draft: PurchaseOrderDraft) -> object: ...
