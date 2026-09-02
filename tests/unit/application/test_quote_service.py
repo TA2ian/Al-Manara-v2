@@ -46,6 +46,34 @@ async def test_quote_captures_rate_fee_and_expiry() -> None:
     assert quote.expires_at == issued + timedelta(minutes=10)
 
 
+@pytest.mark.asyncio
+async def test_quote_accepts_new_syp_alias_and_network_alias() -> None:
+    issued = datetime(2026, 8, 29, 8, 0, tzinfo=timezone.utc)
+    service = QuoteService(
+        FakeRates(),
+        FakeFees(),
+        FixedClock(issued),
+        timedelta(minutes=10),
+        "v1",
+    )
+
+    quote = await service.create_quote(
+        QuoteRequest("TRC-20", Decimal("100"), "ليرة سورية جديدة")
+    )
+
+    assert quote.financials.payment_currency == "NEW.SYP"
+    assert quote.financials.local_amount == Decimal("13500.00")
+
+
+@pytest.mark.asyncio
+async def test_quote_rejects_unknown_currency() -> None:
+    issued = datetime(2026, 8, 29, 8, 0, tzinfo=timezone.utc)
+    service = QuoteService(FakeRates(), FakeFees(), FixedClock(issued), timedelta(minutes=10), "v1")
+
+    with pytest.raises(ValueError, match="unsupported payment currency"):
+        await service.create_quote(QuoteRequest("BEP20", Decimal("100"), "EUR"))
+
+
 def test_quote_expiry_is_deterministic() -> None:
     issued = datetime(2026, 8, 29, 8, 0, tzinfo=timezone.utc)
     service = QuoteService(FakeRates(), FakeFees(), FixedClock(issued), timedelta(minutes=10), "v1")
