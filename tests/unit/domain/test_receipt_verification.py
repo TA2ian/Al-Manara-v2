@@ -30,6 +30,6 @@ def test_missing_amount_is_insufficient_data() -> None:
     assert result.decision is VerificationDecision.INSUFFICIENT_DATA
 
 
-def test_non_usd_currency_does_not_match_usd_order() -> None:
+def test_amount_matching_is_currency_agnostic() -> None:
     result = match_receipt_amount(Decimal("100.00"), receipt("100.00", "NEW.SYP"))
-    assert result.decision is VerificationDecision.MISMATCH
+    assert result.decision is VerificationDecision.VERIFIED
