@@ -28,5 +28,9 @@ def validate_transition_command(
         raise ValueError("idempotency_key is required")
     if command.target_status == current_status:
         return
+    # Administrative closure has mandatory session, reason, and fulfillment-
+    # claim guards and must never be reachable through the generic transition.
+    if command.target_status is OrderStatus.CLOSED_WITHOUT_FULFILLMENT:
+        raise InvalidTransitionError(current_status.value, command.target_status.value)
     if not can_transition_order(current_status, command.target_status):
         raise InvalidTransitionError(current_status.value, command.target_status.value)
