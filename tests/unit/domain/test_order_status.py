@@ -30,8 +30,9 @@ def test_transition_matrix_matches_contract() -> None:
             OrderStatus.UNDER_REVIEW,
             OrderStatus.CANCELLED,
         },
-        OrderStatus.APPROVED: {OrderStatus.COMPLETED},
+        OrderStatus.APPROVED: {OrderStatus.COMPLETED, OrderStatus.CLOSED_WITHOUT_FULFILLMENT},
         OrderStatus.COMPLETED: set(),
+        OrderStatus.CLOSED_WITHOUT_FULFILLMENT: set(),
         OrderStatus.REJECTED: set(),
         OrderStatus.CANCELLED: set(),
         OrderStatus.EXPIRED: set(),
@@ -56,6 +57,7 @@ def test_valid_transition_increments_version() -> None:
 def test_terminal_states_cannot_transition() -> None:
     for status in (
         OrderStatus.COMPLETED,
+        OrderStatus.CLOSED_WITHOUT_FULFILLMENT,
         OrderStatus.REJECTED,
         OrderStatus.CANCELLED,
         OrderStatus.EXPIRED,
@@ -82,6 +84,7 @@ def test_clarification_required_has_only_contract_transitions() -> None:
         OrderStatus.REJECTED,
         OrderStatus.EXPIRED,
         OrderStatus.COMPLETED,
+        OrderStatus.CLOSED_WITHOUT_FULFILLMENT,
     ):
         with pytest.raises(InvalidTransitionError):
             order.transition_to(target)
