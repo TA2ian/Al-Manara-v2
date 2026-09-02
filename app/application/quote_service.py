@@ -6,7 +6,9 @@ from decimal import Decimal
 
 from app.application.quote import PurchaseQuote
 from app.application.quote_ports import ExchangeRateProvider, FeePolicyProvider, QuoteClock
+from app.domain.currency import CurrencyCode, normalize_currency
 from app.domain.money import OrderFinancials
+from app.domain.network import normalize_network
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,24 +42,29 @@ class QuoteService:
         if issued_at.tzinfo is None:
             raise RuntimeError("application clock must return a timezone-aware datetime")
 
-        fee_policy = await self._fee_policies.get_current_policy(request.network_code, issued_at)
+        currency = normalize_currency(request.payment_currency)
+        if currency is None:
+            raise ValueError("unsupported payment currency")
+        network = normalize_network(request.network_code)
+        if network is None:
+            raise ValueError("unsupported network")
+
+        fee_policy = await self._fee_policies.get_current_policy(network.value, issued_at)
         if fee_policy is None:
             raise RuntimeError("current fee policy is unavailable")
 
         rate_snapshot = None
         exchange_rate = None
-        if request.payment_currency == "NEW.SYP":
-            rate_snapshot = await self._exchange_rates.get_current_rate("NEW.SYP", issued_at)
+        if currency is CurrencyCode.NEW_SYP:
+            rate_snapshot = await self._exchange_rates.get_current_rate(currency.value, issued_at)
             if rate_snapshot is None:
                 raise RuntimeError("current exchange rate is unavailable")
             exchange_rate = rate_snapshot.rate
-        elif request.payment_currency != "USD":
-            raise ValueError("unsupported payment currency")
 
         financials = OrderFinancials.calculate(
             requested_amount=request.requested_amount,
             fee_percent=fee_policy.percent,
-            payment_currency=request.payment_currency,
+            payment_currency=currency.value,
             exchange_rate=exchange_rate,
             rounding_policy_version=self._rounding_policy_version,
         )
