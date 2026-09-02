@@ -1,13 +1,25 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
 
 from app.domain.currency import CurrencyCode
 from app.domain.network import NetworkConfig
+from app.domain.order import Order
 from app.domain.order_draft import PurchaseOrderDraft
+from app.domain.order_status import OrderStatus
 from app.domain.payment_identity import AdminPaymentAccountSnapshot, CustomerPaymentIdentity
 from app.domain.wallet import Wallet
+
+
+@dataclass(frozen=True, slots=True)
+class PersistedOrderCreation:
+    internal_order_id: UUID
+    public_order_code: str
+    status: OrderStatus
+    version: int
+    replayed: bool
 
 
 class CustomerRepository(Protocol):
@@ -33,4 +45,4 @@ class PublicOrderCodeGenerator(Protocol):
 
 
 class OrderCreationRepository(Protocol):
-    async def create_order_atomically(self, draft: PurchaseOrderDraft) -> object: ...
+    async def create_order_atomically(self, draft: PurchaseOrderDraft) -> PersistedOrderCreation: ...
