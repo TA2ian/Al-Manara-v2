@@ -30,6 +30,14 @@ class ReceiptPersistenceNotFoundError(ReceiptPersistenceError):
     """Raised when PostgreSQL cannot find the requested receipt submission."""
 
 
+_PROCESSING_STATUS_MAP: dict[str, ReceiptAttemptStatus] = {
+    "PROCESSING": ReceiptAttemptStatus.PROCESSING,
+    "SUCCEEDED": ReceiptAttemptStatus.VERIFIED,
+    "FAILED": ReceiptAttemptStatus.FAILED,
+    "ESCALATED": ReceiptAttemptStatus.ESCALATED,
+}
+
+
 @dataclass(frozen=True, slots=True)
 class SupabaseReceiptAttemptRepository(ReceiptAttemptRepository):
     client: SupabaseRpcClient
@@ -111,7 +119,13 @@ class SupabaseReceiptAttemptRepository(ReceiptAttemptRepository):
         expected_status: ReceiptAttemptStatus | None = None,
     ) -> ReceiptAttempt:
         try:
-            status = ReceiptAttemptStatus(str(row["processing_status"]).lower())
+            raw_status = str(row["processing_status"]).strip().upper()
+            try:
+                status = _PROCESSING_STATUS_MAP[raw_status]
+            except KeyError as exc:
+                raise ReceiptPersistenceError(
+                    f"unknown receipt processing status: {raw_status}"
+                ) from exc
             if expected_status is not None and status is not expected_status:
                 raise ReceiptPersistenceError(
                     "receipt finalization returned an unexpected processing status"
@@ -130,6 +144,8 @@ class SupabaseReceiptAttemptRepository(ReceiptAttemptRepository):
                     else None
                 ),
             )
+        except ReceiptPersistenceError:
+            raise
         except (KeyError, TypeError, ValueError) as exc:
             raise ReceiptPersistenceError("invalid receipt persistence payload") from exc
 
