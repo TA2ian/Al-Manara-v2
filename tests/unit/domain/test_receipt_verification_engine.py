@@ -14,8 +14,8 @@ def context(currency: str = "USD", amount: str = "100.00") -> ReceiptVerificatio
         exchange_rate=None if currency == "USD" else Decimal("100.00"),
         fee_percent=Decimal("1.00"),
         rounding_policy_version="v1",
-        network_code="SHAMCASH",
-        wallet_address="wallet-address-1",
+        network_code="TRC20",
+        wallet_address="T9yD14Nj9j7xAB4dbGeiX9h8unkM4Jx7nQ",
     )
 
 
@@ -29,7 +29,7 @@ def extracted(
         Decimal(amount) if amount else None,
         currency,
         None,
-        "SHAMCASH",
+        "TRC20",
         Decimal(confidence),
     )
 
