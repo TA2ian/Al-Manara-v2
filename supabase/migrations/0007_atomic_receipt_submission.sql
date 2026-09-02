@@ -56,15 +56,15 @@ begin
         raise exception 'only the third receipt attempt may escalate';
     end if;
 
-    update receipt_submissions
+    update receipt_submissions as rs
        set processing_status = p_processing_status,
-           linkage_status = coalesce(p_linkage_status, linkage_status),
+           linkage_status = coalesce(p_linkage_status, rs.linkage_status),
            failure_reason = case
                when p_processing_status in ('FAILED', 'ESCALATED') then btrim(p_failure_reason)
                else null
            end,
            completed_at = now()
-     where receipt_submissions.id = p_submission_id;
+     where rs.id = p_submission_id;
 
     return query
     select r.id, r.internal_order_id, r.attempt_number,
