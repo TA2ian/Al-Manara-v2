@@ -45,19 +45,19 @@ begin
     ) then raise exception 'invalid order transition: % -> %', v_current_status, p_target_status; end if;
 
     v_new_version := v_current_version + 1;
-    update orders set status=p_target_status, version=v_new_version,
-        approved_at=case when p_target_status='APPROVED' then coalesce(approved_at,now()) else approved_at end,
-        completed_at=case when p_target_status='COMPLETED' then coalesce(completed_at,now()) else completed_at end,
-        cancelled_at=case when p_target_status='CANCELLED' then coalesce(cancelled_at,now()) else cancelled_at end,
+    update orders as o set status=p_target_status, version=v_new_version,
+        approved_at=case when p_target_status='APPROVED' then coalesce(o.approved_at,now()) else o.approved_at end,
+        completed_at=case when p_target_status='COMPLETED' then coalesce(o.completed_at,now()) else o.completed_at end,
+        cancelled_at=case when p_target_status='CANCELLED' then coalesce(o.cancelled_at,now()) else o.cancelled_at end,
         updated_at=now()
-     where internal_order_id=p_order_id and version=p_expected_version;
+     where o.internal_order_id=p_order_id and o.version=p_expected_version;
     if not found then raise exception 'order changed during transition'; end if;
 
     insert into audit_logs(actor_telegram_user_id,actor_type,action,target_type,target_id,old_value,new_value,metadata)
     values(p_actor_telegram_user_id,p_actor_type,'order.status_changed','order',p_order_id::text,
       jsonb_build_object('status',v_current_status,'version',p_expected_version),
       jsonb_build_object('status',p_target_status,'version',v_new_version),
-      coalesce(p_event_payload,'{}'::jsonb) || jsonb_build_object('public_order_code',(select public_order_code from orders where internal_order_id=p_order_id)));
+      coalesce(p_event_payload,'{}'::jsonb) || jsonb_build_object('public_order_code',(select o.public_order_code from orders o where o.internal_order_id=p_order_id)));
 
     return query select o.internal_order_id,o.public_order_code,o.status,o.version from orders o where o.internal_order_id=p_order_id;
 end;
