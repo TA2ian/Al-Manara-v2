@@ -57,20 +57,21 @@ def test_input_rejects_non_finite_or_non_positive_amount() -> None:
 
 @pytest.mark.asyncio
 async def test_handler_translates_valid_input_to_application_command() -> None:
+    request = make_input()
     service = FakeService(SimpleNamespace(public_order_code="AM-000001"))
     handler = TelegramOrderCreationHandler(service)
 
-    response = await handler.handle(make_input())
+    response = await handler.handle(request)
 
     assert response.ok is True
     assert response.order_code == "AM-000001"
     assert "AM-000001" in response.text
-    assert service.command.user_id == 123
-    assert service.command.wallet_id == make_input().wallet_id if False else service.command.wallet_id
-    assert service.command.network_code == "TRC20"
-    assert str(service.command.requested_amount) == "100.50"
-    assert service.command.payment_currency == "USD"
-    assert service.command.idempotency_key == "telegram:123:456"
+    assert service.command.user_id == request.user_id
+    assert service.command.wallet_id == request.wallet_id
+    assert service.command.network_code == request.network_code
+    assert service.command.requested_amount == request.requested_amount
+    assert service.command.payment_currency == request.payment_currency
+    assert service.command.idempotency_key == request.idempotency_key
 
 
 @pytest.mark.asyncio
