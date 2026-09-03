@@ -20,7 +20,7 @@ class WalletRegistration:
     def __post_init__(self) -> None:
         address = self.address.strip()
         network = self.network.strip().upper()
-        qr_address = self.qr_address.strip()
+        qr_address = normalize_qr_address(self.qr_address)
         file_id = self.qr_image_file_id.strip()
         label = self.label.strip()
 
