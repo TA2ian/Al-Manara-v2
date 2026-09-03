@@ -24,8 +24,8 @@ select ok(
 insert into users (telegram_user_id, verified_name, verified_shamcash_account, payment_identity_verified_at)
 values (990000001, 'Contract Customer', 'SC-CONTRACT-001', now());
 
-insert into wallets (user_id, network_code, address, normalized_address, status, verified_at)
-select id, 'TRC20', 'TQJ7f9wR7QfJ9nQk4sJ2mR7Vf4pX6nY8Z1', 'tqj7f9wr7qfj9nqk4sj2mr7vf4px6ny8z1', 'VERIFIED', now()
+insert into wallets (user_id, network_code, address, normalized_address, status, label, qr_image_file_id, verified_at)
+select id, 'TRC20', 'TQJ7f9wR7QfJ9nQk4sJ2mR7Vf4pX6nY8Z1', 'tqj7f9wr7qfj9nqk4sj2mr7vf4px6ny8z1', 'VERIFIED', 'Contract Wallet', 'QR-CONTRACT-001', now()
 from users where telegram_user_id = 990000001;
 
 insert into admin_payment_accounts (payment_method_id, currency, account_name, account_number, qr_image_file_id, is_active)
