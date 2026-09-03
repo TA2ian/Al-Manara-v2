@@ -1,6 +1,6 @@
 begin;
 
-select plan(8);
+select plan(12);
 
 select ok(to_regclass('public.wallets') is not null, 'wallet table exists');
 select ok(
@@ -18,8 +18,12 @@ select ok(
     'wallet QR file id is persisted'
 );
 select ok(
-    to_regprocedure('public.delete_wallet_if_allowed(uuid,uuid)') is not null,
-    'wallet deletion operation exists'
+    to_regprocedure('public.disable_wallet_if_allowed(uuid,uuid)') is not null,
+    'wallet disable operation exists'
+);
+select ok(
+    to_regclass('public.wallets_active_order_delete_guard') is null,
+    'physical deletion guard is removed from the lifecycle'
 );
 
 insert into users (id, telegram_user_id)
@@ -34,13 +38,13 @@ select throws_ok(
     $$insert into wallets (user_id, network_code, address, normalized_address, status, label, qr_image_file_id, verified_at)
       values ('00000000-0000-0000-0000-000000009901', 'BEP20', '0x1111111111111111111111111111111111111111', '0x1111111111111111111111111111111111111111', 'VERIFIED', 'Duplicate', 'QR-DUP', now())$$,
     '23505',
-    'duplicate normalized wallet address is rejected'
+    'duplicate active wallet address is rejected'
 );
 
 select throws_ok(
     $$update wallets set label='Changed' where id='00000000-0000-0000-0000-000000009902'$$,
     'verified wallets are immutable%',
-    'verified wallet fields cannot be changed'
+    'verified wallet identity fields cannot be changed'
 );
 
 insert into orders (internal_order_id, public_order_code, user_id, wallet_id, network_code, payment_method_id, status, version)
@@ -50,22 +54,45 @@ select '00000000-0000-0000-0000-000000009904', 'ORD-WALLET-9904',
        'BEP20', id, 'APPROVED', 1
 from payment_methods where code='SHAM_CASH';
 
-select throws_ok(
-    $$delete from wallets where id='00000000-0000-0000-0000-000000009902'$$,
-    'wallet is linked to an active order%',
-    'wallet linked to an active order cannot be deleted'
-);
-
 select is(
-    delete_wallet_if_allowed('00000000-0000-0000-0000-000000009903', '00000000-0000-0000-0000-000000009901'),
+    disable_wallet_if_allowed('00000000-0000-0000-0000-000000009902', '00000000-0000-0000-000000009901'),
     true,
-    'verified wallet without active orders can be deleted'
+    'verified wallet can be disabled even when referenced by an order'
 );
 
 select is(
-    delete_wallet_if_allowed('00000000-0000-0000-0000-000000009903', '00000000-0000-0000-0000-000000009901'),
+    (select status::text from wallets where id='00000000-0000-0000-000000009902'),
+    'DISABLED',
+    'wallet status becomes DISABLED'
+);
+select ok(
+    (select disabled_at is not null from wallets where id='00000000-0000-0000-000000009902'),
+    'disabling records disabled_at'
+);
+select ok(
+    (select status::text from orders where internal_order_id='00000000-0000-0000-0000-000000009904') = 'APPROVED',
+    'historical order remains valid after wallet disable'
+);
+
+select is(
+    disable_wallet_if_allowed('00000000-0000-0000-0000-000000009902', '00000000-0000-0000-0000-000000009901'),
     false,
-    'deleting an already absent wallet is idempotently false'
+    'disabled wallet cannot be disabled again'
+);
+
+select throws_ok(
+    $$update wallets set status='VERIFIED' where id='00000000-0000-0000-0000-000000009902'$$,
+    'disabled wallets are immutable and cannot be reactivated%',
+    'disabled wallet cannot be reactivated by direct update'
+);
+
+-- A disabled historical address may be registered again as a new wallet row.
+insert into wallets (id, user_id, network_code, address, normalized_address, status, label, qr_image_file_id, verified_at)
+values ('00000000-0000-0000-0000-000000009905', '00000000-0000-0000-0000-000000009901', 'BEP20', '0x1111111111111111111111111111111111111111', '0x1111111111111111111111111111111111111111', 'PENDING', 'Replacement', 'QR-9905', null);
+
+select ok(
+    exists (select 1 from wallets where id='00000000-0000-0000-0000-000000009905'),
+    'replacement wallet may reuse a disabled historical address'
 );
 
 select * from finish();
