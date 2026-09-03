@@ -81,13 +81,13 @@ security invoker
 set search_path = public
 as $$
 declare
-    v_deleted boolean;
+    v_deleted_count integer;
 begin
     delete from wallets
      where id = p_wallet_id
        and user_id = p_user_id
        and status = 'VERIFIED';
-    get diagnostics v_deleted = row_count > 0;
-    return v_deleted;
+    get diagnostics v_deleted_count = row_count;
+    return v_deleted_count > 0;
 end;
 $$;
