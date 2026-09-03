@@ -1,6 +1,6 @@
 begin;
 
-select plan(12);
+select plan(13);
 
 select ok(to_regprocedure('public.get_customer_payment_identity(bigint)') is not null, 'customer identity RPC exists');
 select ok(to_regprocedure('public.get_admin_payment_account(currency_code)') is not null, 'admin payment RPC exists');
