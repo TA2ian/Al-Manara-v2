@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Mapping, Protocol
 from uuid import UUID
 
+from app.application.wallet_ports import WalletRepository
 from app.domain.wallet import WalletStatus
 
 
@@ -28,12 +29,6 @@ class DisableWalletResult:
     message: str
 
 
-class WalletDisableRepository(Protocol):
-    async def get_for_user(self, wallet_id: UUID, user_id: int): ...
-
-    async def disable_verified_for_user(self, wallet_id: UUID, user_id: int) -> bool: ...
-
-
 class AuditLogger(Protocol):
     async def record(
         self,
@@ -48,7 +43,7 @@ class AuditLogger(Protocol):
 class DisableWalletService:
     """Application workflow for the irreversible wallet disable operation."""
 
-    def __init__(self, wallets: WalletDisableRepository, audit: AuditLogger) -> None:
+    def __init__(self, wallets: WalletRepository, audit: AuditLogger) -> None:
         self._wallets = wallets
         self._audit = audit
 
