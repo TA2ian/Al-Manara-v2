@@ -15,8 +15,8 @@ select is((select verified_name from get_customer_payment_identity(9921000001)),
 select is((select verified_shamcash_account from get_customer_payment_identity(9921000001)), 'SC-9921', 'verified ShamCash identity is returned');
 select is((select count(*)::integer from get_customer_payment_identity(9921000002)), 0, 'unverified customer identity is not returned');
 
-insert into admin_payment_accounts (payment_method_id, account_name, account_number, qr_image_file_id)
-select id, 'Admin 9921', 'ADMIN-9921', 'QR-9921'
+insert into admin_payment_accounts (payment_method_id, account_name, account_number, currency, qr_image_file_id)
+select id, 'Admin 9921', 'ADMIN-9921', 'USD', 'QR-9921'
 from payment_methods where code='SHAM_CASH';
 
 select is((select account_name from get_admin_payment_account('USD')), 'Admin 9921', 'active ShamCash account is returned');
