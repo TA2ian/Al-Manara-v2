@@ -81,12 +81,13 @@ class SupabaseWalletRepository:
     @staticmethod
     def _map_wallet(row: dict[str, Any]) -> Wallet:
         try:
+            status_value = str(row["status"]).strip().lower()
             return Wallet(
                 wallet_id=UUID(str(row["wallet_id"])),
                 user_id=int(row["telegram_user_id"]),
-                network=NetworkCode(str(row["network_code"])),
+                network=NetworkCode(str(row["network_code"]).strip().upper()),
                 address=str(row["address"]),
-                status=WalletStatus(str(row["status"])),
+                status=WalletStatus(status_value),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise WalletPersistenceError("invalid wallet persistence payload") from exc
