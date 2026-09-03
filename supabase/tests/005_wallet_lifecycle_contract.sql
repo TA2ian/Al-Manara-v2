@@ -1,6 +1,6 @@
 begin;
 
-select plan(12);
+select plan(14);
 
 select ok(to_regclass('public.wallets') is not null, 'wallet table exists');
 select ok(
@@ -22,7 +22,12 @@ select ok(
     'wallet disable operation exists'
 );
 select ok(
-    to_regclass('public.wallets_active_order_delete_guard') is null,
+    not exists (
+        select 1 from pg_trigger
+         where tgrelid='public.wallets'::regclass
+           and tgname='wallets_active_order_delete_guard'
+           and not tgisinternal
+    ),
     'physical deletion guard is removed from the lifecycle'
 );
 
@@ -55,18 +60,18 @@ select '00000000-0000-0000-0000-000000009904', 'ORD-WALLET-9904',
 from payment_methods where code='SHAM_CASH';
 
 select is(
-    disable_wallet_if_allowed('00000000-0000-0000-0000-000000009902', '00000000-0000-0000-000000009901'),
+    disable_wallet_if_allowed('00000000-0000-0000-0000-000000009902', '00000000-0000-0000-0000-000000009901'),
     true,
     'verified wallet can be disabled even when referenced by an order'
 );
 
 select is(
-    (select status::text from wallets where id='00000000-0000-0000-000000009902'),
+    (select status::text from wallets where id='00000000-0000-0000-0000-000000009902'),
     'DISABLED',
     'wallet status becomes DISABLED'
 );
 select ok(
-    (select disabled_at is not null from wallets where id='00000000-0000-0000-000000009902'),
+    (select disabled_at is not null from wallets where id='00000000-0000-0000-0000-000000009902'),
     'disabling records disabled_at'
 );
 select ok(
@@ -81,7 +86,7 @@ select is(
 );
 
 select throws_ok(
-    $$update wallets set status='VERIFIED' where id='00000000-0000-0000-0000-000000009902'$$,
+    $$update wallets set status='VERIFIED' where id='00000000-0000-0000-000000009902'$$,
     'disabled wallets are immutable and cannot be reactivated%',
     'disabled wallet cannot be reactivated by direct update'
 );
