@@ -7,9 +7,13 @@ from app.domain.wallet import Wallet
 
 
 class WalletRepository(Protocol):
+    async def get_for_user(self, wallet_id: UUID, user_id: int) -> Wallet | None: ...
+
     async def get_verified_for_user(self, wallet_id: UUID, user_id: int) -> Wallet | None: ...
 
     async def find_verified_by_address(self, address: str) -> Wallet | None: ...
+
+    async def disable_verified_for_user(self, wallet_id: UUID, user_id: int) -> bool: ...
 
 
 class NetworkConfigRepository(Protocol):
