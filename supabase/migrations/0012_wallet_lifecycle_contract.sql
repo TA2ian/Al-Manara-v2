@@ -1,6 +1,6 @@
 -- Customer wallet lifecycle contract.
--- Verified wallets are immutable. Replacement is delete + add, but deletion is
--- forbidden while the wallet is referenced by any active order.
+-- Verified wallets are immutable. They can only be transitioned to DISABLED.
+-- Physical deletion is intentionally not part of the customer wallet lifecycle.
 
 alter table wallets
     add column if not exists label text,
@@ -18,6 +18,13 @@ alter table wallets
     add constraint wallets_qr_file_id_valid
     check (qr_image_file_id is not null and length(btrim(qr_image_file_id)) > 0);
 
+-- A disabled wallet remains historical data. The same address may therefore be
+-- registered again as a new wallet after the old one is disabled.
+drop index if exists wallets_user_network_address_uq;
+create unique index wallets_user_network_address_uq
+    on wallets(user_id, network_code, normalized_address)
+    where status <> 'DISABLED';
+
 create or replace function prevent_verified_wallet_update() returns trigger
 language plpgsql
 as $$
@@ -27,13 +34,33 @@ begin
            or new.network_code is distinct from old.network_code
            or new.address is distinct from old.address
            or new.normalized_address is distinct from old.normalized_address
-           or new.status is distinct from old.status
            or new.label is distinct from old.label
            or new.qr_image_file_id is distinct from old.qr_image_file_id
            or new.verified_at is distinct from old.verified_at then
-            raise exception 'verified wallets are immutable; delete and add a replacement';
+            raise exception 'verified wallets are immutable';
+        end if;
+
+        if new.status is distinct from old.status then
+            if new.status <> 'DISABLED' or new.disabled_at is null then
+                raise exception 'verified wallets can only be disabled';
+            end if;
         end if;
     end if;
+
+    if old.status = 'DISABLED' then
+        if new.user_id is distinct from old.user_id
+           or new.network_code is distinct from old.network_code
+           or new.address is distinct from old.address
+           or new.normalized_address is distinct from old.normalized_address
+           or new.status is distinct from old.status
+           or new.label is distinct from old.label
+           or new.qr_image_file_id is distinct from old.qr_image_file_id
+           or new.verified_at is distinct from old.verified_at
+           or new.disabled_at is distinct from old.disabled_at then
+            raise exception 'disabled wallets are immutable and cannot be reactivated';
+        end if;
+    end if;
+
     return new;
 end;
 $$;
@@ -43,35 +70,7 @@ create trigger wallets_verified_immutable
 before update on wallets
 for each row execute function prevent_verified_wallet_update();
 
-create or replace function prevent_active_order_wallet_delete() returns trigger
-language plpgsql
-as $$
-begin
-    if exists (
-        select 1
-          from orders o
-         where o.wallet_id = old.id
-           and o.status in (
-               'DRAFT',
-               'PENDING_PAYMENT',
-               'PAYMENT_SUBMITTED',
-               'UNDER_REVIEW',
-               'APPROVED',
-               'CLARIFICATION_REQUIRED'
-           )
-    ) then
-        raise exception 'wallet is linked to an active order and cannot be deleted';
-    end if;
-    return old;
-end;
-$$;
-
-drop trigger if exists wallets_active_order_delete_guard on wallets;
-create trigger wallets_active_order_delete_guard
-before delete on wallets
-for each row execute function prevent_active_order_wallet_delete();
-
-create or replace function delete_wallet_if_allowed(
+create or replace function disable_wallet_if_allowed(
     p_wallet_id uuid,
     p_user_id uuid
 )
@@ -81,13 +80,17 @@ security invoker
 set search_path = public
 as $$
 declare
-    v_deleted_count integer;
+    v_disabled_count integer;
 begin
-    delete from wallets
+    update wallets
+       set status = 'DISABLED',
+           disabled_at = coalesce(disabled_at, now()),
+           updated_at = now()
      where id = p_wallet_id
        and user_id = p_user_id
        and status = 'VERIFIED';
-    get diagnostics v_deleted_count = row_count;
-    return v_deleted_count > 0;
+
+    get diagnostics v_disabled_count = row_count;
+    return v_disabled_count > 0;
 end;
 $$;
