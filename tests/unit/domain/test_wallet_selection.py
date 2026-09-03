@@ -44,6 +44,16 @@ def test_unverified_wallet_is_rejected() -> None:
         )
 
 
+def test_disabled_wallet_is_rejected() -> None:
+    with pytest.raises(ValueError, match="not verified"):
+        validate_wallet_for_order(
+            wallet(10, NetworkCode.BEP20, WalletStatus.DISABLED),
+            10,
+            get_network(NetworkCode.BEP20),
+            Decimal("10"),
+        )
+
+
 def test_network_mismatch_is_rejected() -> None:
     with pytest.raises(ValueError, match="network does not match"):
         validate_wallet_for_order(
