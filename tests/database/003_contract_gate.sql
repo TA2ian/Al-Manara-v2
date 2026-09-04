@@ -1,6 +1,6 @@
 begin;
 
-select plan(8);
+select plan(10);
 
 select ok(
   (select count(*) from pg_proc where proname = 'reserve_receipt_submission') = 1,
@@ -27,6 +27,16 @@ select ok(
 select ok(
   (select count(*) from pg_proc where proname = 'finalize_receipt_submission') = 1,
   'canonical receipt finalization RPC exists'
+);
+
+select ok(
+  position('PAYMENT_SUBMITTED' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'finalize_receipt_submission' limit 1))) > 0,
+  'successful receipt finalization advances the order to PAYMENT_SUBMITTED'
+);
+
+select ok(
+  position('UNDER_REVIEW' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'finalize_receipt_submission' limit 1))) > 0,
+  'successful receipt finalization enters the human review queue'
 );
 
 select ok(
