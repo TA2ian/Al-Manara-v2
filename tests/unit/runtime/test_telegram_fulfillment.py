@@ -55,3 +55,25 @@ async def test_invalid_request_never_calls_application() -> None:
 
     assert response.ok is False
     assert service.calls == []
+
+
+@pytest.mark.asyncio
+async def test_invalid_order_identity_never_calls_application() -> None:
+    service = FakeFulfillmentService()
+    handler = TelegramFulfillmentHandler(service)  # type: ignore[arg-type]
+
+    response = await handler.claim(TelegramFulfillmentInput(10, "primary", "not-a-uuid", 1, "claim-1"))  # type: ignore[arg-type]
+
+    assert response.ok is False
+    assert service.calls == []
+
+
+@pytest.mark.asyncio
+async def test_invalid_actor_type_never_calls_application() -> None:
+    service = FakeFulfillmentService()
+    handler = TelegramFulfillmentHandler(service)  # type: ignore[arg-type]
+
+    response = await handler.claim(TelegramFulfillmentInput(10, None, uuid4(), 1, "claim-1"))  # type: ignore[arg-type]
+
+    assert response.ok is False
+    assert service.calls == []
