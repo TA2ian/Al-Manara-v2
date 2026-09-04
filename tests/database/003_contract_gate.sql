@@ -1,6 +1,6 @@
 begin;
 
-select plan(27);
+select plan(34);
 
 select ok((select count(*) from pg_proc where proname = 'reserve_receipt_submission') = 1, 'canonical receipt reservation RPC exists');
 select ok(exists (select 1 from pg_proc p where p.proname = 'reserve_receipt_submission' and p.proargtypes::oid[] = array['uuid'::regtype,'bigint'::regtype,'text'::regtype,'text'::regtype,'text'::regtype,'timestamptz'::regtype]), 'receipt reservation RPC requires Telegram identity');
@@ -29,6 +29,14 @@ select ok((select count(*) from pg_proc where proname = 'close_order_without_ful
 select ok(to_regclass('public.admin_sessions') is not null and to_regclass('public.order_fulfillment_claims') is not null, 'administrative session and fulfillment claim tables exist');
 select ok(position('admin session is invalid or expired' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'close_order_without_fulfillment' limit 1))) > 0, 'administrative closure requires a valid session');
 select ok(position('from admin_users au' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'close_order_without_fulfillment' limit 1))) < position('select ik.response_json' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'close_order_without_fulfillment' limit 1))), 'closure authorizes the admin before idempotency replay');
+select ok((select count(*) from pg_proc where proname = 'list_admin_orders') = 1, 'authorized admin order listing RPC exists');
+select ok(position('admin_users au' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'list_admin_orders' limit 1))) > 0, 'admin order listing is database-authorized');
+select ok(position('PENDING_PAYMENT' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'list_admin_orders' limit 1))) > 0, 'admin order listing exposes pending orders through canonical status');
+select ok(position('UNDER_REVIEW' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'list_admin_orders' limit 1))) > 0, 'admin order listing exposes the human review queue');
+select ok((select count(*) from pg_proc where proname = 'create_admin_session') = 1, 'admin session creation RPC exists');
+select ok((select count(*) from pg_proc where proname = 'revoke_admin_session') = 1, 'admin session revocation RPC exists');
+select ok(position('admin_session_timeout_seconds' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'create_admin_session' limit 1))) > 0, 'admin session lifetime is settings-driven');
+select ok(position('admin.session.revoked' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'revoke_admin_session' limit 1))) > 0, 'admin session revocation is audited');
 
 select * from finish();
 rollback;
