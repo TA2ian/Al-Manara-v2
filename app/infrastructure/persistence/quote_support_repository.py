@@ -7,7 +7,7 @@ from typing import Any, Protocol
 from uuid import uuid4
 
 from app.application.quote import ExchangeRateSnapshot, FeePolicySnapshot
-from app.application.quote_ports import ExchangeRateProvider, FeePolicyProvider, QuoteClock
+from app.application.quote_ports import ExchangeRateProvider, FeePolicyProvider, QuoteClock, RoundingPolicyProvider
 
 
 class SupabaseRpcQuery(Protocol):
@@ -27,20 +27,12 @@ class SupabaseFeePolicyProvider(FeePolicyProvider):
         self._client = client
 
     async def get_current_policy(self, network_code: str, now: datetime) -> FeePolicySnapshot | None:
-        rows = await _execute_rpc(
-            self._client,
-            "get_current_fee_policy",
-            {"p_network_code": network_code.strip().upper(), "p_now": now.isoformat()},
-        )
+        rows = await _execute_rpc(self._client, "get_current_fee_policy", {"p_network_code": network_code.strip().upper(), "p_now": now.isoformat()})
         if not rows:
             return None
         try:
             row = rows[0]
-            return FeePolicySnapshot(
-                percent=_decimal(row["percent"], "percent"),
-                version=str(row["version"]),
-                effective_at=_datetime(row["effective_at"], "effective_at"),
-            )
+            return FeePolicySnapshot(percent=_decimal(row["percent"], "percent"), version=str(row["version"]), effective_at=_datetime(row["effective_at"], "effective_at"))
         except (KeyError, TypeError, ValueError) as exc:
             raise QuoteSupportPersistenceError("invalid fee policy payload") from exc
 
@@ -50,24 +42,28 @@ class SupabaseExchangeRateProvider(ExchangeRateProvider):
         self._client = client
 
     async def get_current_rate(self, currency: str, now: datetime) -> ExchangeRateSnapshot | None:
-        rows = await _execute_rpc(
-            self._client,
-            "get_current_exchange_rate",
-            {"p_currency": currency.strip().upper(), "p_now": now.isoformat()},
-        )
+        rows = await _execute_rpc(self._client, "get_current_exchange_rate", {"p_currency": currency.strip().upper(), "p_now": now.isoformat()})
         if not rows:
             return None
         try:
             row = rows[0]
-            return ExchangeRateSnapshot(
-                currency=str(row["currency"]),
-                rate=_decimal(row["rate"], "rate"),
-                captured_at=_datetime(row["captured_at"], "captured_at"),
-                source=str(row["source"]),
-                version=str(row["version"]),
-            )
+            return ExchangeRateSnapshot(currency=str(row["currency"]), rate=_decimal(row["rate"], "rate"), captured_at=_datetime(row["captured_at"], "captured_at"), source=str(row["source"]), version=str(row["version"]))
         except (KeyError, TypeError, ValueError) as exc:
             raise QuoteSupportPersistenceError("invalid exchange rate payload") from exc
+
+
+class SupabaseRoundingPolicyProvider(RoundingPolicyProvider):
+    def __init__(self, client: SupabaseRpcClient) -> None:
+        self._client = client
+
+    async def get_current_version(self) -> str:
+        rows = await _execute_rpc(self._client, "get_current_rounding_policy", {})
+        if len(rows) != 1:
+            raise QuoteSupportPersistenceError("current rounding policy payload is invalid")
+        version = rows[0].get("version")
+        if not isinstance(version, str) or not version.strip():
+            raise QuoteSupportPersistenceError("current rounding policy version is invalid")
+        return version.strip()
 
 
 class UtcQuoteClock(QuoteClock):
@@ -86,26 +82,17 @@ class UuidPublicOrderCodeGenerator:
         return f"{self._prefix}-{uuid4().hex[:12].upper()}"
 
 
-async def _execute_rpc(
-    client: SupabaseRpcClient,
-    function_name: str,
-    params: dict[str, Any],
-) -> list[dict[str, Any]]:
+async def _execute_rpc(client: SupabaseRpcClient, function_name: str, params: dict[str, Any]) -> list[dict[str, Any]]:
     try:
         response = await asyncio.to_thread(client.rpc(function_name, params).execute)
     except Exception as exc:
-        raise QuoteSupportPersistenceError(
-            f"quote-support persistence RPC failed: {function_name}"
-        ) from exc
-
+        raise QuoteSupportPersistenceError(f"quote-support persistence RPC failed: {function_name}") from exc
     error = getattr(response, "error", None)
     if error:
         raise QuoteSupportPersistenceError(_error_message(error))
     data = getattr(response, "data", None)
     if not isinstance(data, list):
-        raise QuoteSupportPersistenceError(
-            f"RPC returned invalid data: {function_name}"
-        )
+        raise QuoteSupportPersistenceError(f"RPC returned invalid data: {function_name}")
     return [dict(row) for row in data if isinstance(row, dict)]
 
 
