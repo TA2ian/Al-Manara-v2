@@ -30,6 +30,7 @@ from app.infrastructure.persistence.order_support_repositories import (
 from app.infrastructure.persistence.quote_support_repository import (
     SupabaseExchangeRateProvider,
     SupabaseFeePolicyProvider,
+    SupabaseRoundingPolicyProvider,
     UtcQuoteClock,
     UuidPublicOrderCodeGenerator,
 )
@@ -45,13 +46,6 @@ from app.runtime.telegram.wallets import TelegramWalletHandler
 
 @dataclass(frozen=True, slots=True)
 class AdminComposition:
-    """Fully wired admin application/runtime slice.
-
-    The Telegram framework and Supabase client lifecycle stay outside this module.
-    A UnitOfWork is injected because its transaction boundary is an infrastructure
-    concern and must not be fabricated by the composition root.
-    """
-
     review: TelegramAdminOrderReviewHandler
     listing: TelegramAdminOrderListingHandler
     closure: TelegramAdminOrderClosureHandler
@@ -68,16 +62,13 @@ class CustomerComposition:
 
 
 def build_admin_composition(client: Any, order_uow: UnitOfWork) -> AdminComposition:
-    """Build the complete admin runtime slice from infrastructure dependencies."""
     authorization = SupabaseAdminAuthorizationRepository(client)
     transitions = OrderTransitionService(order_uow)
     review_service = AdminOrderReviewService(transitions, authorization)
-
     listing_service = AdminOrderListingService(SupabaseAdminOrderListingRepository(client))
     closure_service = AdminOrderClosureService(SupabaseAdminOrderClosureRepository(client))
     session_service = AdminSessionService(SupabaseAdminSessionRepository(client))
     fulfillment_service = FulfillmentService(SupabaseFulfillmentRepository(client))
-
     return AdminComposition(
         review=TelegramAdminOrderReviewHandler(review_service),
         listing=TelegramAdminOrderListingHandler(listing_service),
@@ -88,7 +79,6 @@ def build_admin_composition(client: Any, order_uow: UnitOfWork) -> AdminComposit
 
 
 def build_customer_composition(client: Any) -> CustomerComposition:
-    """Build customer order and wallet management slices from real persistence adapters."""
     wallet_repository = SupabaseWalletRepository(client)
     order_service = CreatePurchaseOrderService(
         customers=SupabaseCustomerRepository(client),
@@ -99,6 +89,7 @@ def build_customer_composition(client: Any) -> CustomerComposition:
         public_codes=UuidPublicOrderCodeGenerator(),
         exchange_rates=SupabaseExchangeRateProvider(client),
         fee_policies=SupabaseFeePolicyProvider(client),
+        rounding_policies=SupabaseRoundingPolicyProvider(client),
         clock=UtcQuoteClock(),
         quote_ttl=timedelta(minutes=10),
     )
