@@ -43,23 +43,24 @@ class OrderTransitionService:
                 await self._uow.commit()
                 return result
 
-            persisted = await self._uow.orders.transition_if_version(
+            persisted = await self._uow.orders.transition_idempotent(
                 command.internal_order_id,
                 command.target_status,
                 command.expected_version,
                 actor_telegram_user_id=command.actor_id,
                 actor_type=command.actor_type,
+                idempotency_key=command.idempotency_key,
                 event_payload={"reason": command.reason} if command.reason else None,
             )
             if persisted is None:
                 raise RuntimeError("order changed concurrently; transition was not applied")
 
-            # PostgreSQL is authoritative for the resulting state/version, while
-            # this application snapshot is authoritative for the pre-state that
-            # was validated immediately before the atomic transition call.
+            # The PostgreSQL idempotent RPC is the concurrency/idempotency
+            # authority. The application snapshot supplies the validated pre-state
+            # when the persistence adapter does not expose it (legacy transition).
             result = PersistedOrderTransition(
                 order=persisted.order,
-                state_before=state_before,
+                state_before=persisted.state_before if persisted.state_before is not persisted.state_after else state_before,
                 state_after=persisted.state_after,
                 transitioned_at=persisted.transitioned_at,
             )
