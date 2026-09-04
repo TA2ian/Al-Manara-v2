@@ -1,6 +1,6 @@
 begin;
 
-select plan(26);
+select plan(27);
 
 select ok((select count(*) from pg_proc where proname = 'reserve_receipt_submission') = 1, 'canonical receipt reservation RPC exists');
 select ok(exists (select 1 from pg_proc p where p.proname = 'reserve_receipt_submission' and p.proargtypes::oid[] = array['uuid'::regtype,'bigint'::regtype,'text'::regtype,'text'::regtype,'text'::regtype,'timestamptz'::regtype]), 'receipt reservation RPC requires Telegram identity');
@@ -28,6 +28,7 @@ select ok(position('order_fulfillment_idempotency' in pg_get_functiondef((select
 select ok((select count(*) from pg_proc where proname = 'close_order_without_fulfillment') = 1, 'administrative no-fulfillment closure RPC exists');
 select ok(to_regclass('public.admin_sessions') is not null and to_regclass('public.order_fulfillment_claims') is not null, 'administrative session and fulfillment claim tables exist');
 select ok(position('admin session is invalid or expired' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'close_order_without_fulfillment' limit 1))) > 0, 'administrative closure requires a valid session');
+select ok(position('Authorize before' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'close_order_without_fulfillment' limit 1))) = 0, 'administrative closure authorization remains database-enforced');
 
 select * from finish();
 rollback;
