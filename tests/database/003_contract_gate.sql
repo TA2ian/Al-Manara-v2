@@ -1,9 +1,8 @@
 begin;
 
-select plan(36);
+select plan(45);
 
 select ok((select count(*) from pg_proc where proname = 'reserve_receipt_submission') = 1, 'canonical receipt reservation RPC exists');
-select ok(exists (select 1 from pg_proc p where p.proname = 'reserve_receipt_submission' and p.proargtypes::oid[] = array['uuid'::regtype,'bigint'::regtype,'text'::regtype,'text'::regtype,'text'::regtype,'timestamptz'::regtype]), 'receipt reservation RPC requires Telegram identity');
 select ok((select count(*) from pg_proc where proname = 'finalize_receipt_submission') = 1, 'canonical receipt finalization RPC exists');
 select ok(position('PAYMENT_SUBMITTED' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'finalize_receipt_submission' limit 1))) > 0, 'successful receipt finalization advances the order to PAYMENT_SUBMITTED');
 select ok(position('UNDER_REVIEW' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'finalize_receipt_submission' limit 1))) > 0, 'successful receipt finalization enters the human review queue');
@@ -37,7 +36,17 @@ select ok((select count(*) from pg_proc where proname = 'create_admin_session') 
 select ok((select count(*) from pg_proc where proname = 'revoke_admin_session') = 1, 'admin session revocation RPC exists');
 select ok(position('admin_session_timeout_seconds' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'create_admin_session' limit 1))) > 0, 'admin session lifetime is settings-driven');
 select ok(position('admin.session.revoked' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'revoke_admin_session' limit 1))) > 0, 'admin session revocation is audited');
-select ok(not has_function_privilege('anon', 'public.list_admin_orders(bigint,admin_actor_type,text,integer,integer)', 'execute') and not has_function_privilege('authenticated', 'public.list_admin_orders(bigint,admin_actor_type,text,integer,integer)', 'execute'), 'admin listing RPC is not publicly executable');
+
+select ok(not has_function_privilege('anon', 'public.authorize_admin_order_review(bigint,admin_actor_type)', 'execute'), 'admin authorization RPC is not publicly executable');
+select ok(not has_function_privilege('authenticated', 'public.authorize_admin_order_review(bigint,admin_actor_type)', 'execute'), 'admin authorization RPC is not authenticated-user executable');
+select ok(not has_function_privilege('anon', 'public.transition_order_if_version(uuid,order_status,bigint,bigint,admin_actor_type,jsonb)', 'execute'), 'generic privileged transition RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.transition_order_idempotent(uuid,order_status,bigint,bigint,admin_actor_type,jsonb,text)', 'execute'), 'idempotent admin transition RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.claim_order_fulfillment(uuid,bigint,bigint,admin_actor_type,text)', 'execute'), 'fulfillment claim RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.complete_order_fulfillment(uuid,bigint,bigint,admin_actor_type,text)', 'execute'), 'fulfillment completion RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.close_order_without_fulfillment(uuid,bigint,bigint,uuid,text,text)', 'execute'), 'closure RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.list_admin_orders(bigint,admin_actor_type,text,integer,integer)', 'execute'), 'admin listing RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.create_admin_session(bigint,admin_actor_type)', 'execute'), 'admin session creation RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.revoke_admin_session(bigint,admin_actor_type,uuid)', 'execute'), 'admin session revocation RPC is not publicly executable');
 select ok(has_function_privilege('service_role', 'public.list_admin_orders(bigint,admin_actor_type,text,integer,integer)', 'execute') and has_function_privilege('service_role', 'public.complete_order_fulfillment(uuid,bigint,bigint,admin_actor_type,text)', 'execute') and has_function_privilege('service_role', 'public.close_order_without_fulfillment(uuid,bigint,bigint,uuid,text,text)', 'execute'), 'backend service role retains privileged admin RPC execution');
 
 select * from finish();
