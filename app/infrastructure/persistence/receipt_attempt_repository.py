@@ -45,6 +45,7 @@ class SupabaseReceiptAttemptRepository(ReceiptAttemptRepository):
     async def reserve_next_attempt(
         self,
         order_id: UUID,
+        telegram_user_id: int,
         idempotency_key: str,
         submitted_at: datetime,
         mime_type: str,
@@ -52,6 +53,7 @@ class SupabaseReceiptAttemptRepository(ReceiptAttemptRepository):
     ) -> ReceiptReservation:
         params = {
             "p_order_id": str(order_id),
+            "p_telegram_user_id": telegram_user_id,
             "p_idempotency_key": idempotency_key.strip(),
             "p_telegram_file_id": telegram_file_id.strip(),
             "p_mime_type": mime_type,
@@ -201,6 +203,8 @@ class SupabaseReceiptAttemptRepository(ReceiptAttemptRepository):
         if any(
             marker in normalized
             for marker in (
+                "order does not belong to telegram user",
+                "user is disabled",
                 "order does not accept receipts",
                 "receipt is already being processed",
                 "receipt attempt limit reached",
@@ -212,7 +216,7 @@ class SupabaseReceiptAttemptRepository(ReceiptAttemptRepository):
             raise ReceiptPersistenceConflictError(
                 f"{function_name} rejected the receipt operation: {message}"
             )
-        if any(marker in normalized for marker in ("order not found", "receipt submission not found")):
+        if any(marker in normalized for marker in ("order not found", "receipt submission not found", "telegram user not found")):
             raise ReceiptPersistenceNotFoundError(
                 f"{function_name} target was not found: {message}"
             )
