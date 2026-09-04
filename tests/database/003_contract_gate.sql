@@ -1,6 +1,6 @@
 begin;
 
-select plan(14);
+select plan(15);
 
 select ok(
   (select count(*) from pg_proc where proname = 'reserve_receipt_submission') = 1,
@@ -77,6 +77,11 @@ select ok(
 select ok(
   (select count(*) from pg_proc where proname = 'transition_order_idempotent') = 1,
   'atomic idempotent admin transition RPC exists'
+);
+
+select ok(
+  position('on conflict (idempotency_key) do nothing' in lower(pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'transition_order_idempotent' limit 1)))) > 0,
+  'atomic transition reserves idempotency keys safely under concurrency'
 );
 
 select ok(
