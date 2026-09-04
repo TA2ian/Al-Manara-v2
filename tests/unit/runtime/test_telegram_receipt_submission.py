@@ -37,12 +37,13 @@ def data(**overrides):
 
 
 @pytest.mark.asyncio
-async def test_submit_accepts_valid_receipt():
+async def test_submit_accepts_valid_receipt_and_forwards_identity():
     service = Submission()
     response = await TelegramReceiptHandler(service).submit(data())
     assert response.ok is True
     assert response.text == ReceiptMessages.ACCEPTED
     assert service.calls[0].order_id == ORDER_ID
+    assert service.calls[0].telegram_user_id == 7
 
 
 @pytest.mark.asyncio
