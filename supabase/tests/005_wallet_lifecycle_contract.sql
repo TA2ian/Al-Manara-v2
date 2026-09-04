@@ -16,7 +16,7 @@ values
 ('00000000-0000-0000-0000-000000009902', '00000000-0000-0000-0000-000000009901', 'BEP20', '0x1111111111111111111111111111111111111111', '0x1111111111111111111111111111111111111111', 'VERIFIED', 'Primary', 'QR-9902', now()),
 ('00000000-0000-0000-0000-000000009903', '00000000-0000-0000-0000-000000009901', 'TRC20', 'T11111111111111111111111111111111', 't11111111111111111111111111111111', 'VERIFIED', 'Secondary', 'QR-9903', now());
 
-select throws_ok($$insert into wallets (user_id, network_code, address, normalized_address, status, label, qr_image_file_id, verified_at) values ('00000000-0000-0000-0000-000000009901', 'BEP20', '0x1111111111111111111111111111111111111111', '0x1111111111111111111111111111111111111111', 'VERIFIED', 'Duplicate', 'QR-DUP', now())$$, '23505', 'duplicate key value violates unique constraint "wallets_user_network_address_uq"', 'duplicate active wallet address is rejected');
+select throws_ok($$insert into wallets (user_id, network_code, address, normalized_address, status, label, qr_image_file_id, verified_at) values ('00000000-0000-0000-0000-000000009901', 'BEP20', '0x1111111111111111111111111111111111111111', '0x1111111111111111111111111111111111111111', 'VERIFIED', 'Duplicate', 'QR-DUP', now())$$, '23505', 'duplicate key value violates unique constraint "wallets_user_network_address_active_uq"', 'duplicate active wallet address is rejected');
 select throws_ok($$update wallets set label='Changed' where id='00000000-0000-0000-0000-000000009902'$$, 'P0001', 'verified wallets are immutable', 'verified wallet identity fields cannot be changed');
 
 insert into orders (internal_order_id, public_order_code, user_id, wallet_id, network_code, payment_method_id, status, version)
