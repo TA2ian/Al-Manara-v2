@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any, Protocol
+from uuid import uuid4
 
 from app.application.quote import ExchangeRateSnapshot, FeePolicySnapshot
-from app.application.quote_ports import ExchangeRateProvider, FeePolicyProvider
+from app.application.quote_ports import ExchangeRateProvider, FeePolicyProvider, QuoteClock
 
 
 class SupabaseRpcQuery(Protocol):
@@ -35,13 +36,10 @@ class SupabaseFeePolicyProvider(FeePolicyProvider):
             return None
         try:
             row = rows[0]
-            percent = _decimal(row["percent"], "percent")
-            version = str(row["version"])
-            effective_at = _datetime(row["effective_at"], "effective_at")
             return FeePolicySnapshot(
-                percent=percent,
-                version=version,
-                effective_at=effective_at,
+                percent=_decimal(row["percent"], "percent"),
+                version=str(row["version"]),
+                effective_at=_datetime(row["effective_at"], "effective_at"),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise QuoteSupportPersistenceError("invalid fee policy payload") from exc
@@ -70,6 +68,22 @@ class SupabaseExchangeRateProvider(ExchangeRateProvider):
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise QuoteSupportPersistenceError("invalid exchange rate payload") from exc
+
+
+class UtcQuoteClock(QuoteClock):
+    def now(self) -> datetime:
+        return datetime.now(timezone.utc)
+
+
+class UuidPublicOrderCodeGenerator:
+    def __init__(self, prefix: str = "ORD") -> None:
+        normalized = prefix.strip().upper()
+        if not normalized or len(normalized) > 12:
+            raise ValueError("order code prefix must contain 1-12 characters")
+        self._prefix = normalized
+
+    def generate(self) -> str:
+        return f"{self._prefix}-{uuid4().hex[:12].upper()}"
 
 
 async def _execute_rpc(
