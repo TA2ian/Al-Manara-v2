@@ -1,9 +1,9 @@
-from uuid import uuid4
 from datetime import datetime, timezone
+from uuid import uuid4
 
 import pytest
 
-from app.application.admin_order_review import AdminOrderReviewCommand, AdminOrderReviewService
+from app.application.admin_order_review import AdminOrderReviewService, AdminReviewOrderCommand
 from app.application.ports import PersistedOrderTransition
 from app.domain.order import Order
 from app.domain.order_status import OrderStatus
@@ -16,10 +16,11 @@ class FakeTransitions:
 
     async def transition_order(self, command):
         self.commands.append(command)
+        state_before = self.order.status
         updated = self.order.transition_to(command.target_status)
         result = PersistedOrderTransition(
             order=updated,
-            state_before=self.order.status,
+            state_before=state_before,
             state_after=updated.status,
             transitioned_at=datetime.now(timezone.utc),
         )
@@ -34,7 +35,7 @@ async def test_admin_approval_targets_approved_state() -> None:
     service = AdminOrderReviewService(transitions)
 
     result = await service.review(
-        AdminOrderReviewCommand(
+        AdminReviewOrderCommand(
             internal_order_id=order.internal_order_id,
             actor_telegram_user_id=1001,
             actor_type="primary",
@@ -56,7 +57,7 @@ async def test_rejection_requires_a_reason() -> None:
 
     with pytest.raises(ValueError, match="review reason"):
         await service.review(
-            AdminOrderReviewCommand(
+            AdminReviewOrderCommand(
                 internal_order_id=order.internal_order_id,
                 actor_telegram_user_id=1001,
                 actor_type="primary",
@@ -78,7 +79,7 @@ async def test_invalid_actor_type_is_rejected_before_transition() -> None:
 
     with pytest.raises(ValueError, match="admin actor type"):
         await service.review(
-            AdminOrderReviewCommand(
+            AdminReviewOrderCommand(
                 internal_order_id=order.internal_order_id,
                 actor_telegram_user_id=1001,
                 actor_type="customer",
