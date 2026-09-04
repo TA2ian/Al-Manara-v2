@@ -42,6 +42,7 @@ declare
     v_new_version bigint;
     v_public_order_code text;
     v_transitioned_at timestamptz;
+    v_registered_actor_type admin_actor_type;
 begin
     if p_expected_version <= 0 then
         raise exception 'expected version must be positive';
@@ -53,8 +54,6 @@ begin
         raise exception 'idempotency key is required';
     end if;
 
-    -- Serialize identical keys before touching the order. A replay returns the
-    -- exact persisted result and cannot execute the transition twice.
     select oti.result
       into v_existing
       from order_transition_idempotency oti
@@ -68,7 +67,6 @@ begin
            or (v_existing->>'actor_type')::admin_actor_type <> p_actor_type then
             raise exception 'idempotency key belongs to another transition';
         end if;
-
         return query
         select
             (v_existing->>'internal_order_id')::uuid,
@@ -81,7 +79,7 @@ begin
     end if;
 
     select au.actor_type
-      into v_current_status
+      into v_registered_actor_type
       from admin_users au
      where au.telegram_user_id = p_actor_telegram_user_id
        and au.enabled
@@ -91,7 +89,7 @@ begin
     if not found then
         raise exception 'admin is not enabled';
     end if;
-    if v_current_status::text <> p_actor_type::text then
+    if v_registered_actor_type <> p_actor_type then
         raise exception 'admin actor type mismatch';
     end if;
 
