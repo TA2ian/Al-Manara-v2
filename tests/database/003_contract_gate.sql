@@ -1,6 +1,6 @@
 begin;
 
-select plan(21);
+select plan(23);
 
 select ok(
   (select count(*) from pg_proc where proname = 'reserve_receipt_submission') = 1,
@@ -65,6 +65,11 @@ select ok(
 );
 
 select ok(
+  position("v_current_status = 'APPROVED' and p_target_status = 'COMPLETED'" in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'transition_order_if_version' limit 1))) = 0,
+  'generic order transition cannot complete approved orders'
+);
+
+select ok(
   (select count(*) from pg_proc where proname = 'get_order_for_transition') = 1,
   'order transition read RPC exists'
 );
@@ -117,6 +122,11 @@ select ok(
 select ok(
   to_regclass('public.order_fulfillment_idempotency') is not null,
   'fulfillment idempotency table exists'
+);
+
+select ok(
+  to_regclass('public.orders_fulfillment_completion_guard') is not null,
+  'database completion guard trigger exists'
 );
 
 select * from finish();
