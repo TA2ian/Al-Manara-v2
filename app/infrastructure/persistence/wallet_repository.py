@@ -39,6 +39,13 @@ class SupabaseWalletRepository:
             return None
         return wallet
 
+    async def list_verified_for_user(self, user_id: int) -> tuple[Wallet, ...]:
+        rows = await self._rpc(
+            "list_verified_wallets_for_telegram_user",
+            {"p_telegram_user_id": user_id},
+        )
+        return tuple(self._map_wallet(row) for row in rows)
+
     async def find_verified_by_address(self, address: str) -> Wallet | None:
         rows = await self._rpc(
             "find_verified_wallet_by_address",
