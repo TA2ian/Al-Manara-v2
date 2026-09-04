@@ -1,6 +1,6 @@
 begin;
 
-select plan(6);
+select plan(8);
 
 select ok(
   (select count(*) from pg_proc where proname = 'reserve_receipt_submission') = 1,
@@ -42,6 +42,16 @@ select ok(
 select ok(
   (select count(*) from pg_proc where proname = 'disable_wallet_for_telegram_user') = 1,
   'wallet disable RPC exists'
+);
+
+select ok(
+  (select count(*) from pg_proc where proname = 'transition_order_if_version') = 1,
+  'canonical order transition RPC exists'
+);
+
+select ok(
+  position('from admin_users au' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'transition_order_if_version' limit 1))) > 0,
+  'order transition RPC verifies supplied admin actors against admin_users'
 );
 
 select * from finish();
