@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.composition_root import AdminComposition, build_admin_composition
+from app.composition_root import (
+    AdminComposition,
+    CustomerComposition,
+    build_admin_composition,
+    build_customer_composition,
+)
 
 
 class DummyClient:
@@ -38,7 +43,16 @@ def test_build_admin_composition_wires_all_admin_handlers() -> None:
     assert composition.fulfillment.__class__.__name__ == "TelegramFulfillmentHandler"
 
 
+def test_build_customer_composition_wires_order_creation() -> None:
+    composition = build_customer_composition(DummyClient())
+
+    assert isinstance(composition, CustomerComposition)
+    assert composition.order_creation.__class__.__name__ == "TelegramOrderCreationHandler"
+
+
 def test_composition_does_not_execute_infrastructure_during_build() -> None:
     # A client that raises on every RPC proves construction is pure dependency wiring.
-    composition = build_admin_composition(DummyClient(), DummyUnitOfWork())
-    assert composition.review is not None
+    admin = build_admin_composition(DummyClient(), DummyUnitOfWork())
+    customer = build_customer_composition(DummyClient())
+    assert admin.review is not None
+    assert customer.order_creation is not None
