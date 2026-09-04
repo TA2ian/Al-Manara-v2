@@ -43,11 +43,19 @@ class TelegramFulfillmentHandler:
         return await self._run(request, operation="complete")
 
     async def _run(self, request: TelegramFulfillmentInput, operation: str) -> TelegramFulfillmentResponse:
-        if request.admin_user_id <= 0 or request.expected_version < 1:
+        if (
+            not isinstance(request.admin_user_id, int)
+            or request.admin_user_id <= 0
+            or not isinstance(request.expected_version, int)
+            or request.expected_version < 1
+            or not isinstance(request.order_id, UUID)
+            or not isinstance(request.actor_type, str)
+            or not isinstance(request.idempotency_key, str)
+        ):
             return TelegramFulfillmentResponse(False, None, None, False, "invalid fulfillment request")
-        if not request.idempotency_key.strip() or len(request.idempotency_key.strip()) > 128:
-            return TelegramFulfillmentResponse(False, None, None, False, "invalid fulfillment request")
-        if request.actor_type.strip().lower() not in {"primary", "backup"}:
+        actor_type = request.actor_type.strip().lower()
+        idempotency_key = request.idempotency_key.strip()
+        if actor_type not in {"primary", "backup"} or not 1 <= len(idempotency_key) <= 128:
             return TelegramFulfillmentResponse(False, None, None, False, "invalid fulfillment request")
         try:
             method = self._service.claim if operation == "claim" else self._service.complete
@@ -55,8 +63,8 @@ class TelegramFulfillmentHandler:
                 internal_order_id=request.order_id,
                 expected_version=request.expected_version,
                 admin_telegram_user_id=request.admin_user_id,
-                actor_type=request.actor_type,
-                idempotency_key=request.idempotency_key,
+                actor_type=actor_type,
+                idempotency_key=idempotency_key,
             )
         except ValueError as exc:
             return TelegramFulfillmentResponse(False, None, None, False, str(exc))
