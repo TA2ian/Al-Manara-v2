@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol
 from uuid import UUID
 
 from app.application.order_service import OrderTransitionService
@@ -8,10 +9,13 @@ from app.application.ports import PersistedOrderTransition
 from app.domain.order_status import OrderStatus
 from app.domain.order_transition import OrderTransitionCommand
 
-
 MIN_REASON_LENGTH = 5
 MAX_REASON_LENGTH = 1000
 ADMIN_ACTOR_TYPES = frozenset({"primary", "backup"})
+
+
+class AdminAuthorizationPort(Protocol):
+    async def authorize(self, telegram_user_id: int, actor_type: str) -> bool: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,17 +32,22 @@ class AdminReviewOrderCommand:
 class AdminOrderReviewService:
     """Application boundary for human admin review of a submitted payment."""
 
-    def __init__(self, transitions: OrderTransitionService) -> None:
+    def __init__(self, transitions: OrderTransitionService, authorization: AdminAuthorizationPort) -> None:
         self._transitions = transitions
+        self._authorization = authorization
 
     async def review(self, command: AdminReviewOrderCommand) -> PersistedOrderTransition:
         if command.actor_telegram_user_id <= 0:
             raise ValueError("admin telegram user id must be positive")
+
         actor_type = command.actor_type.strip().lower()
         if actor_type not in ADMIN_ACTOR_TYPES:
             raise ValueError("unsupported admin actor type")
         if command.expected_version < 1:
             raise ValueError("expected version must be positive")
+
+        if not await self._authorization.authorize(command.actor_telegram_user_id, actor_type):
+            raise PermissionError("admin is not authorized for order review")
 
         action = command.action.strip().lower()
         targets = {
@@ -59,7 +68,8 @@ class AdminOrderReviewService:
         else:
             reason = None
 
-        if not command.idempotency_key.strip():
+        idempotency_key = command.idempotency_key.strip()
+        if not idempotency_key:
             raise ValueError("idempotency key is required")
 
         transition = OrderTransitionCommand(
@@ -69,6 +79,6 @@ class AdminOrderReviewService:
             actor_type=actor_type,
             reason=reason,
             expected_version=command.expected_version,
-            idempotency_key=command.idempotency_key.strip(),
+            idempotency_key=idempotency_key,
         )
         return await self._transitions.transition_order(transition)
