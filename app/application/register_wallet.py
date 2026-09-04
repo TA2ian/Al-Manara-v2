@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from uuid import UUID
 
 from app.application.wallet_ports import WalletRepository
 from app.domain.wallet_registration import WalletRegistration
@@ -18,7 +19,7 @@ class RegisterWalletCommand:
 
 @dataclass(frozen=True, slots=True)
 class RegisterWalletResult:
-    wallet_id: object
+    wallet_id: UUID
     status: str
 
 
