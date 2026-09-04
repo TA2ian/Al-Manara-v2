@@ -23,7 +23,7 @@ from app.infrastructure.persistence.admin_session_repository import SupabaseAdmi
 from app.infrastructure.persistence.fulfillment_repository import SupabaseFulfillmentRepository
 from app.runtime.telegram.admin_order_closure import TelegramAdminOrderClosureHandler
 from app.runtime.telegram.admin_order_listing import TelegramAdminOrderListingHandler
-from app.runtime.telegram.admin_order_review import TelegramAdminReviewHandler
+from app.runtime.telegram.admin_order_review import TelegramAdminOrderReviewHandler
 from app.runtime.telegram.admin_session import TelegramAdminSessionHandler
 from app.runtime.telegram.fulfillment import TelegramFulfillmentHandler
 
@@ -37,7 +37,7 @@ class AdminComposition:
     concern and must not be fabricated by the composition root.
     """
 
-    review: TelegramAdminReviewHandler
+    review: TelegramAdminOrderReviewHandler
     listing: TelegramAdminOrderListingHandler
     closure: TelegramAdminOrderClosureHandler
     session: TelegramAdminSessionHandler
@@ -56,7 +56,7 @@ def build_admin_composition(client: Any, order_uow: UnitOfWork) -> AdminComposit
     fulfillment_service = FulfillmentService(SupabaseFulfillmentRepository(client))
 
     return AdminComposition(
-        review=TelegramAdminReviewHandler(review_service),
+        review=TelegramAdminOrderReviewHandler(review_service),
         listing=TelegramAdminOrderListingHandler(listing_service),
         closure=TelegramAdminOrderClosureHandler(closure_service),
         session=TelegramAdminSessionHandler(session_service),
