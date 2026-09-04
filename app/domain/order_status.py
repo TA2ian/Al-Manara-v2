@@ -24,22 +24,14 @@ _ALLOWED_TRANSITIONS: dict[OrderStatus, frozenset[OrderStatus]] = {
     ),
     OrderStatus.PAYMENT_SUBMITTED: frozenset({OrderStatus.UNDER_REVIEW}),
     OrderStatus.UNDER_REVIEW: frozenset(
-        {
-            OrderStatus.APPROVED,
-            OrderStatus.REJECTED,
-            OrderStatus.CLARIFICATION_REQUIRED,
-        }
+        {OrderStatus.APPROVED, OrderStatus.REJECTED, OrderStatus.CLARIFICATION_REQUIRED}
     ),
     OrderStatus.CLARIFICATION_REQUIRED: frozenset(
-        {
-            OrderStatus.PAYMENT_SUBMITTED,
-            OrderStatus.UNDER_REVIEW,
-            OrderStatus.CANCELLED,
-        }
+        {OrderStatus.PAYMENT_SUBMITTED, OrderStatus.UNDER_REVIEW, OrderStatus.CANCELLED}
     ),
-    OrderStatus.APPROVED: frozenset(
-        {OrderStatus.COMPLETED, OrderStatus.CLOSED_WITHOUT_FULFILLMENT}
-    ),
+    # COMPLETED is deliberately excluded from the generic state machine.
+    # It is reached only through the atomic fulfillment completion operation.
+    OrderStatus.APPROVED: frozenset({OrderStatus.CLOSED_WITHOUT_FULFILLMENT}),
     OrderStatus.COMPLETED: frozenset(),
     OrderStatus.CLOSED_WITHOUT_FULFILLMENT: frozenset(),
     OrderStatus.REJECTED: frozenset(),
