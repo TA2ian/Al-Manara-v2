@@ -54,30 +54,8 @@ begin
         raise exception 'idempotency key is required';
     end if;
 
-    select oti.result
-      into v_existing
-      from order_transition_idempotency oti
-     where oti.idempotency_key = btrim(p_idempotency_key)
-     for update;
-
-    if found then
-        if (v_existing->>'internal_order_id')::uuid <> p_order_id
-           or (v_existing->>'target_status')::order_status <> p_target_status
-           or (v_existing->>'actor_telegram_user_id')::bigint <> p_actor_telegram_user_id
-           or (v_existing->>'actor_type')::admin_actor_type <> p_actor_type then
-            raise exception 'idempotency key belongs to another transition';
-        end if;
-        return query
-        select
-            (v_existing->>'internal_order_id')::uuid,
-            v_existing->>'public_order_code',
-            (v_existing->>'status')::order_status,
-            (v_existing->>'version')::bigint,
-            (v_existing->>'state_before')::order_status,
-            (v_existing->>'transitioned_at')::timestamptz;
-        return;
-    end if;
-
+    -- Authorization happens before reserving the idempotency key so an
+    -- unauthorized caller cannot squat a key that a legitimate admin needs.
     select au.actor_type
       into v_registered_actor_type
       from admin_users au
@@ -93,6 +71,48 @@ begin
         raise exception 'admin actor type mismatch';
     end if;
 
+    -- Reserve the key atomically. Concurrent first callers serialize on the
+    -- unique index; the losing caller then reads the committed final result.
+    insert into order_transition_idempotency (
+        idempotency_key, internal_order_id, target_status, expected_version,
+        actor_telegram_user_id, actor_type, result
+    ) values (
+        btrim(p_idempotency_key), p_order_id, p_target_status, p_expected_version,
+        p_actor_telegram_user_id, p_actor_type,
+        jsonb_build_object('finalized', false)
+    ) on conflict (idempotency_key) do nothing;
+
+    select oti.result
+      into v_existing
+      from order_transition_idempotency oti
+     where oti.idempotency_key = btrim(p_idempotency_key)
+     for update;
+
+    if not found then
+        raise exception 'idempotency reservation disappeared';
+    end if;
+
+    if coalesce((v_existing->>'finalized')::boolean, true) then
+        if (v_existing->>'internal_order_id')::uuid <> p_order_id
+           or (v_existing->>'target_status')::order_status <> p_target_status
+           or (v_existing->>'expected_version')::bigint <> p_expected_version
+           or (v_existing->>'actor_telegram_user_id')::bigint <> p_actor_telegram_user_id
+           or (v_existing->>'actor_type')::admin_actor_type <> p_actor_type then
+            raise exception 'idempotency key belongs to another transition';
+        end if;
+        return query
+        select
+            (v_existing->>'internal_order_id')::uuid,
+            v_existing->>'public_order_code',
+            (v_existing->>'status')::order_status,
+            (v_existing->>'version')::bigint,
+            (v_existing->>'state_before')::order_status,
+            (v_existing->>'transitioned_at')::timestamptz;
+        return;
+    end if;
+
+    -- The row with finalized=false is our own reservation. Lock and transition
+    -- the order in this same transaction.
     select o.status, o.version, o.public_order_code
       into v_current_status, v_current_version, v_public_order_code
       from orders o
@@ -139,24 +159,21 @@ begin
         coalesce(p_event_payload, '{}'::jsonb) || jsonb_build_object('public_order_code', v_public_order_code)
     );
 
-    insert into order_transition_idempotency (
-        idempotency_key, internal_order_id, target_status, expected_version,
-        actor_telegram_user_id, actor_type, result
-    ) values (
-        btrim(p_idempotency_key), p_order_id, p_target_status, p_expected_version,
-        p_actor_telegram_user_id, p_actor_type,
-        jsonb_build_object(
-            'internal_order_id', p_order_id,
-            'public_order_code', v_public_order_code,
-            'status', p_target_status,
-            'version', v_new_version,
-            'state_before', v_current_status,
-            'target_status', p_target_status,
-            'actor_telegram_user_id', p_actor_telegram_user_id,
-            'actor_type', p_actor_type,
-            'transitioned_at', v_transitioned_at
-        )
-    );
+    update order_transition_idempotency
+       set result = jsonb_build_object(
+           'finalized', true,
+           'internal_order_id', p_order_id,
+           'public_order_code', v_public_order_code,
+           'status', p_target_status,
+           'version', v_new_version,
+           'state_before', v_current_status,
+           'target_status', p_target_status,
+           'expected_version', p_expected_version,
+           'actor_telegram_user_id', p_actor_telegram_user_id,
+           'actor_type', p_actor_type,
+           'transitioned_at', v_transitioned_at
+       )
+     where idempotency_key = btrim(p_idempotency_key);
 
     return query select p_order_id, v_public_order_code, p_target_status, v_new_version,
         v_current_status, v_transitioned_at;
