@@ -16,6 +16,7 @@ from app.domain.receipt_attempt import ReceiptAttempt, ReceiptAttemptStatus, SUP
 @dataclass(frozen=True, slots=True)
 class SubmitReceiptCommand:
     order_id: UUID
+    telegram_user_id: int
     telegram_file_id: str
     mime_type: str
     idempotency_key: str
@@ -37,6 +38,9 @@ class SubmitReceiptService:
         self._clock = clock
 
     async def submit(self, command: SubmitReceiptCommand):
+        if command.telegram_user_id <= 0:
+            raise ValueError("telegram user id must be positive")
+
         if command.mime_type not in SUPPORTED_RECEIPT_MIME_TYPES:
             raise ValueError("unsupported receipt image type; JPEG, PNG, or WEBP is required")
 
@@ -54,6 +58,7 @@ class SubmitReceiptService:
 
         reservation = await self._attempts.reserve_next_attempt(
             order_id=command.order_id,
+            telegram_user_id=command.telegram_user_id,
             idempotency_key=idempotency_key,
             submitted_at=submitted_at,
             mime_type=command.mime_type,
