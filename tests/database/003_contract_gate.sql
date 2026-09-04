@@ -1,6 +1,6 @@
 begin;
 
-select plan(45);
+select plan(62);
 
 select ok((select count(*) from pg_proc where proname = 'reserve_receipt_submission') = 1, 'canonical receipt reservation RPC exists');
 select ok((select count(*) from pg_proc where proname = 'finalize_receipt_submission') = 1, 'canonical receipt finalization RPC exists');
@@ -37,6 +37,20 @@ select ok((select count(*) from pg_proc where proname = 'revoke_admin_session') 
 select ok(position('admin_session_timeout_seconds' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'create_admin_session' limit 1))) > 0, 'admin session lifetime is settings-driven');
 select ok(position('admin.session.revoked' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'revoke_admin_session' limit 1))) > 0, 'admin session revocation is audited');
 
+-- Privileged RPCs must be callable by the backend service role only.
+select ok(not has_function_privilege('anon', 'public.get_order_for_transition(uuid)', 'execute'), 'order transition read RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.get_customer_payment_identity(bigint)', 'execute'), 'customer identity RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.get_admin_payment_account(currency_code)', 'execute'), 'admin payment account RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.get_network_config(network_code)', 'execute'), 'network config RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.create_purchase_order_atomic(uuid,text,bigint,uuid,text,text,numeric,numeric,numeric,numeric,text,numeric,numeric,text,text,text,text,text,text,timestamptz,timestamptz,text,text)', 'execute'), 'atomic order creation RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.get_wallet_for_telegram_user(uuid,bigint)', 'execute'), 'wallet read RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.find_verified_wallet_by_address(text)', 'execute'), 'wallet address lookup RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.list_verified_wallets_for_telegram_user(bigint)', 'execute'), 'wallet listing RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.register_pending_wallet_for_telegram_user(bigint,text,network_code,text,text)', 'execute'), 'wallet registration RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.disable_wallet_for_telegram_user(uuid,bigint)', 'execute'), 'wallet disable RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.reserve_receipt_submission(uuid,bigint,text,text,text,timestamptz)', 'execute'), 'receipt reservation RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.finalize_receipt_submission(uuid,text,text,text)', 'execute'), 'receipt finalization RPC is not publicly executable');
+
 select ok(not has_function_privilege('anon', 'public.authorize_admin_order_review(bigint,admin_actor_type)', 'execute'), 'admin authorization RPC is not publicly executable');
 select ok(not has_function_privilege('authenticated', 'public.authorize_admin_order_review(bigint,admin_actor_type)', 'execute'), 'admin authorization RPC is not authenticated-user executable');
 select ok(not has_function_privilege('anon', 'public.transition_order_if_version(uuid,order_status,bigint,bigint,admin_actor_type,jsonb)', 'execute'), 'generic privileged transition RPC is not publicly executable');
@@ -47,7 +61,9 @@ select ok(not has_function_privilege('anon', 'public.close_order_without_fulfill
 select ok(not has_function_privilege('anon', 'public.list_admin_orders(bigint,admin_actor_type,text,integer,integer)', 'execute'), 'admin listing RPC is not publicly executable');
 select ok(not has_function_privilege('anon', 'public.create_admin_session(bigint,admin_actor_type)', 'execute'), 'admin session creation RPC is not publicly executable');
 select ok(not has_function_privilege('anon', 'public.revoke_admin_session(bigint,admin_actor_type,uuid)', 'execute'), 'admin session revocation RPC is not publicly executable');
-select ok(has_function_privilege('service_role', 'public.list_admin_orders(bigint,admin_actor_type,text,integer,integer)', 'execute') and has_function_privilege('service_role', 'public.complete_order_fulfillment(uuid,bigint,bigint,admin_actor_type,text)', 'execute') and has_function_privilege('service_role', 'public.close_order_without_fulfillment(uuid,bigint,bigint,uuid,text,text)', 'execute'), 'backend service role retains privileged admin RPC execution');
+
+select ok(not has_function_privilege('authenticated', 'public.create_purchase_order_atomic(uuid,text,bigint,uuid,text,text,numeric,numeric,numeric,numeric,text,numeric,numeric,text,text,text,text,text,text,timestamptz,timestamptz,text,text)', 'execute') and not has_function_privilege('authenticated', 'public.reserve_receipt_submission(uuid,bigint,text,text,text,timestamptz)', 'execute') and not has_function_privilege('authenticated', 'public.list_verified_wallets_for_telegram_user(bigint)', 'execute'), 'customer backend RPCs are not authenticated-user executable');
+select ok(has_function_privilege('service_role', 'public.get_order_for_transition(uuid)', 'execute') and has_function_privilege('service_role', 'public.create_purchase_order_atomic(uuid,text,bigint,uuid,text,text,numeric,numeric,numeric,numeric,text,numeric,numeric,text,text,text,text,text,text,timestamptz,timestamptz,text,text)', 'execute') and has_function_privilege('service_role', 'public.reserve_receipt_submission(uuid,bigint,text,text,text,timestamptz)', 'execute') and has_function_privilege('service_role', 'public.list_admin_orders(bigint,admin_actor_type,text,integer,integer)', 'execute'), 'backend service role retains persistence and privileged RPC execution');
 
 select * from finish();
 rollback;
