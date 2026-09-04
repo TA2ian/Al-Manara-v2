@@ -15,6 +15,16 @@ class WalletRepository(Protocol):
 
     async def find_verified_by_address(self, address: str) -> Wallet | None: ...
 
+    async def create_pending(
+        self,
+        *,
+        user_id: int,
+        address: str,
+        network: str,
+        qr_image_file_id: str,
+        label: str,
+    ) -> Wallet: ...
+
     async def disable_verified_for_user(self, wallet_id: UUID, user_id: int) -> bool: ...
 
 
