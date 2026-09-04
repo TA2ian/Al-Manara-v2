@@ -30,7 +30,7 @@ def test_transition_matrix_matches_contract() -> None:
             OrderStatus.UNDER_REVIEW,
             OrderStatus.CANCELLED,
         },
-        OrderStatus.APPROVED: {OrderStatus.COMPLETED, OrderStatus.CLOSED_WITHOUT_FULFILLMENT},
+        OrderStatus.APPROVED: {OrderStatus.CLOSED_WITHOUT_FULFILLMENT},
         OrderStatus.COMPLETED: set(),
         OrderStatus.CLOSED_WITHOUT_FULFILLMENT: set(),
         OrderStatus.REJECTED: set(),
@@ -88,6 +88,13 @@ def test_clarification_required_has_only_contract_transitions() -> None:
     ):
         with pytest.raises(InvalidTransitionError):
             order.transition_to(target)
+
+
+def test_approved_cannot_transition_directly_to_completed() -> None:
+    order = make_order(OrderStatus.APPROVED)
+
+    with pytest.raises(InvalidTransitionError):
+        order.transition_to(OrderStatus.COMPLETED)
 
 
 def test_same_status_is_idempotent() -> None:
