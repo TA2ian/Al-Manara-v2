@@ -25,6 +25,9 @@ class OrderRepository(Protocol):
         internal_order_id: UUID,
         target_status: OrderStatus,
         expected_version: int,
+        actor_telegram_user_id: int | None = None,
+        actor_type: str | None = None,
+        event_payload: dict[str, object] | None = None,
     ) -> PersistedOrderTransition | None: ...
 
 
