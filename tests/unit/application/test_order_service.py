@@ -15,6 +15,7 @@ class FakeOrderRepository:
     def __init__(self, order: Order) -> None:
         self.order = order
         self.transition_calls = 0
+        self.atomic_transition_calls = 0
         self.actor = None
         self.event_payload = None
 
@@ -31,6 +32,44 @@ class FakeOrderRepository:
         event_payload=None,
     ):
         self.transition_calls += 1
+        return await self._transition(
+            internal_order_id,
+            target_status,
+            expected_version,
+            actor_telegram_user_id,
+            actor_type,
+            event_payload,
+        )
+
+    async def transition_idempotent(
+        self,
+        internal_order_id,
+        target_status,
+        expected_version,
+        actor_telegram_user_id,
+        actor_type,
+        idempotency_key,
+        event_payload=None,
+    ):
+        self.atomic_transition_calls += 1
+        return await self._transition(
+            internal_order_id,
+            target_status,
+            expected_version,
+            actor_telegram_user_id,
+            actor_type,
+            event_payload,
+        )
+
+    async def _transition(
+        self,
+        internal_order_id,
+        target_status,
+        expected_version,
+        actor_telegram_user_id,
+        actor_type,
+        event_payload,
+    ):
         self.actor = (actor_telegram_user_id, actor_type)
         self.event_payload = event_payload
         if self.order.version != expected_version:
@@ -101,7 +140,7 @@ async def test_repeated_approval_is_idempotent() -> None:
     second = await service.transition_order(command)
 
     assert first is second
-    assert orders.transition_calls == 1
+    assert orders.atomic_transition_calls == 1
     assert orders.order.status is OrderStatus.APPROVED
     assert orders.actor == (123, "primary")
     assert orders.event_payload is None
@@ -109,7 +148,7 @@ async def test_repeated_approval_is_idempotent() -> None:
 
 
 @pytest.mark.asyncio
-async def test_transition_propagates_reason_to_persistence_event() -> None:
+async def test_transition_propagates_reason_to_atomic_persistence_event() -> None:
     order = Order(uuid4(), "ORD-TEST03", OrderStatus.UNDER_REVIEW, 2)
     orders = FakeOrderRepository(order)
     idem = FakeIdempotencyRepository()
@@ -128,6 +167,7 @@ async def test_transition_propagates_reason_to_persistence_event() -> None:
 
     await service.transition_order(command)
 
+    assert orders.atomic_transition_calls == 1
     assert orders.actor == (456, "primary")
     assert orders.event_payload == {"reason": "receipt mismatch"}
 
@@ -153,7 +193,7 @@ async def test_stale_expected_version_blocks_transition() -> None:
     with pytest.raises(RuntimeError, match="stale order version"):
         await service.transition_order(command)
 
-    assert orders.transition_calls == 0
+    assert orders.atomic_transition_calls == 0
     assert orders.order.status is OrderStatus.UNDER_REVIEW
     assert orders.order.version == 4
     assert uow.rollback_calls == 1
