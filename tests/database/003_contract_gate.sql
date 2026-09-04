@@ -1,10 +1,27 @@
 begin;
 
-select plan(5);
+select plan(6);
 
 select ok(
   (select count(*) from pg_proc where proname = 'reserve_receipt_submission') = 1,
   'canonical receipt reservation RPC exists'
+);
+
+select ok(
+  exists (
+    select 1
+      from pg_proc p
+      where p.proname = 'reserve_receipt_submission'
+        and p.proargtypes::oid[] = array[
+          'uuid'::regtype,
+          'bigint'::regtype,
+          'text'::regtype,
+          'text'::regtype,
+          'text'::regtype,
+          'timestamptz'::regtype
+        ]
+  ),
+  'receipt reservation RPC requires Telegram identity'
 );
 
 select ok(
