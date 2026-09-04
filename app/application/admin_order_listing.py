@@ -63,8 +63,10 @@ class AdminOrderListingService:
         self._repository = repository
 
     async def list(self, command: ListAdminOrdersCommand) -> AdminOrderPage:
-        if command.admin_telegram_user_id <= 0:
+        if not isinstance(command.admin_telegram_user_id, int) or command.admin_telegram_user_id <= 0:
             raise ValueError("administrator identity must be positive")
+        if not isinstance(command.actor_type, str):
+            raise ValueError("administrator actor type is required")
         actor_type = command.actor_type.strip().lower()
         if actor_type not in {"primary", "backup"}:
             raise ValueError("invalid administrator actor type")
@@ -72,9 +74,9 @@ class AdminOrderListingService:
             list_type = command.list_type if isinstance(command.list_type, AdminOrderListType) else AdminOrderListType(command.list_type.strip().lower())
         except (AttributeError, ValueError) as exc:
             raise ValueError("invalid order list type") from exc
-        if command.page < 0:
+        if not isinstance(command.page, int) or command.page < 0:
             raise ValueError("page must be non-negative")
-        if command.page_size < 1 or command.page_size > 50:
+        if not isinstance(command.page_size, int) or command.page_size < 1 or command.page_size > 50:
             raise ValueError("page size must be between 1 and 50")
         return await self._repository.list_orders(
             command.admin_telegram_user_id, actor_type, list_type, command.page, command.page_size
