@@ -7,6 +7,7 @@ from typing import Any
 from app.application.admin_order_closure import AdminOrderClosureService
 from app.application.admin_order_listing import AdminOrderListingService
 from app.application.admin_order_review import AdminOrderReviewService
+from app.application.admin_payment_account import AdminPaymentAccountService
 from app.application.admin_session import AdminSessionService
 from app.application.create_purchase_order import CreatePurchaseOrderService
 from app.application.disable_wallet import DisableWalletService
@@ -18,6 +19,7 @@ from app.application.uow import UnitOfWork
 from app.infrastructure.persistence.admin_authorization_repository import SupabaseAdminAuthorizationRepository
 from app.infrastructure.persistence.admin_order_closure_repository import SupabaseAdminOrderClosureRepository
 from app.infrastructure.persistence.admin_order_listing_repository import SupabaseAdminOrderListingRepository
+from app.infrastructure.persistence.admin_payment_account_repository import SupabaseAdminPaymentAccountRepository
 from app.infrastructure.persistence.admin_session_repository import SupabaseAdminSessionRepository
 from app.infrastructure.persistence.audit_logger import SupabaseAuditLogger
 from app.infrastructure.persistence.fulfillment_repository import SupabaseFulfillmentRepository
@@ -38,6 +40,7 @@ from app.infrastructure.persistence.wallet_repository import SupabaseWalletRepos
 from app.runtime.telegram.admin_order_closure import TelegramAdminOrderClosureHandler
 from app.runtime.telegram.admin_order_listing import TelegramAdminOrderListingHandler
 from app.runtime.telegram.admin_order_review import TelegramAdminOrderReviewHandler
+from app.runtime.telegram.admin_payment_account import TelegramAdminPaymentAccountHandler
 from app.runtime.telegram.admin_session import TelegramAdminSessionHandler
 from app.runtime.telegram.fulfillment import TelegramFulfillmentHandler
 from app.runtime.telegram.order_creation_handler import TelegramOrderCreationHandler
@@ -51,6 +54,7 @@ class AdminComposition:
     closure: TelegramAdminOrderClosureHandler
     session: TelegramAdminSessionHandler
     fulfillment: TelegramFulfillmentHandler
+    payment_accounts: TelegramAdminPaymentAccountHandler
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,12 +73,16 @@ def build_admin_composition(client: Any, order_uow: UnitOfWork) -> AdminComposit
     closure_service = AdminOrderClosureService(SupabaseAdminOrderClosureRepository(client))
     session_service = AdminSessionService(SupabaseAdminSessionRepository(client))
     fulfillment_service = FulfillmentService(SupabaseFulfillmentRepository(client))
+    payment_account_service = AdminPaymentAccountService(
+        SupabaseAdminPaymentAccountRepository(client)
+    )
     return AdminComposition(
         review=TelegramAdminOrderReviewHandler(review_service),
         listing=TelegramAdminOrderListingHandler(listing_service),
         closure=TelegramAdminOrderClosureHandler(closure_service),
         session=TelegramAdminSessionHandler(session_service),
         fulfillment=TelegramFulfillmentHandler(fulfillment_service),
+        payment_accounts=TelegramAdminPaymentAccountHandler(payment_account_service),
     )
 
 
