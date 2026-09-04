@@ -53,6 +53,14 @@ class OrderTransitionService:
             if result is None:
                 raise RuntimeError("order changed concurrently; transition was not applied")
 
+            # The repository RPC returns the post-transition row. Preserve the
+            # exact pre-transition state captured before the atomic DB mutation.
+            result = PersistedOrderTransition(
+                order=result.order,
+                state_before=order.status,
+                state_after=result.state_after,
+                transitioned_at=result.transitioned_at,
+            )
             await self._uow.idempotency.store_result(command.idempotency_key, result)
             await self._uow.commit()
             return result
