@@ -72,6 +72,6 @@ begin
     returning id into v_wallet_id;
 
     return query
-    select v_wallet_id, p_telegram_user_id, p_network_code, v_address, 'pending'::wallet_status;
+    select v_wallet_id, p_telegram_user_id, p_network_code, v_address, 'PENDING'::wallet_status;
 end;
 $$;
