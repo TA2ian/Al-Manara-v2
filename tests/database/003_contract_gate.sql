@@ -1,6 +1,6 @@
 begin;
 
-select plan(34);
+select plan(36);
 
 select ok((select count(*) from pg_proc where proname = 'reserve_receipt_submission') = 1, 'canonical receipt reservation RPC exists');
 select ok(exists (select 1 from pg_proc p where p.proname = 'reserve_receipt_submission' and p.proargtypes::oid[] = array['uuid'::regtype,'bigint'::regtype,'text'::regtype,'text'::regtype,'text'::regtype,'timestamptz'::regtype]), 'receipt reservation RPC requires Telegram identity');
@@ -37,6 +37,8 @@ select ok((select count(*) from pg_proc where proname = 'create_admin_session') 
 select ok((select count(*) from pg_proc where proname = 'revoke_admin_session') = 1, 'admin session revocation RPC exists');
 select ok(position('admin_session_timeout_seconds' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'create_admin_session' limit 1))) > 0, 'admin session lifetime is settings-driven');
 select ok(position('admin.session.revoked' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'revoke_admin_session' limit 1))) > 0, 'admin session revocation is audited');
+select ok(not has_function_privilege('anon', 'public.list_admin_orders(bigint,admin_actor_type,text,integer,integer)', 'execute') and not has_function_privilege('authenticated', 'public.list_admin_orders(bigint,admin_actor_type,text,integer,integer)', 'execute'), 'admin listing RPC is not publicly executable');
+select ok(has_function_privilege('service_role', 'public.list_admin_orders(bigint,admin_actor_type,text,integer,integer)', 'execute') and has_function_privilege('service_role', 'public.complete_order_fulfillment(uuid,bigint,bigint,admin_actor_type,text)', 'execute') and has_function_privilege('service_role', 'public.close_order_without_fulfillment(uuid,bigint,bigint,uuid,text,text)', 'execute'), 'backend service role retains privileged admin RPC execution');
 
 select * from finish();
 rollback;
