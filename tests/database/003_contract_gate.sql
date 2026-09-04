@@ -1,6 +1,6 @@
 begin;
 
-select plan(15);
+select plan(21);
 
 select ok(
   (select count(*) from pg_proc where proname = 'reserve_receipt_submission') = 1,
@@ -87,6 +87,36 @@ select ok(
 select ok(
   to_regclass('public.order_transition_idempotency') is not null,
   'order transition idempotency table exists'
+);
+
+select ok(
+  (select count(*) from pg_proc where proname = 'claim_order_fulfillment') = 1,
+  'atomic fulfillment claim RPC exists'
+);
+
+select ok(
+  position('APPROVED' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'claim_order_fulfillment' limit 1))) > 0,
+  'fulfillment claim is restricted to APPROVED orders'
+);
+
+select ok(
+  position('order_fulfillment_claims' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'claim_order_fulfillment' limit 1))) > 0,
+  'fulfillment claim persists an active claim'
+);
+
+select ok(
+  (select count(*) from pg_proc where proname = 'complete_order_fulfillment') = 1,
+  'atomic fulfillment completion RPC exists'
+);
+
+select ok(
+  position('active fulfillment claim is required' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'complete_order_fulfillment' limit 1))) > 0,
+  'fulfillment completion requires an active claim'
+);
+
+select ok(
+  to_regclass('public.order_fulfillment_idempotency') is not null,
+  'fulfillment idempotency table exists'
 );
 
 select * from finish();
