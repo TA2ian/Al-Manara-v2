@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 
 from app.runtime.telegram.contracts import TelegramOrderInput
-from app.runtime.telegram.order_creation import TelegramOrderCreationHandler
+from app.runtime.telegram.order_creation_handler import TelegramOrderCreationHandler
 
 
 class FakeService:
