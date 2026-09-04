@@ -37,14 +37,21 @@ class AdminOrderReviewService:
         self._authorization = authorization
 
     async def review(self, command: AdminReviewOrderCommand) -> PersistedOrderTransition:
-        if command.actor_telegram_user_id <= 0:
+        if not isinstance(command.internal_order_id, UUID):
+            raise ValueError("order id is required")
+        if not isinstance(command.actor_telegram_user_id, int) or command.actor_telegram_user_id <= 0:
             raise ValueError("admin telegram user id must be positive")
-
+        if not isinstance(command.actor_type, str):
+            raise ValueError("admin actor type is required")
         actor_type = command.actor_type.strip().lower()
         if actor_type not in ADMIN_ACTOR_TYPES:
             raise ValueError("unsupported admin actor type")
-        if command.expected_version < 1:
+        if not isinstance(command.expected_version, int) or command.expected_version < 1:
             raise ValueError("expected version must be positive")
+        if not isinstance(command.action, str):
+            raise ValueError("review action is required")
+        if not isinstance(command.idempotency_key, str):
+            raise ValueError("idempotency key is required")
 
         if not await self._authorization.authorize(command.actor_telegram_user_id, actor_type):
             raise PermissionError("admin is not authorized for order review")
@@ -59,6 +66,8 @@ class AdminOrderReviewService:
         if target is None:
             raise ValueError("unsupported admin review action")
 
+        if command.reason is not None and not isinstance(command.reason, str):
+            raise ValueError("review reason is invalid")
         reason = " ".join((command.reason or "").split())
         if target in {OrderStatus.REJECTED, OrderStatus.CLARIFICATION_REQUIRED}:
             if not MIN_REASON_LENGTH <= len(reason) <= MAX_REASON_LENGTH:
@@ -69,8 +78,8 @@ class AdminOrderReviewService:
             reason = None
 
         idempotency_key = command.idempotency_key.strip()
-        if not idempotency_key:
-            raise ValueError("idempotency key is required")
+        if not 1 <= len(idempotency_key) <= 128:
+            raise ValueError("idempotency key must be between 1 and 128 characters")
 
         transition = OrderTransitionCommand(
             internal_order_id=command.internal_order_id,
