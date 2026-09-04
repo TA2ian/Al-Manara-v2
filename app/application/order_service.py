@@ -46,6 +46,9 @@ class OrderTransitionService:
                 command.internal_order_id,
                 command.target_status,
                 command.expected_version,
+                actor_telegram_user_id=command.actor_id,
+                actor_type=command.actor_type,
+                event_payload={"reason": command.reason} if command.reason else None,
             )
             if result is None:
                 raise RuntimeError("order changed concurrently; transition was not applied")
