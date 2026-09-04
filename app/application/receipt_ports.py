@@ -18,6 +18,7 @@ class ReceiptAttemptRepository(Protocol):
     async def reserve_next_attempt(
         self,
         order_id: UUID,
+        telegram_user_id: int,
         idempotency_key: str,
         submitted_at: datetime,
         mime_type: str,
