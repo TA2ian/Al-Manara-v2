@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
@@ -28,12 +29,22 @@ class FakeService:
         return self.result
 
 
+def result(order_id, status, version):
+    return FulfillmentResult(
+        order_id,
+        f"ORD-FUL{version}",
+        status,
+        version,
+        100,
+        datetime.now(timezone.utc),
+        False,
+    )
+
+
 @pytest.mark.asyncio
 async def test_handler_forwards_claim_request() -> None:
     order_id = uuid4()
-    service = FakeService(
-        FulfillmentResult(order_id, "ORD-FUL01", "APPROVED", 5, 100, __import__("datetime").datetime.now(__import__("datetime").timezone.utc), False)
-    )
+    service = FakeService(result(order_id, "APPROVED", 5))
     handler = TelegramAdminFulfillmentHandler(service)
 
     response = await handler.claim(
@@ -50,9 +61,7 @@ async def test_handler_forwards_claim_request() -> None:
 @pytest.mark.asyncio
 async def test_handler_forwards_complete_request() -> None:
     order_id = uuid4()
-    service = FakeService(
-        FulfillmentResult(order_id, "ORD-FUL02", "COMPLETED", 6, 100, __import__("datetime").datetime.now(__import__("datetime").timezone.utc), False)
-    )
+    service = FakeService(result(order_id, "COMPLETED", 6))
     handler = TelegramAdminFulfillmentHandler(service)
 
     response = await handler.complete(
