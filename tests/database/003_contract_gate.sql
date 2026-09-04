@@ -1,6 +1,6 @@
 begin;
 
-select plan(12);
+select plan(14);
 
 select ok(
   (select count(*) from pg_proc where proname = 'reserve_receipt_submission') = 1,
@@ -72,6 +72,16 @@ select ok(
 select ok(
   (select count(*) from pg_proc where proname = 'authorize_admin_order_review') = 1,
   'admin order review authorization RPC exists'
+);
+
+select ok(
+  (select count(*) from pg_proc where proname = 'transition_order_idempotent') = 1,
+  'atomic idempotent admin transition RPC exists'
+);
+
+select ok(
+  to_regclass('public.order_transition_idempotency') is not null,
+  'order transition idempotency table exists'
 );
 
 select * from finish();
