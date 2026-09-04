@@ -25,10 +25,7 @@ class SupabaseWalletRepository:
         self._client = client
 
     async def get_for_user(self, wallet_id: UUID, user_id: int) -> Wallet | None:
-        rows = await self._rpc(
-            "get_wallet_for_telegram_user",
-            {"p_wallet_id": str(wallet_id), "p_telegram_user_id": user_id},
-        )
+        rows = await self._rpc("get_wallet_for_telegram_user", {"p_wallet_id": str(wallet_id), "p_telegram_user_id": user_id})
         if not rows:
             return None
         return self._map_wallet(rows[0])
@@ -40,26 +37,32 @@ class SupabaseWalletRepository:
         return wallet
 
     async def list_verified_for_user(self, user_id: int) -> tuple[Wallet, ...]:
-        rows = await self._rpc(
-            "list_verified_wallets_for_telegram_user",
-            {"p_telegram_user_id": user_id},
-        )
+        rows = await self._rpc("list_verified_wallets_for_telegram_user", {"p_telegram_user_id": user_id})
         return tuple(self._map_wallet(row) for row in rows)
 
     async def find_verified_by_address(self, address: str) -> Wallet | None:
-        rows = await self._rpc(
-            "find_verified_wallet_by_address",
-            {"p_address": address.strip()},
-        )
+        rows = await self._rpc("find_verified_wallet_by_address", {"p_address": address.strip()})
         if not rows:
             return None
         return self._map_wallet(rows[0])
 
-    async def disable_verified_for_user(self, wallet_id: UUID, user_id: int) -> bool:
+    async def create_pending(self, *, user_id: int, address: str, network: str, qr_image_file_id: str, label: str) -> Wallet:
         rows = await self._rpc(
-            "disable_wallet_for_telegram_user",
-            {"p_wallet_id": str(wallet_id), "p_telegram_user_id": user_id},
+            "register_pending_wallet_for_telegram_user",
+            {
+                "p_telegram_user_id": user_id,
+                "p_address": address,
+                "p_network_code": network,
+                "p_qr_image_file_id": qr_image_file_id,
+                "p_label": label,
+            },
         )
+        if len(rows) != 1:
+            raise WalletPersistenceError("wallet registration RPC returned an invalid payload")
+        return self._map_wallet(rows[0])
+
+    async def disable_verified_for_user(self, wallet_id: UUID, user_id: int) -> bool:
+        rows = await self._rpc("disable_wallet_for_telegram_user", {"p_wallet_id": str(wallet_id), "p_telegram_user_id": user_id})
         if len(rows) != 1 or "disabled" not in rows[0]:
             raise WalletPersistenceError("wallet disable RPC returned an invalid payload")
         value = rows[0]["disabled"]
@@ -71,12 +74,9 @@ class SupabaseWalletRepository:
 
     async def _rpc(self, function_name: str, params: dict[str, Any]) -> list[dict[str, Any]]:
         try:
-            response = await asyncio.to_thread(
-                self._client.rpc(function_name, params).execute
-            )
+            response = await asyncio.to_thread(self._client.rpc(function_name, params).execute)
         except Exception as exc:
             raise WalletPersistenceError(f"wallet persistence RPC failed: {function_name}") from exc
-
         error = getattr(response, "error", None)
         if error:
             raise WalletPersistenceError(self._error_message(error))
@@ -88,13 +88,12 @@ class SupabaseWalletRepository:
     @staticmethod
     def _map_wallet(row: dict[str, Any]) -> Wallet:
         try:
-            status_value = str(row["status"]).strip().lower()
             return Wallet(
                 wallet_id=UUID(str(row["wallet_id"])),
                 user_id=int(row["telegram_user_id"]),
                 network=NetworkCode(str(row["network_code"]).strip().upper()),
                 address=str(row["address"]),
-                status=WalletStatus(status_value),
+                status=WalletStatus(str(row["status"]).strip().lower()),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise WalletPersistenceError("invalid wallet persistence payload") from exc
