@@ -1,6 +1,6 @@
 begin;
 
-select plan(4);
+select plan(5);
 
 select ok(
   (select count(*) from pg_proc where proname = 'reserve_receipt_submission') = 1,
@@ -15,6 +15,11 @@ select ok(
 select ok(
   (select count(*) from pg_proc where proname = 'list_verified_wallets_for_telegram_user') = 1,
   'verified wallet listing RPC exists'
+);
+
+select ok(
+  (select count(*) from pg_proc where proname = 'register_pending_wallet_for_telegram_user') = 1,
+  'pending wallet registration RPC exists'
 );
 
 select ok(
