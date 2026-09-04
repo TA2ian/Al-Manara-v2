@@ -45,9 +45,10 @@ class FakeClient:
 
 
 @pytest.mark.asyncio
-async def test_reserve_maps_rpc_payload_and_preserves_idempotency_key() -> None:
+async def test_reserve_maps_rpc_payload_and_preserves_identity_and_idempotency_key() -> None:
     order_id = uuid4()
     submission_id = uuid4()
+    telegram_user_id = 7001
     submitted_at = datetime(2026, 8, 29, 18, 30, tzinfo=timezone.utc)
     client = FakeClient(
         FakeResponse(
@@ -69,6 +70,7 @@ async def test_reserve_maps_rpc_payload_and_preserves_idempotency_key() -> None:
 
     reservation = await repository.reserve_next_attempt(
         order_id=order_id,
+        telegram_user_id=telegram_user_id,
         idempotency_key=" update-123 ",
         submitted_at=submitted_at,
         mime_type="image/png",
@@ -78,6 +80,7 @@ async def test_reserve_maps_rpc_payload_and_preserves_idempotency_key() -> None:
     assert client.function_name == "reserve_receipt_submission"
     assert client.params == {
         "p_order_id": str(order_id),
+        "p_telegram_user_id": telegram_user_id,
         "p_idempotency_key": "update-123",
         "p_telegram_file_id": "file-1",
         "p_mime_type": "image/png",
@@ -116,6 +119,7 @@ async def test_replayed_reservation_is_mapped_without_processing_side_effects() 
 
     reservation = await repository.reserve_next_attempt(
         order_id,
+        7001,
         "update-123",
         submitted_at,
         "image/jpeg",
@@ -190,6 +194,7 @@ async def test_database_conflict_is_mapped_to_conflict_error() -> None:
     with pytest.raises(ReceiptPersistenceConflictError, match="attempt limit"):
         await repository.reserve_next_attempt(
             uuid4(),
+            7001,
             "update-123",
             datetime(2026, 8, 29, 18, 30, tzinfo=timezone.utc),
             "image/png",
@@ -205,6 +210,25 @@ async def test_unknown_database_error_is_wrapped() -> None:
     with pytest.raises(ReceiptPersistenceError, match="permission denied"):
         await repository.reserve_next_attempt(
             uuid4(),
+            7001,
+            "update-123",
+            datetime(2026, 8, 29, 18, 30, tzinfo=timezone.utc),
+            "image/png",
+            "file-1",
+        )
+
+
+@pytest.mark.asyncio
+async def test_order_ownership_conflict_is_mapped_to_conflict_error() -> None:
+    client = FakeClient(
+        FakeResponse(error={"message": "order does not belong to telegram user"})
+    )
+    repository = SupabaseReceiptAttemptRepository(client)
+
+    with pytest.raises(ReceiptPersistenceConflictError, match="does not belong"):
+        await repository.reserve_next_attempt(
+            uuid4(),
+            7001,
             "update-123",
             datetime(2026, 8, 29, 18, 30, tzinfo=timezone.utc),
             "image/png",
