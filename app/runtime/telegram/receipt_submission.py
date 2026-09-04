@@ -51,6 +51,7 @@ class TelegramReceiptHandler:
             await self.submission.submit(
                 SubmitReceiptCommand(
                     order_id=data.order_id,
+                    telegram_user_id=data.user_id,
                     telegram_file_id=data.telegram_file_id,
                     mime_type=data.mime_type,
                     idempotency_key=data.idempotency_key,
