@@ -52,3 +52,13 @@ async def test_invalid_request_is_rejected_before_persistence() -> None:
     with pytest.raises(ValueError, match="expected version"):
         await service.claim(uuid4(), 0, 100, "primary", "claim-1")
     assert repository.calls == []
+
+
+@pytest.mark.asyncio
+async def test_invalid_order_identity_is_rejected_before_persistence() -> None:
+    repository = FakeFulfillmentRepository()
+    service = FulfillmentService(repository)
+
+    with pytest.raises(ValueError, match="order id"):
+        await service.claim("not-a-uuid", 1, 100, "primary", "claim-1")
+    assert repository.calls == []
