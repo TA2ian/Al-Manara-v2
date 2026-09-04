@@ -18,15 +18,21 @@ begin
 
         select pg_get_functiondef(v_function) into v_definition;
 
-        v_definition := replace(
+        v_definition := regexp_replace(
             v_definition,
-            'update orders\n       set',
-            'update orders as o\n       set'
+            'update[[:space:]]+orders[[:space:]]+set',
+            'update orders as o set',
+            1,
+            1,
+            'i'
         );
-        v_definition := replace(
+        v_definition := regexp_replace(
             v_definition,
-            'where internal_order_id = p_order_id',
-            'where o.internal_order_id = p_order_id'
+            'where[[:space:]]+internal_order_id[[:space:]]*=[[:space:]]*p_order_id',
+            'where o.internal_order_id = p_order_id',
+            1,
+            1,
+            'i'
         );
 
         execute v_definition;
