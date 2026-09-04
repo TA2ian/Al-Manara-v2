@@ -23,6 +23,11 @@ def order_id() -> UUID:
 
 
 @pytest.fixture
+def telegram_user_id() -> int:
+    return 7001
+
+
+@pytest.fixture
 def submitted_at() -> datetime:
     return datetime(2026, 8, 29, 18, 30, tzinfo=timezone.utc)
 
@@ -63,8 +68,20 @@ def build_service(
     )
 
 
+def command(order_id: UUID, telegram_user_id: int, **overrides) -> SubmitReceiptCommand:
+    values = {
+        "order_id": order_id,
+        "telegram_user_id": telegram_user_id,
+        "telegram_file_id": "telegram-file-1",
+        "mime_type": "image/png",
+        "idempotency_key": "telegram-update-123",
+    }
+    values.update(overrides)
+    return SubmitReceiptCommand(**values)
+
+
 @pytest.mark.asyncio
-async def test_submit_receipt_passes_idempotency_key_to_reservation(order_id: UUID, submitted_at: datetime) -> None:
+async def test_submit_passes_telegram_identity_and_idempotency_to_reservation(order_id: UUID, telegram_user_id: int, submitted_at: datetime) -> None:
     attempts = AsyncMock(spec=ReceiptAttemptRepository)
     inspector = AsyncMock()
     verifier = AsyncMock()
@@ -76,17 +93,11 @@ async def test_submit_receipt_passes_idempotency_key_to_reservation(order_id: UU
 
     service = build_service(attempts, inspector, verifier, escalation, submitted_at)
 
-    await service.submit(
-        SubmitReceiptCommand(
-            order_id=order_id,
-            telegram_file_id=" telegram-file-1 ",
-            mime_type="image/png",
-            idempotency_key=" telegram-update-123 ",
-        )
-    )
+    await service.submit(command(order_id, telegram_user_id, telegram_file_id=" telegram-file-1 ", idempotency_key=" telegram-update-123 "))
 
     attempts.reserve_next_attempt.assert_awaited_once_with(
         order_id=order_id,
+        telegram_user_id=telegram_user_id,
         idempotency_key="telegram-update-123",
         submitted_at=submitted_at,
         mime_type="image/png",
@@ -98,7 +109,7 @@ async def test_submit_receipt_passes_idempotency_key_to_reservation(order_id: UU
 
 
 @pytest.mark.asyncio
-async def test_replayed_receipt_does_not_reprocess_or_finalize(order_id: UUID, submitted_at: datetime) -> None:
+async def test_replayed_receipt_does_not_reprocess_or_finalize(order_id: UUID, telegram_user_id: int, submitted_at: datetime) -> None:
     attempts = AsyncMock(spec=ReceiptAttemptRepository)
     inspector = AsyncMock()
     verifier = AsyncMock()
@@ -108,14 +119,7 @@ async def test_replayed_receipt_does_not_reprocess_or_finalize(order_id: UUID, s
 
     service = build_service(attempts, inspector, verifier, escalation, submitted_at)
 
-    result = await service.submit(
-        SubmitReceiptCommand(
-            order_id=order_id,
-            telegram_file_id="telegram-file-1",
-            mime_type="image/png",
-            idempotency_key="telegram-update-123",
-        )
-    )
+    result = await service.submit(command(order_id, telegram_user_id))
 
     assert result is replayed_attempt
     inspector.inspect.assert_not_awaited()
@@ -125,7 +129,7 @@ async def test_replayed_receipt_does_not_reprocess_or_finalize(order_id: UUID, s
 
 
 @pytest.mark.asyncio
-async def test_processing_failure_is_finalized_once_and_original_error_is_re_raised(order_id: UUID, submitted_at: datetime) -> None:
+async def test_processing_failure_is_finalized_once_and_original_error_is_re_raised(order_id: UUID, telegram_user_id: int, submitted_at: datetime) -> None:
     attempts = AsyncMock(spec=ReceiptAttemptRepository)
     inspector = AsyncMock()
     verifier = AsyncMock()
@@ -139,21 +143,14 @@ async def test_processing_failure_is_finalized_once_and_original_error_is_re_rai
     service = build_service(attempts, inspector, verifier, escalation, submitted_at)
 
     with pytest.raises(RuntimeError, match="OCR provider unavailable"):
-        await service.submit(
-            SubmitReceiptCommand(
-                order_id=order_id,
-                telegram_file_id="telegram-file-1",
-                mime_type="image/png",
-                idempotency_key="telegram-update-123",
-            )
-        )
+        await service.submit(command(order_id, telegram_user_id))
 
     attempts.finalize.assert_awaited_once_with(attempt.attempt_id, ReceiptAttemptStatus.FAILED, "OCR provider unavailable")
     escalation.escalate.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_third_processing_failure_finalizes_as_escalated_and_escalates(order_id: UUID, submitted_at: datetime) -> None:
+async def test_third_processing_failure_finalizes_as_escalated_and_escalates(order_id: UUID, telegram_user_id: int, submitted_at: datetime) -> None:
     attempts = AsyncMock(spec=ReceiptAttemptRepository)
     inspector = AsyncMock()
     verifier = AsyncMock()
@@ -167,21 +164,14 @@ async def test_third_processing_failure_finalizes_as_escalated_and_escalates(ord
     service = build_service(attempts, inspector, verifier, escalation, submitted_at)
 
     with pytest.raises(ValueError, match="invalid receipt image"):
-        await service.submit(
-            SubmitReceiptCommand(
-                order_id=order_id,
-                telegram_file_id="telegram-file-1",
-                mime_type="image/png",
-                idempotency_key="telegram-update-123",
-            )
-        )
+        await service.submit(command(order_id, telegram_user_id))
 
     attempts.finalize.assert_awaited_once_with(attempt.attempt_id, ReceiptAttemptStatus.ESCALATED, "invalid receipt image")
     escalation.escalate.assert_awaited_once_with(order_id, finalized.attempt_id, "invalid receipt image")
 
 
 @pytest.mark.asyncio
-async def test_missing_idempotency_key_is_rejected_before_reservation(order_id: UUID, submitted_at: datetime) -> None:
+async def test_missing_idempotency_key_is_rejected_before_reservation(order_id: UUID, telegram_user_id: int, submitted_at: datetime) -> None:
     attempts = AsyncMock(spec=ReceiptAttemptRepository)
     inspector = AsyncMock()
     verifier = AsyncMock()
@@ -190,13 +180,21 @@ async def test_missing_idempotency_key_is_rejected_before_reservation(order_id: 
     service = build_service(attempts, inspector, verifier, escalation, submitted_at)
 
     with pytest.raises(ValueError, match="idempotency key is required"):
-        await service.submit(
-            SubmitReceiptCommand(
-                order_id=order_id,
-                telegram_file_id="telegram-file-1",
-                mime_type="image/png",
-                idempotency_key="   ",
-            )
-        )
+        await service.submit(command(order_id, telegram_user_id, idempotency_key="   "))
+
+    attempts.reserve_next_attempt.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_non_positive_telegram_user_id_is_rejected_before_reservation(order_id: UUID, submitted_at: datetime) -> None:
+    attempts = AsyncMock(spec=ReceiptAttemptRepository)
+    inspector = AsyncMock()
+    verifier = AsyncMock()
+    escalation = AsyncMock()
+
+    service = build_service(attempts, inspector, verifier, escalation, submitted_at)
+
+    with pytest.raises(ValueError, match="telegram user id must be positive"):
+        await service.submit(command(order_id, 0))
 
     attempts.reserve_next_attempt.assert_not_awaited()
