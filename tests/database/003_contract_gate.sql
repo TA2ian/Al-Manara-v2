@@ -1,6 +1,6 @@
 begin;
 
-select plan(62);
+select plan(66);
 
 select ok((select count(*) from pg_proc where proname = 'reserve_receipt_submission') = 1, 'canonical receipt reservation RPC exists');
 select ok((select count(*) from pg_proc where proname = 'finalize_receipt_submission') = 1, 'canonical receipt finalization RPC exists');
@@ -37,6 +37,12 @@ select ok((select count(*) from pg_proc where proname = 'revoke_admin_session') 
 select ok(position('admin_session_timeout_seconds' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'create_admin_session' limit 1))) > 0, 'admin session lifetime is settings-driven');
 select ok(position('admin.session.revoked' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'revoke_admin_session' limit 1))) > 0, 'admin session revocation is audited');
 
+-- Quote support is sourced from authoritative persisted configuration.
+select ok((select count(*) from pg_proc where proname = 'get_current_fee_policy') = 1, 'current fee policy RPC exists');
+select ok(position('service_fee_percent' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'get_current_fee_policy' limit 1))) > 0, 'fee policy RPC reads persisted network fee configuration');
+select ok((select count(*) from pg_proc where proname = 'get_current_exchange_rate') = 1, 'current exchange rate RPC exists');
+select ok(position('active_exchange_rate_id' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'get_current_exchange_rate' limit 1))) > 0, 'exchange rate RPC follows the configured active rate');
+
 -- Privileged RPCs must be callable by the backend service role only.
 select ok(not has_function_privilege('anon', 'public.get_order_for_transition(uuid)', 'execute'), 'order transition read RPC is not publicly executable');
 select ok(not has_function_privilege('anon', 'public.get_customer_payment_identity(bigint)', 'execute'), 'customer identity RPC is not publicly executable');
@@ -50,7 +56,6 @@ select ok(not has_function_privilege('anon', 'public.register_pending_wallet_for
 select ok(not has_function_privilege('anon', 'public.disable_wallet_for_telegram_user(uuid,bigint)', 'execute'), 'wallet disable RPC is not publicly executable');
 select ok(not has_function_privilege('anon', 'public.reserve_receipt_submission(uuid,bigint,text,text,text,timestamptz)', 'execute'), 'receipt reservation RPC is not publicly executable');
 select ok(not has_function_privilege('anon', 'public.finalize_receipt_submission(uuid,text,text,text)', 'execute'), 'receipt finalization RPC is not publicly executable');
-
 select ok(not has_function_privilege('anon', 'public.authorize_admin_order_review(bigint,admin_actor_type)', 'execute'), 'admin authorization RPC is not publicly executable');
 select ok(not has_function_privilege('authenticated', 'public.authorize_admin_order_review(bigint,admin_actor_type)', 'execute'), 'admin authorization RPC is not authenticated-user executable');
 select ok(not has_function_privilege('anon', 'public.transition_order_if_version(uuid,order_status,bigint,bigint,admin_actor_type,jsonb)', 'execute'), 'generic privileged transition RPC is not publicly executable');
@@ -61,9 +66,11 @@ select ok(not has_function_privilege('anon', 'public.close_order_without_fulfill
 select ok(not has_function_privilege('anon', 'public.list_admin_orders(bigint,admin_actor_type,text,integer,integer)', 'execute'), 'admin listing RPC is not publicly executable');
 select ok(not has_function_privilege('anon', 'public.create_admin_session(bigint,admin_actor_type)', 'execute'), 'admin session creation RPC is not publicly executable');
 select ok(not has_function_privilege('anon', 'public.revoke_admin_session(bigint,admin_actor_type,uuid)', 'execute'), 'admin session revocation RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.get_current_fee_policy(network_code,timestamptz)', 'execute'), 'fee policy RPC is not publicly executable');
+select ok(not has_function_privilege('anon', 'public.get_current_exchange_rate(text,timestamptz)', 'execute'), 'exchange rate RPC is not publicly executable');
 
 select ok(not has_function_privilege('authenticated', 'public.create_purchase_order_atomic(uuid,text,bigint,uuid,text,text,numeric,numeric,numeric,numeric,text,numeric,numeric,text,text,text,text,text,text,timestamptz,timestamptz,text,text)', 'execute') and not has_function_privilege('authenticated', 'public.reserve_receipt_submission(uuid,bigint,text,text,text,timestamptz)', 'execute') and not has_function_privilege('authenticated', 'public.list_verified_wallets_for_telegram_user(bigint)', 'execute'), 'customer backend RPCs are not authenticated-user executable');
-select ok(has_function_privilege('service_role', 'public.get_order_for_transition(uuid)', 'execute') and has_function_privilege('service_role', 'public.create_purchase_order_atomic(uuid,text,bigint,uuid,text,text,numeric,numeric,numeric,numeric,text,numeric,numeric,text,text,text,text,text,text,timestamptz,timestamptz,text,text)', 'execute') and has_function_privilege('service_role', 'public.reserve_receipt_submission(uuid,bigint,text,text,text,timestamptz)', 'execute') and has_function_privilege('service_role', 'public.list_admin_orders(bigint,admin_actor_type,text,integer,integer)', 'execute'), 'backend service role retains persistence and privileged RPC execution');
+select ok(has_function_privilege('service_role', 'public.get_order_for_transition(uuid)', 'execute') and has_function_privilege('service_role', 'public.create_purchase_order_atomic(uuid,text,bigint,uuid,text,text,numeric,numeric,numeric,numeric,text,numeric,numeric,text,text,text,text,text,text,timestamptz,timestamptz,text,text)', 'execute') and has_function_privilege('service_role', 'public.reserve_receipt_submission(uuid,bigint,text,text,text,timestamptz)', 'execute') and has_function_privilege('service_role', 'public.list_admin_orders(bigint,admin_actor_type,text,integer,integer)', 'execute') and has_function_privilege('service_role', 'public.get_current_fee_policy(network_code,timestamptz)', 'execute') and has_function_privilege('service_role', 'public.get_current_exchange_rate(text,timestamptz)', 'execute'), 'backend service role retains persistence and privileged RPC execution');
 
 select * from finish();
 rollback;
