@@ -18,7 +18,7 @@ class WalletRegistration:
     label: str
 
     def __post_init__(self) -> None:
-        address = self.address.strip()
+        address = normalize_wallet_address(self.address)
         network = self.network.strip().upper()
         qr_address = normalize_qr_address(self.qr_address)
         file_id = self.qr_image_file_id.strip()
@@ -44,9 +44,14 @@ class WalletRegistration:
         object.__setattr__(self, "label", label)
 
 
+def normalize_wallet_address(value: str) -> str:
+    """Canonicalize user-entered wallet text without changing address semantics."""
+    return (value or "").replace(" ", "").strip()
+
+
 def normalize_qr_address(value: str) -> str:
     """Remove known payment/network URI prefixes before comparison."""
-    normalized = (value or "").strip()
+    normalized = normalize_wallet_address(value)
     lowered = normalized.casefold()
     for prefix in ("ethereum:", "tron:", "trc20:", "bep20:", "usdt:"):
         if lowered.startswith(prefix):
@@ -55,7 +60,7 @@ def normalize_qr_address(value: str) -> str:
 
 
 def validate_wallet_text(address: str, network: str, label: str) -> tuple[str, str, str]:
-    normalized_address = (address or "").replace(" ", "").strip()
+    normalized_address = normalize_wallet_address(address)
     normalized_network = (network or "").strip().upper()
     normalized_label = (label or "").strip()
     if normalized_network not in SUPPORTED_WALLET_NETWORKS:
