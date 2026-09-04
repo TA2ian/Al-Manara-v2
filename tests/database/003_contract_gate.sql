@@ -65,7 +65,7 @@ select ok(
 );
 
 select ok(
-  position("v_current_status = 'APPROVED' and p_target_status = 'COMPLETED'" in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'transition_order_if_version' limit 1))) = 0,
+  position('v_current_status = ''APPROVED'' and p_target_status = ''COMPLETED''' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'transition_order_if_version' limit 1))) = 0,
   'generic order transition cannot complete approved orders'
 );
 
@@ -125,7 +125,11 @@ select ok(
 );
 
 select ok(
-  to_regclass('public.orders_fulfillment_completion_guard') is not null,
+  exists (
+    select 1 from pg_trigger
+     where tgname = 'orders_fulfillment_completion_guard'
+       and tgrelid = 'public.orders'::regclass
+  ),
   'database completion guard trigger exists'
 );
 
