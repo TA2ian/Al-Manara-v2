@@ -30,19 +30,20 @@ class OrderTransitionService:
                 )
 
             validate_transition_command(order.status, command)
+            state_before = order.status
 
-            if command.target_status == order.status:
+            if command.target_status == state_before:
                 result = PersistedOrderTransition(
                     order=order,
-                    state_before=order.status,
-                    state_after=order.status,
+                    state_before=state_before,
+                    state_after=state_before,
                     transitioned_at=datetime.now(timezone.utc),
                 )
                 await self._uow.idempotency.store_result(command.idempotency_key, result)
                 await self._uow.commit()
                 return result
 
-            result = await self._uow.orders.transition_if_version(
+            persisted = await self._uow.orders.transition_if_version(
                 command.internal_order_id,
                 command.target_status,
                 command.expected_version,
@@ -50,16 +51,17 @@ class OrderTransitionService:
                 actor_type=command.actor_type,
                 event_payload={"reason": command.reason} if command.reason else None,
             )
-            if result is None:
+            if persisted is None:
                 raise RuntimeError("order changed concurrently; transition was not applied")
 
-            # The repository RPC returns the post-transition row. Preserve the
-            # exact pre-transition state captured before the atomic DB mutation.
+            # PostgreSQL is authoritative for the resulting state/version, while
+            # this application snapshot is authoritative for the pre-state that
+            # was validated immediately before the atomic transition call.
             result = PersistedOrderTransition(
-                order=result.order,
-                state_before=order.status,
-                state_after=result.state_after,
-                transitioned_at=result.transitioned_at,
+                order=persisted.order,
+                state_before=state_before,
+                state_after=persisted.state_after,
+                transitioned_at=persisted.transitioned_at,
             )
             await self._uow.idempotency.store_result(command.idempotency_key, result)
             await self._uow.commit()
