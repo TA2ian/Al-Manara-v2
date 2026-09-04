@@ -49,15 +49,23 @@ class AdminOrderClosureService:
     async def close_without_fulfillment(
         self, command: AdminOrderClosureCommand
     ) -> AdminOrderClosureResult:
-        if command.admin_telegram_user_id <= 0:
+        if not isinstance(command.internal_order_id, UUID):
+            raise ValueError("order id is required")
+        if not isinstance(command.admin_telegram_user_id, int) or command.admin_telegram_user_id <= 0:
             raise ValueError("admin telegram user id must be positive")
-        if command.expected_version < 1:
+        if not isinstance(command.expected_version, int) or command.expected_version < 1:
             raise ValueError("expected version must be positive")
+        if not isinstance(command.session_id, UUID):
+            raise ValueError("session identity is required")
+        if not isinstance(command.reason, str):
+            raise ValueError("closure reason is required")
         reason = " ".join(command.reason.split())
         if not MIN_REASON_LENGTH <= len(reason) <= MAX_REASON_LENGTH:
             raise ValueError(
                 f"closure reason must be between {MIN_REASON_LENGTH} and {MAX_REASON_LENGTH} characters"
             )
+        if not isinstance(command.idempotency_key, str):
+            raise ValueError("idempotency key is required")
         idempotency_key = command.idempotency_key.strip()
         if not 1 <= len(idempotency_key) <= 128:
             raise ValueError("idempotency key must be between 1 and 128 characters")
