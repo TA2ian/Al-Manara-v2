@@ -55,13 +55,17 @@ class FulfillmentService:
     def _validate(internal_order_id: UUID, expected_version: int, admin_telegram_user_id: int, actor_type: str, idempotency_key: str) -> tuple[str, str]:
         if not isinstance(internal_order_id, UUID):
             raise ValueError("order id is required")
-        if expected_version < 1:
+        if not isinstance(expected_version, int) or expected_version < 1:
             raise ValueError("expected version must be positive")
-        if admin_telegram_user_id <= 0:
+        if not isinstance(admin_telegram_user_id, int) or admin_telegram_user_id <= 0:
             raise ValueError("admin telegram user id must be positive")
+        if not isinstance(actor_type, str):
+            raise ValueError("admin actor type is required")
         actor = actor_type.strip().lower()
         if actor not in {"primary", "backup"}:
             raise ValueError("unsupported admin actor type")
+        if not isinstance(idempotency_key, str):
+            raise ValueError("idempotency key is required")
         key = idempotency_key.strip()
         if not 1 <= len(key) <= 128:
             raise ValueError("idempotency key must be between 1 and 128 characters")
