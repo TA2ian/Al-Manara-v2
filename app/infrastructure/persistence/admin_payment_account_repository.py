@@ -75,18 +75,7 @@ class SupabaseAdminPaymentAccountRepository(AdminPaymentAccountRepository):
         )
         if len(rows) != 1:
             raise AdminPaymentAccountPersistenceError("payment account status update returned invalid row count")
-
-        current = await self._rpc(
-            "list_admin_payment_accounts",
-            {
-                "p_telegram_user_id": admin_telegram_user_id,
-                "p_actor_type": actor_type,
-            },
-        )
-        matches = [row for row in current if str(row.get("currency")) == currency.value]
-        if len(matches) != 1:
-            raise AdminPaymentAccountPersistenceError("payment account status update could not be re-read")
-        return self._parse(matches[0])
+        return self._parse(rows[0])
 
     async def _rpc(self, function_name: str, params: dict[str, Any]) -> list[dict[str, Any]]:
         try:
