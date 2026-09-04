@@ -1,6 +1,5 @@
--- A disabled wallet is historical state, not an active registration.
--- Preserve uniqueness for active/pending wallets while allowing the same
--- customer/network/address to be registered again after disablement.
+-- A disabled wallet is historical state, not active registration.
+-- Preserve uniqueness for active/pending wallets while allowing reuse after disablement.
 
 drop index if exists wallets_user_network_address_uq;
 create unique index wallets_user_network_address_active_uq
@@ -42,28 +41,28 @@ begin
         raise exception 'invalid wallet registration payload';
     end if;
 
-    select id into v_user_id
-      from users
-     where telegram_user_id = p_telegram_user_id
-       and not is_disabled;
+    select u.id into v_user_id
+      from users u
+     where u.telegram_user_id = p_telegram_user_id
+       and not u.is_disabled;
 
     if not found then
         raise exception 'customer is unavailable';
     end if;
 
     if not exists (
-        select 1 from network_configs
-         where code = p_network_code and enabled
+        select 1 from network_configs nc
+         where nc.code = p_network_code and nc.enabled
     ) then
         raise exception 'wallet network is unavailable';
     end if;
 
     if exists (
-        select 1 from wallets
-         where user_id = v_user_id
-           and network_code = p_network_code
-           and normalized_address = v_normalized_address
-           and status <> 'DISABLED'
+        select 1 from wallets w
+         where w.user_id = v_user_id
+           and w.network_code = p_network_code
+           and w.normalized_address = v_normalized_address
+           and w.status <> 'DISABLED'
     ) then
         raise exception 'wallet already registered';
     end if;
