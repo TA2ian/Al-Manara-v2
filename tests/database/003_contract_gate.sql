@@ -1,6 +1,6 @@
 begin;
 
-select plan(66);
+select plan(68);
 
 select ok((select count(*) from pg_proc where proname = 'reserve_receipt_submission') = 1, 'canonical receipt reservation RPC exists');
 select ok((select count(*) from pg_proc where proname = 'finalize_receipt_submission') = 1, 'canonical receipt finalization RPC exists');
@@ -69,7 +69,7 @@ select ok(not has_function_privilege('anon', 'public.revoke_admin_session(bigint
 select ok(not has_function_privilege('anon', 'public.get_current_fee_policy(network_code,timestamptz)', 'execute'), 'fee policy RPC is not publicly executable');
 select ok(not has_function_privilege('anon', 'public.get_current_exchange_rate(text,timestamptz)', 'execute'), 'exchange rate RPC is not publicly executable');
 
-select ok(not has_function_privilege('authenticated', 'public.create_purchase_order_atomic(uuid,text,bigint,uuid,text,text,numeric,numeric,numeric,numeric,text,numeric,numeric,text,text,text,text,text,text,timestamptz,timestamptz,text,text)', 'execute') and not has_function_privilege('authenticated', 'public.reserve_receipt_submission(uuid,bigint,text,text,text,timestamptz)', 'execute') and not has_function_privilege('authenticated', 'public.list_verified_wallets_for_telegram_user(bigint)', 'execute'), 'customer backend RPCs are not authenticated-user executable');
+select ok(not has_function_privilege('authenticated', 'public.create_purchase_order_atomic(uuid,text,bigint,uuid,text,text,numeric,numeric,numeric,numeric,text,numeric,numeric,text,text,text,text,text,timestamptz,timestamptz,text,text)', 'execute') and not has_function_privilege('authenticated', 'public.reserve_receipt_submission(uuid,bigint,text,text,text,timestamptz)', 'execute') and not has_function_privilege('authenticated', 'public.list_verified_wallets_for_telegram_user(bigint)', 'execute'), 'customer backend RPCs are not authenticated-user executable');
 select ok(has_function_privilege('service_role', 'public.get_order_for_transition(uuid)', 'execute') and has_function_privilege('service_role', 'public.create_purchase_order_atomic(uuid,text,bigint,uuid,text,text,numeric,numeric,numeric,numeric,text,numeric,numeric,text,text,text,text,text,text,timestamptz,timestamptz,text,text)', 'execute') and has_function_privilege('service_role', 'public.reserve_receipt_submission(uuid,bigint,text,text,text,timestamptz)', 'execute') and has_function_privilege('service_role', 'public.list_admin_orders(bigint,admin_actor_type,text,integer,integer)', 'execute') and has_function_privilege('service_role', 'public.get_current_fee_policy(network_code,timestamptz)', 'execute') and has_function_privilege('service_role', 'public.get_current_exchange_rate(text,timestamptz)', 'execute'), 'backend service role retains persistence and privileged RPC execution');
 
 select * from finish();
