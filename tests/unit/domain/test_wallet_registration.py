@@ -3,6 +3,7 @@ import pytest
 from app.domain.wallet_registration import (
     WalletRegistration,
     normalize_qr_address,
+    normalize_wallet_address,
     validate_wallet_text,
 )
 
@@ -10,11 +11,15 @@ from app.domain.wallet_registration import (
 def test_normalize_qr_address_removes_known_prefixes() -> None:
     assert normalize_qr_address("ethereum:0xabc") == "0xabc"
     assert normalize_qr_address("TRON:T123") == "T123"
-    assert normalize_qr_address("  T123  ") == "T123"
+    assert normalize_qr_address("  T 123  ") == "T123"
+
+
+def test_normalize_wallet_address_removes_embedded_spaces() -> None:
+    assert normalize_wallet_address(" 0x ab c ") == "0xabc"
 
 
 def test_validate_wallet_text_accepts_supported_networks() -> None:
-    assert validate_wallet_text(" 0xabc ", "bep20", " Main Wallet ") == (
+    assert validate_wallet_text(" 0x ab c ", "bep20", " Main Wallet ") == (
         "0xabc",
         "BEP20",
         "Main Wallet",
@@ -22,7 +27,7 @@ def test_validate_wallet_text_accepts_supported_networks() -> None:
 
 
 def test_wallet_registration_requires_qr_match_and_file_id() -> None:
-    wallet = WalletRegistration("T123", "TRC20", "tron:T123", "telegram-file", "Main")
+    wallet = WalletRegistration("T 123", "TRC20", "tron:T123", "telegram-file", "Main")
     assert wallet.address == "T123"
 
     with pytest.raises(ValueError, match="does not match"):
