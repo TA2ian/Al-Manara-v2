@@ -30,6 +30,17 @@ class OrderRepository(Protocol):
         event_payload: dict[str, object] | None = None,
     ) -> PersistedOrderTransition | None: ...
 
+    async def transition_idempotent(
+        self,
+        internal_order_id: UUID,
+        target_status: OrderStatus,
+        expected_version: int,
+        actor_telegram_user_id: int,
+        actor_type: str,
+        idempotency_key: str,
+        event_payload: dict[str, object] | None = None,
+    ) -> PersistedOrderTransition | None: ...
+
 
 class IdempotencyRepository(Protocol):
     async def get_result(self, key: str) -> PersistedOrderTransition | None: ...
