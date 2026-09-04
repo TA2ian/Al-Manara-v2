@@ -1,6 +1,6 @@
 begin;
 
-select plan(10);
+select plan(12);
 
 select ok(
   (select count(*) from pg_proc where proname = 'reserve_receipt_submission') = 1,
@@ -62,6 +62,16 @@ select ok(
 select ok(
   position('from admin_users au' in pg_get_functiondef((select p.oid from pg_proc p where p.proname = 'transition_order_if_version' limit 1))) > 0,
   'order transition RPC verifies supplied admin actors against admin_users'
+);
+
+select ok(
+  (select count(*) from pg_proc where proname = 'get_order_for_transition') = 1,
+  'order transition read RPC exists'
+);
+
+select ok(
+  (select count(*) from pg_proc where proname = 'authorize_admin_order_review') = 1,
+  'admin order review authorization RPC exists'
 );
 
 select * from finish();
