@@ -15,6 +15,7 @@ from app.runtime.telegram.admin_dashboard import (
     render_admin_dashboard,
 )
 from app.runtime.telegram.customer.dashboard import (
+    DASHBOARD_BUY_CALLBACK,
     DASHBOARD_ORDERS_CALLBACK,
     build_customer_dashboard_router,
     customer_dashboard_markup,
@@ -29,6 +30,7 @@ def test_customer_dashboard_has_only_real_current_actions():
     assert callbacks == [
         "customer:verify",
         "customer:wallets",
+        DASHBOARD_BUY_CALLBACK,
         DASHBOARD_ORDERS_CALLBACK,
     ]
     assert "لوحة المنارة" in render_customer_dashboard()
@@ -102,6 +104,12 @@ def test_customer_dashboard_orders_uses_authenticated_sender(monkeypatch):
     request = handle.await_args.args[0]
     assert request.authenticated_telegram_user_id == 321
     assert sent
+
+
+def test_customer_dashboard_buy_action_is_exposed():
+    composition = SimpleNamespace()
+    assert DASHBOARD_BUY_CALLBACK == "customer:buy"
+    assert build_customer_dashboard_router(composition).name == "customer-dashboard"
 
 
 def test_admin_dashboard_denies_non_admin_without_showing_dashboard():
