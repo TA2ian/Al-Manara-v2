@@ -18,6 +18,7 @@ DASHBOARD_CALLBACK = "customer:dashboard"
 DASHBOARD_ORDERS_CALLBACK = "customer:orders"
 DASHBOARD_WALLETS_CALLBACK = "customer:wallets"
 DASHBOARD_VERIFY_CALLBACK = "customer:verify"
+DASHBOARD_BUY_CALLBACK = "customer:buy"
 PRIVATE_DASHBOARD_MESSAGE = "لوحة العميل متاحة في المحادثة الخاصة مع البوت فقط."
 
 
@@ -28,6 +29,7 @@ def customer_dashboard_markup() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="🪪 التحقق من الهوية", callback_data=DASHBOARD_VERIFY_CALLBACK),
                 InlineKeyboardButton(text="👛 محافظي", callback_data=DASHBOARD_WALLETS_CALLBACK),
             ],
+            [InlineKeyboardButton(text="🛒 إنشاء طلب شراء", callback_data=DASHBOARD_BUY_CALLBACK)],
             [InlineKeyboardButton(text="📦 طلباتي", callback_data=DASHBOARD_ORDERS_CALLBACK)],
         ]
     )
@@ -37,7 +39,7 @@ def render_customer_dashboard() -> str:
     return (
         "🏠 لوحة المنارة\n\n"
         "اختر الخدمة المطلوبة من القائمة أدناه.\n"
-        "يمكنك أيضًا استخدام /verify و /orders مباشرة."
+        "يمكنك أيضًا استخدام /verify و /wallets و /buy و /orders مباشرة."
     )
 
 
@@ -89,6 +91,18 @@ def build_customer_dashboard_router(composition: CustomerComposition) -> Router:
             await query.message.answer(response.text or "تعذر تحميل المحافظ حاليًا.")
             return
         await query.message.answer(response.text, reply_markup=wallet_listing_markup(response.text))
+
+    @router.callback_query(F.data == DASHBOARD_BUY_CALLBACK)
+    async def buy_callback(query: CallbackQuery) -> None:
+        if query.message is None or not is_private_message(query.message):
+            await query.answer(PRIVATE_DASHBOARD_MESSAGE, show_alert=True)
+            return
+        user_id = authenticated_telegram_user_id(query)
+        if user_id is None:
+            await query.answer("تعذر التحقق من هوية المستخدم.", show_alert=True)
+            return
+        await query.answer()
+        await query.message.answer("لبدء إنشاء طلب شراء، أرسل /buy.")
 
     @router.callback_query(F.data == DASHBOARD_ORDERS_CALLBACK)
     async def orders_callback(query: CallbackQuery) -> None:
