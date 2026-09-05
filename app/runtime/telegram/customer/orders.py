@@ -87,7 +87,6 @@ def build_customer_orders_router(composition: CustomerComposition) -> Router:
 
     @router.message(Command("orders"))
     async def show_customer_orders(message: Message) -> None:
-        await _load_orders(message, composition, page=0)
         response = await _load_orders(message, composition, page=0)
         if response is None:
             return
@@ -103,10 +102,10 @@ def build_customer_orders_router(composition: CustomerComposition) -> Router:
         if page is None:
             await query.answer("هذا الطلب غير صالح.", show_alert=True)
             return
+        await query.answer()
         response = await _load_orders(query, composition, page=page)
         if response is None or query.message is None:
             return
-        await query.answer()
         if not response.ok or response.page is None:
             await query.message.edit_text(render_order_listing_failure(response.message))
             return
