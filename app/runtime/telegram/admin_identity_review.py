@@ -63,7 +63,7 @@ def build_identity_review_router(handler: TelegramAdminCustomerIdentityHandler) 
     @router.message(Command("identity_pending"))
     async def show_pending_identity_submissions(message: Message) -> None:
         if not is_private_message(message):
-            await message.answer("مراجعة طلبات التحقق متاحة في المحادثة الخاصة فقط.")
+            await message.answer("مراجعة طلبات التحقق متاحة في محادثتك الخاصة مع البوت فقط.")
             return
         admin_user_id = authenticated_telegram_user_id(message)
         if admin_user_id is None:
@@ -96,7 +96,7 @@ def build_identity_review_router(handler: TelegramAdminCustomerIdentityHandler) 
             await query.answer("هذا الطلب غير صالح.", show_alert=True)
             return
         if query.message is None or getattr(query.message.chat, "type", None) != "private":
-            await query.answer("المراجعة متاحة في المحادثة الخاصة فقط.", show_alert=True)
+            await query.answer("المراجعة متاحة في محادثتك الخاصة مع البوت فقط.", show_alert=True)
             return
         admin_user_id = authenticated_telegram_user_id(query)
         if admin_user_id is None:
@@ -124,7 +124,7 @@ def build_identity_review_router(handler: TelegramAdminCustomerIdentityHandler) 
     async def receive_identity_rejection_reason(message: Message, state: FSMContext) -> None:
         if not is_private_message(message):
             await state.clear()
-            await message.answer("إرسال سبب الرفض متاح في المحادثة الخاصة فقط.")
+            await message.answer("إرسال سبب الرفض متاح في محادثتك الخاصة مع البوت فقط.")
             return
         admin_user_id = authenticated_telegram_user_id(message)
         if admin_user_id is None:
