@@ -22,7 +22,10 @@ from app.infrastructure.persistence.customer_identity_repository import (
     SupabaseCustomerIdentityRepository,
 )
 from app.runtime.telegram.admin_customer_identity import TelegramAdminCustomerIdentityHandler
-from app.runtime.telegram.admin_identity_review import build_identity_review_router
+from app.runtime.telegram.admin_identity_review import (
+    build_identity_review_router,
+    parse_identity_review_callback,
+)
 from app.runtime.telegram.router import build_customer_router
 
 POLLING_UPDATE_TYPES = ("message", "callback_query")
