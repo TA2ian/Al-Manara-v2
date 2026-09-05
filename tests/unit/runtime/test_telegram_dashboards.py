@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock
 from aiogram import Bot, Dispatcher
 from aiogram.types import Update, User
 
-from app.runtime.telegram.admin_customer_identity import TelegramAdminCustomerIdentityHandler
 from app.runtime.telegram.admin_dashboard import (
     ADMIN_IDENTITY_CALLBACK,
+    ADMIN_ORDERS_CALLBACK,
     admin_dashboard_markup,
     build_admin_dashboard_router,
     render_admin_dashboard,
@@ -34,11 +34,17 @@ def test_customer_dashboard_has_only_real_current_actions():
     assert "لوحة المنارة" in render_customer_dashboard()
 
 
-def test_admin_dashboard_is_explicitly_privileged():
-    markup = admin_dashboard_markup()
-    callbacks = [button.callback_data for row in markup.inline_keyboard for button in row]
-
-    assert callbacks == [ADMIN_IDENTITY_CALLBACK]
+def test_admin_dashboard_only_exposes_orders_when_wired():
+    assert [
+        button.callback_data
+        for row in admin_dashboard_markup().inline_keyboard
+        for button in row
+    ] == [ADMIN_IDENTITY_CALLBACK]
+    assert [
+        button.callback_data
+        for row in admin_dashboard_markup(include_orders=True).inline_keyboard
+        for button in row
+    ] == [ADMIN_IDENTITY_CALLBACK, ADMIN_ORDERS_CALLBACK]
     assert "لوحة تحكم الإدارة" in render_admin_dashboard()
 
 
