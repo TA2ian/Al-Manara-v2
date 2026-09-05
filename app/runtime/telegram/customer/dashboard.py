@@ -10,6 +10,7 @@ from app.runtime.telegram.customer.orders import (
     render_order_listing_failure,
     render_order_page,
 )
+from app.runtime.telegram.customer.wallets import wallet_management_markup
 from app.runtime.telegram.customer_order_listing import TelegramCustomerOrderListingInput
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
 
@@ -82,9 +83,12 @@ def build_customer_dashboard_router(composition: CustomerComposition) -> Router:
         if user_id is None:
             await query.answer("تعذر التحقق من هوية المستخدم.", show_alert=True)
             return
-        await query.answer()
         response = await composition.wallets.list(user_id)
-        await query.message.answer(response.text)
+        await query.answer()
+        if not response.ok:
+            await query.message.answer(response.text or "تعذر تحميل المحافظ حاليًا.")
+            return
+        await query.message.answer(response.text, reply_markup=wallet_management_markup())
 
     @router.callback_query(F.data == DASHBOARD_ORDERS_CALLBACK)
     async def orders_callback(query: CallbackQuery) -> None:
