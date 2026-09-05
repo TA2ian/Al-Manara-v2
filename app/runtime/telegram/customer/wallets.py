@@ -24,6 +24,8 @@ WALLET_CANCELLED_MESSAGE = "تم إلغاء إضافة المحفظة. يمكن�
 WALLET_ADD_CALLBACK = "wallet:add"
 WALLET_LIST_CALLBACK = "wallet:list"
 WALLET_CANCEL_CALLBACK = "wallet:cancel"
+WALLET_DISABLE_CALLBACK_PREFIX = "wallet:disable:"
+WALLET_DISABLE_CONFIRM_PREFIX = "wallet:disable:confirm:"
 UUID_IN_LISTING = re.compile(
     r"\(([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\)"
 )
@@ -44,6 +46,21 @@ def wallet_management_markup() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="🏠 لوحة المنارة", callback_data="customer:dashboard")],
         ]
     )
+
+
+def wallet_listing_markup(text: str) -> InlineKeyboardMarkup:
+    wallet_ids = _wallet_ids_from_listing(text)
+    rows = [
+        [
+            InlineKeyboardButton(
+                text="تعطيل المحفظة",
+                callback_data=f"{WALLET_DISABLE_CALLBACK_PREFIX}{wallet_id}",
+            )
+        ]
+        for wallet_id in wallet_ids
+    ]
+    rows.extend(wallet_management_markup().inline_keyboard)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def _network_keyboard() -> InlineKeyboardMarkup:
@@ -76,24 +93,6 @@ def _wallet_ids_from_listing(text: str) -> tuple[UUID, ...]:
         except ValueError:
             continue
     return tuple(ids)
-
-
-def _listing_keyboard(text: str) -> InlineKeyboardMarkup | None:
-    wallet_ids = _wallet_ids_from_listing(text)
-    if not wallet_ids:
-        return wallet_management_markup()
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="تعطيل المحفظة",
-                    callback_data=f"wallet:disable:{wallet_id}",
-                )
-            ]
-            for wallet_id in wallet_ids
-        ]
-        + wallet_management_markup().inline_keyboard
-    )
 
 
 async def _require_private(message: Message, state: FSMContext | None = None) -> bool:
@@ -145,15 +144,11 @@ async def _render_wallet_list(message: Message, composition: CustomerComposition
     if not response.ok:
         await message.answer(response.text or WALLET_RETRY_MESSAGE)
         return
-    await message.answer(response.text, reply_markup=_listing_keyboard(response.text))
+    await message.answer(response.text, reply_markup=wallet_listing_markup(response.text))
 
 
 def build_customer_wallets_router(composition: CustomerComposition) -> Router:
-    """Build the bounded customer-wallet Telegram transport flow.
-
-    Validation and ownership decisions remain in the application services; this
-    router only gathers Telegram inputs and renders their safe outcomes.
-    """
+    """Build the bounded customer-wallet Telegram transport flow."""
 
     router = Router(name="customer-wallets")
 
@@ -176,7 +171,7 @@ def build_customer_wallets_router(composition: CustomerComposition) -> Router:
         if not response.ok:
             await query.message.edit_text(response.text or WALLET_RETRY_MESSAGE)
             return
-        await query.message.edit_text(response.text, reply_markup=_listing_keyboard(response.text))
+        await query.message.edit_text(response.text, reply_markup=wallet_listing_markup(response.text))
 
     @router.message(Command("wallet_add"))
     async def begin_registration(message: Message, state: FSMContext) -> None:
@@ -295,12 +290,12 @@ def build_customer_wallets_router(composition: CustomerComposition) -> Router:
         if query.message is not None:
             await query.message.edit_text(WALLET_CANCELLED_MESSAGE, reply_markup=wallet_management_markup())
 
-    @router.callback_query(F.data.startswith("wallet:disable:"))
+    @router.callback_query(F.data.regexp(r"^wallet:disable:[0-9a-fA-F-]{36}$"))
     async def request_disable(query: CallbackQuery) -> None:
         if not await _require_private_callback(query):
             return
         user_id = authenticated_telegram_user_id(query)
-        wallet_id = _parse_wallet_id(query.data, "wallet:disable:")
+        wallet_id = _parse_wallet_id(query.data, WALLET_DISABLE_CALLBACK_PREFIX)
         if user_id is None or wallet_id is None:
             await query.answer("طلب تعطيل غير صالح.", show_alert=True)
             return
@@ -315,7 +310,7 @@ def build_customer_wallets_router(composition: CustomerComposition) -> Router:
                         [
                             InlineKeyboardButton(
                                 text="تأكيد تعطيل المحفظة",
-                                callback_data=f"wallet:disable:confirm:{wallet_id}",
+                                callback_data=f"{WALLET_DISABLE_CONFIRM_PREFIX}{wallet_id}",
                             )
                         ],
                         [InlineKeyboardButton(text="إلغاء", callback_data=WALLET_CANCEL_CALLBACK)],
@@ -325,12 +320,12 @@ def build_customer_wallets_router(composition: CustomerComposition) -> Router:
                 return
         await query.message.edit_text(response.text or WALLET_RETRY_MESSAGE, reply_markup=wallet_management_markup())
 
-    @router.callback_query(F.data.startswith("wallet:disable:confirm:"))
+    @router.callback_query(F.data.regexp(r"^wallet:disable:confirm:[0-9a-fA-F-]{36}$"))
     async def confirm_disable(query: CallbackQuery) -> None:
         if not await _require_private_callback(query):
             return
         user_id = authenticated_telegram_user_id(query)
-        wallet_id = _parse_wallet_id(query.data, "wallet:disable:confirm:")
+        wallet_id = _parse_wallet_id(query.data, WALLET_DISABLE_CONFIRM_PREFIX)
         if user_id is None or wallet_id is None:
             await query.answer("طلب تعطيل غير صالح.", show_alert=True)
             return
