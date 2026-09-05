@@ -13,11 +13,12 @@ from app.runtime.telegram.customer_order_listing import (
     TelegramCustomerOrderListingResponse,
 )
 from app.runtime.telegram.messages import customer_safe_message
-from app.runtime.telegram.shared.actor import authenticated_telegram_user_id
+from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
 
 ORDER_PAGE_SIZE = 5
 ORDER_PAGE_CALLBACK = re.compile(r"^orders:page:(\d{1,3})$")
 ORDER_LISTING_RETRY_MESSAGE = "Orders could not be loaded. Please retry."
+PRIVATE_CHAT_REQUIRED = "حفاظًا على خصوصيتك، اعرض طلباتك في محادثة خاصة مع البوت."
 
 
 def parse_order_page_callback(callback_data: str | None) -> int | None:
@@ -62,6 +63,13 @@ def render_order_page(page: CustomerOrderPage) -> tuple[str, InlineKeyboardMarku
 async def _load_orders(
     update: Message | CallbackQuery, composition: CustomerComposition, page: int
 ) -> TelegramCustomerOrderListingResponse | None:
+    if isinstance(update, Message):
+        if not is_private_message(update):
+            await update.answer(PRIVATE_CHAT_REQUIRED)
+            return None
+    elif update.message is not None and not is_private_message(update.message):
+        await update.answer(PRIVATE_CHAT_REQUIRED, show_alert=True)
+        return None
     user_id = authenticated_telegram_user_id(update)
     if user_id is None:
         return None
@@ -79,6 +87,7 @@ def build_customer_orders_router(composition: CustomerComposition) -> Router:
 
     @router.message(Command("orders"))
     async def show_customer_orders(message: Message) -> None:
+        await _load_orders(message, composition, page=0)
         response = await _load_orders(message, composition, page=0)
         if response is None:
             return
@@ -94,10 +103,10 @@ def build_customer_orders_router(composition: CustomerComposition) -> Router:
         if page is None:
             await query.answer("هذا الطلب غير صالح.", show_alert=True)
             return
-        await query.answer()
         response = await _load_orders(query, composition, page=page)
         if response is None or query.message is None:
             return
+        await query.answer()
         if not response.ok or response.page is None:
             await query.message.edit_text(render_order_listing_failure(response.message))
             return
