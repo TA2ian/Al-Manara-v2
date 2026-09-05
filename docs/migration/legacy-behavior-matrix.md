@@ -205,6 +205,6 @@ shaping, and RPC access controls.
 
 ### Migration sequence
 
-Migration versions are unique through `0041`. The complete V2 chain through the
-customer identity-verification contract has been applied to the configured
-Supabase project. Runtime startup remains migration-free.
+Migration versions are unique through `0044`. The local CI database rebuild and
+contract-test chain has been validated through `0044`. Production Supabase is not
+modified by this migration work. Runtime startup remains migration-free.
