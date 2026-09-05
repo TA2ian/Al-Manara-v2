@@ -13,5 +13,8 @@ The PostgreSQL persistence contract is defined by the ordered migrations in `sup
 - ShamCash operation references use `shamcash_operation_number` and are never represented as blockchain transaction identifiers.
 - `public_order_code` is separate from `internal_order_id`.
 - Audit logs are append-only.
+- Customer Telegram polling is protected by a database-backed renewable lease,
+  so exactly one host may consume updates. The lease expires after missed
+  renewals, allowing recovery after an unclean worker stop.
 
 There must be exactly one canonical migration tree. Application repositories and services must enforce the same invariants rather than creating alternate state paths.

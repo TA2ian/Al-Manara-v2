@@ -7,6 +7,7 @@ from app.application.admin_order_closure import (
     AdminOrderClosureCommand,
     AdminOrderClosureService,
 )
+CLOSURE_ERROR_MESSAGE = "The order could not be closed. Please retry."
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,11 +53,17 @@ class TelegramAdminOrderClosureHandler:
                     idempotency_key=request.idempotency_key,
                 )
             )
-        except ValueError as exc:
-            return TelegramAdminClosureResponse(False, None, None, False, str(exc))
+        except ValueError:
+            return TelegramAdminClosureResponse(
+                False,
+                None,
+                None,
+                False,
+                CLOSURE_ERROR_MESSAGE,
+            )
         except (PermissionError, LookupError, RuntimeError, OSError):
             return TelegramAdminClosureResponse(
-                False, None, None, False, "The order could not be closed. Please retry."
+                False, None, None, False, CLOSURE_ERROR_MESSAGE
             )
         except Exception:
             return TelegramAdminClosureResponse(False, None, None, False, "The closure operation failed.")

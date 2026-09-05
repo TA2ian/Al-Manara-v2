@@ -9,6 +9,7 @@ from app.application.admin_order_listing import (
     AdminOrderListingService,
     ListAdminOrdersCommand,
 )
+ORDER_LISTING_ERROR_MESSAGE = "Orders could not be loaded. Please retry."
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,10 +55,13 @@ class TelegramAdminOrderListingHandler:
             ))
         except PermissionError:
             return TelegramAdminOrderListingResponse(False, message="You are not authorized to view orders.")
-        except ValueError as exc:
-            return TelegramAdminOrderListingResponse(False, message=str(exc))
+        except ValueError:
+            return TelegramAdminOrderListingResponse(
+                False,
+                message=ORDER_LISTING_ERROR_MESSAGE,
+            )
         except RuntimeError:
-            return TelegramAdminOrderListingResponse(False, message="Orders could not be loaded. Please retry.")
+            return TelegramAdminOrderListingResponse(False, message=ORDER_LISTING_ERROR_MESSAGE)
         except Exception:
             return TelegramAdminOrderListingResponse(False, message="An unexpected error occurred. Please retry.")
         return TelegramAdminOrderListingResponse(True, page=result, message="Orders loaded.")

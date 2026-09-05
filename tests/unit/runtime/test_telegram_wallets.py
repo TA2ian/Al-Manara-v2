@@ -94,6 +94,17 @@ async def test_disable_requires_confirmation():
 
 
 @pytest.mark.asyncio
+async def test_disable_returns_confirmation_guidance_when_service_omits_message():
+    disabling = Disabling(DisableWalletResult(False, True, "  "))
+    response = await handler(disabling=disabling).disable(
+        TelegramWalletInput(7, wallet().wallet_id, False)
+    )
+
+    assert response.ok is False
+    assert response.text == WalletMessages.CONFIRMATION_REQUIRED
+
+
+@pytest.mark.asyncio
 async def test_disable_success_hides_internal_details():
     disabling = Disabling(DisableWalletResult(True, False, "wallet disabled"))
     response = await handler(disabling=disabling).disable(TelegramWalletInput(7, wallet().wallet_id, True))

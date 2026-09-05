@@ -10,6 +10,8 @@ from app.application.admin_order_review import AdminOrderReviewService
 from app.application.admin_payment_account import AdminPaymentAccountService
 from app.application.admin_session import AdminSessionService
 from app.application.create_purchase_order import CreatePurchaseOrderService
+from app.application.customer_order_listing import CustomerOrderListingService
+from app.application.customer_identity import CustomerIdentityService
 from app.application.disable_wallet import DisableWalletService
 from app.application.fulfillment import FulfillmentService
 from app.application.list_wallets import ListWalletsService
@@ -24,6 +26,12 @@ from app.infrastructure.persistence.admin_session_repository import SupabaseAdmi
 from app.infrastructure.persistence.audit_logger import SupabaseAuditLogger
 from app.infrastructure.persistence.fulfillment_repository import SupabaseFulfillmentRepository
 from app.infrastructure.persistence.order_creation_repository import SupabaseOrderCreationRepository
+from app.infrastructure.persistence.customer_order_listing_repository import (
+    SupabaseCustomerOrderListingRepository,
+)
+from app.infrastructure.persistence.customer_identity_repository import (
+    SupabaseCustomerIdentityRepository,
+)
 from app.infrastructure.persistence.order_support_repositories import (
     SupabaseCustomerRepository,
     SupabaseNetworkOrderRepository,
@@ -38,12 +46,15 @@ from app.infrastructure.persistence.quote_support_repository import (
 )
 from app.infrastructure.persistence.wallet_repository import SupabaseWalletRepository
 from app.runtime.telegram.admin_order_closure import TelegramAdminOrderClosureHandler
+from app.runtime.telegram.admin_customer_identity import TelegramAdminCustomerIdentityHandler
 from app.runtime.telegram.admin_order_listing import TelegramAdminOrderListingHandler
 from app.runtime.telegram.admin_order_review import TelegramAdminOrderReviewHandler
 from app.runtime.telegram.admin_payment_account import TelegramAdminPaymentAccountHandler
 from app.runtime.telegram.admin_session import TelegramAdminSessionHandler
 from app.runtime.telegram.fulfillment import TelegramFulfillmentHandler
 from app.runtime.telegram.order_creation_handler import TelegramOrderCreationHandler
+from app.runtime.telegram.customer_order_listing import TelegramCustomerOrderListingHandler
+from app.runtime.telegram.customer_identity import TelegramCustomerIdentityHandler
 from app.runtime.telegram.wallets import TelegramWalletHandler
 
 
@@ -55,6 +66,7 @@ class AdminComposition:
     session: TelegramAdminSessionHandler
     fulfillment: TelegramFulfillmentHandler
     payment_accounts: TelegramAdminPaymentAccountHandler
+    identity_review: TelegramAdminCustomerIdentityHandler
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +75,8 @@ class CustomerComposition:
 
     order_creation: TelegramOrderCreationHandler
     wallets: TelegramWalletHandler
+    order_listing: TelegramCustomerOrderListingHandler
+    identity: TelegramCustomerIdentityHandler
 
 
 def build_admin_composition(client: Any, order_uow: UnitOfWork) -> AdminComposition:
@@ -83,6 +97,13 @@ def build_admin_composition(client: Any, order_uow: UnitOfWork) -> AdminComposit
         session=TelegramAdminSessionHandler(session_service),
         fulfillment=TelegramFulfillmentHandler(fulfillment_service),
         payment_accounts=TelegramAdminPaymentAccountHandler(payment_account_service),
+        identity_review=build_identity_review_handler(client),
+    )
+
+
+def build_identity_review_handler(client: Any) -> TelegramAdminCustomerIdentityHandler:
+    return TelegramAdminCustomerIdentityHandler(
+        CustomerIdentityService(SupabaseCustomerIdentityRepository(client))
     )
 
 
@@ -109,4 +130,10 @@ def build_customer_composition(client: Any) -> CustomerComposition:
     return CustomerComposition(
         order_creation=TelegramOrderCreationHandler(order_service),
         wallets=wallet_handler,
+        order_listing=TelegramCustomerOrderListingHandler(
+            CustomerOrderListingService(SupabaseCustomerOrderListingRepository(client))
+        ),
+        identity=TelegramCustomerIdentityHandler(
+            CustomerIdentityService(SupabaseCustomerIdentityRepository(client))
+        ),
     )

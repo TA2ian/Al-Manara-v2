@@ -5,6 +5,7 @@ from typing import Protocol
 from uuid import UUID
 
 from app.application.fulfillment import FulfillmentService
+FULFILLMENT_ERROR_MESSAGE = "fulfillment operation could not be completed"
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,10 +67,18 @@ class TelegramFulfillmentHandler:
                 actor_type=actor_type,
                 idempotency_key=idempotency_key,
             )
-        except ValueError as exc:
-            return TelegramFulfillmentResponse(False, None, None, False, str(exc))
+        except ValueError:
+            return TelegramFulfillmentResponse(
+                False,
+                None,
+                None,
+                False,
+                FULFILLMENT_ERROR_MESSAGE,
+            )
         except (PermissionError, LookupError, RuntimeError, OSError):
-            return TelegramFulfillmentResponse(False, None, None, False, "fulfillment operation could not be completed")
+            return TelegramFulfillmentResponse(
+                False, None, None, False, FULFILLMENT_ERROR_MESSAGE
+            )
         except Exception:
             return TelegramFulfillmentResponse(False, None, None, False, "fulfillment operation failed")
         return TelegramFulfillmentResponse(True, result.status, result.version, result.replayed, "fulfillment operation accepted")

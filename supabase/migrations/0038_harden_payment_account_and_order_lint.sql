@@ -1,6 +1,9 @@
 -- Finalize payment-account persistence and remove remaining PL/pgSQL
 -- output-parameter/column ambiguities detected by database lint.
-
+--
+-- This migration deliberately follows the focused final order-lint migrations.
+-- Its dynamic replacements are idempotent when a preceding migration has
+-- already qualified one of the target expressions.
 DO $$
 begin
     if exists (

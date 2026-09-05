@@ -6,6 +6,7 @@ from uuid import UUID
 
 from app.application.admin_order_review import AdminOrderReviewService, AdminReviewOrderCommand
 from app.application.ports import PersistedOrderTransition
+REVIEW_ERROR_MESSAGE = "The order could not be updated. Please retry."
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,14 +64,16 @@ class TelegramAdminOrderReviewHandler:
                     idempotency_key=request.idempotency_key,
                 )
             )
-        except ValueError as exc:
-            return TelegramAdminReviewResponse(False, message=str(exc))
+        except ValueError:
+            return TelegramAdminReviewResponse(
+                False, message=REVIEW_ERROR_MESSAGE
+            )
         except PermissionError:
             return TelegramAdminReviewResponse(False, message="You are not authorized to review orders.")
         except LookupError:
             return TelegramAdminReviewResponse(False, message="The requested order was not found.")
         except RuntimeError:
-            return TelegramAdminReviewResponse(False, message="The order could not be updated. Please retry.")
+            return TelegramAdminReviewResponse(False, message=REVIEW_ERROR_MESSAGE)
         except Exception:
             return TelegramAdminReviewResponse(False, message="An unexpected error occurred. Please retry.")
 

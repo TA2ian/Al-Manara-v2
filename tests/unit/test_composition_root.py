@@ -44,6 +44,7 @@ def test_build_admin_composition_wires_all_admin_handlers() -> None:
     assert composition.closure.__class__.__name__ == "TelegramAdminOrderClosureHandler"
     assert composition.session.__class__.__name__ == "TelegramAdminSessionHandler"
     assert composition.fulfillment.__class__.__name__ == "TelegramFulfillmentHandler"
+    assert composition.identity_review.__class__.__name__ == "TelegramAdminCustomerIdentityHandler"
 
 
 def test_build_customer_composition_wires_order_and_wallet_management() -> None:

@@ -7,6 +7,7 @@ from uuid import UUID
 from app.application.disable_wallet import DisableWalletCommand, DisableWalletResult
 from app.application.list_wallets import ListWalletsCommand
 from app.application.register_wallet import RegisterWalletCommand, RegisterWalletResult
+from app.runtime.telegram.messages import customer_safe_message
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +33,15 @@ class TelegramWalletResponse:
     text: str
 
 
+@dataclass(frozen=True, slots=True)
+class TelegramWalletChoicesResponse:
+    """Verified wallets suitable for a customer order, with no presentation policy."""
+
+    ok: bool
+    wallets: tuple[object, ...] = ()
+    text: str = ""
+
+
 class WalletMessages:
     INVALID = "بيانات المحفظة غير صالحة."
     NOT_FOUND = "المحفظة غير متاحة لهذا الحساب."
@@ -40,6 +50,7 @@ class WalletMessages:
     PENDING = "تم تسجيل المحفظة وبانتظار التحقق."
     DISABLED = "تم تعطيل المحفظة ولن يمكن استخدامها لطلبات جديدة."
     ALREADY_DISABLED = "المحفظة معطلة بالفعل."
+    CONFIRMATION_REQUIRED = "يرجى تأكيد تعطيل المحفظة لإتمام العملية."
     ERROR = "تعذر تنفيذ عملية المحفظة حاليًا."
 
 
@@ -78,6 +89,22 @@ class TelegramWalletHandler:
             lines.append(f"• {wallet.network.value}: {wallet.address} ({wallet.wallet_id})")
         return TelegramWalletResponse(True, "\n".join(lines))
 
+    async def list_available_for_order(self, user_id: int) -> TelegramWalletChoicesResponse:
+        """Return application-selected wallets for a Telegram order flow.
+
+        The router deliberately receives wallet objects only through this adapter;
+        it never reads a persistence repository itself.
+        """
+        if user_id <= 0:
+            return TelegramWalletChoicesResponse(False, text=WalletMessages.INVALID)
+        try:
+            wallets = tuple(await self.listing.execute(ListWalletsCommand(user_id=user_id)))
+        except (ValueError, LookupError):
+            return TelegramWalletChoicesResponse(False, text=WalletMessages.INVALID)
+        except Exception:
+            return TelegramWalletChoicesResponse(False, text=WalletMessages.ERROR)
+        return TelegramWalletChoicesResponse(True, wallets=wallets)
+
     async def register(self, data: TelegramWalletRegistrationInput) -> TelegramWalletResponse:
         if data.user_id <= 0:
             return TelegramWalletResponse(False, WalletMessages.INVALID)
@@ -114,7 +141,10 @@ class TelegramWalletHandler:
         except Exception:
             return TelegramWalletResponse(False, WalletMessages.ERROR)
         if result.confirmation_required:
-            return TelegramWalletResponse(False, result.message)
+            return TelegramWalletResponse(
+                False,
+                customer_safe_message(result.message, WalletMessages.CONFIRMATION_REQUIRED),
+            )
         if result.disabled:
             return TelegramWalletResponse(True, WalletMessages.DISABLED)
         if "already disabled" in result.message:
