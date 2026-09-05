@@ -1,0 +1,1 @@
+Contract gate: receipt attempt allocation must be concurrency-safe, strictly sequential, capped at three attempts, and escalate after the third failure. JPEG, PNG, and WEBP are supported; PDF is outside MVP.
