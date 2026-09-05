@@ -4,7 +4,7 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from app.runtime.telegram.admin_customer_identity import TelegramAdminCustomerIdentityHandler
+from app.composition_root import AdminComposition
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
 
 ADMIN_DASHBOARD_CALLBACK = "admin:dashboard"
@@ -27,7 +27,7 @@ def render_admin_dashboard() -> str:
     )
 
 
-def build_admin_dashboard_router(handler: TelegramAdminCustomerIdentityHandler) -> Router:
+def build_admin_dashboard_router(composition: AdminComposition) -> Router:
     router = Router(name="admin-dashboard")
 
     async def show_dashboard(message: Message) -> None:
@@ -38,7 +38,7 @@ def build_admin_dashboard_router(handler: TelegramAdminCustomerIdentityHandler) 
         if user_id is None:
             await message.answer("تعذر التحقق من هوية المدير.")
             return
-        authorization = await handler.list_pending(user_id)
+        authorization = await composition.identity_review.list_pending(user_id)
         if not authorization.ok:
             await message.answer(authorization.message or "غير مصرح لك بالوصول إلى لوحة الإدارة.")
             return
@@ -57,7 +57,7 @@ def build_admin_dashboard_router(handler: TelegramAdminCustomerIdentityHandler) 
         if user_id is None:
             await query.answer("تعذر التحقق من هوية المدير.", show_alert=True)
             return
-        authorization = await handler.list_pending(user_id)
+        authorization = await composition.identity_review.list_pending(user_id)
         if not authorization.ok:
             await query.answer(authorization.message or "غير مصرح لك.", show_alert=True)
             return
@@ -73,7 +73,7 @@ def build_admin_dashboard_router(handler: TelegramAdminCustomerIdentityHandler) 
         if user_id is None:
             await query.answer("تعذر التحقق من هوية المدير.", show_alert=True)
             return
-        response = await handler.list_pending(user_id)
+        response = await composition.identity_review.list_pending(user_id)
         if not response.ok:
             await query.answer(response.message or "غير مصرح لك.", show_alert=True)
             return
