@@ -5,6 +5,8 @@ on:
     paths:
       - 'app/**'
       - 'tests/unit/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - '.github/workflows/unit-tests.yml'
   push:
     branches:
@@ -14,6 +16,8 @@ on:
     paths:
       - 'app/**'
       - 'tests/unit/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - '.github/workflows/unit-tests.yml'
 
 jobs:
@@ -28,8 +32,8 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install test dependencies
-        run: python -m pip install --upgrade pip pytest pytest-asyncio Pillow
+      - name: Install project and test dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -e '.[test]'
 
       - name: Run unit tests
         run: python -m pytest tests/unit -q
