@@ -17,12 +17,10 @@ PRIVATE_CHAT_REQUIRED = "حفاظًا على خصوصيتك، أكمل إنشا�
 ORDER_CANCELLED = "تم إلغاء إنشاء الطلب."
 ORDER_RETRY_MESSAGE = "تعذر إنشاء الطلب حاليًا. حاول مرة أخرى."
 WALLETS_RETRY_MESSAGE = "تعذر تحميل المحافظ الموثقة. حاول مرة أخرى."
-
 WALLET_CALLBACK_PREFIX = "purchase:wallet:"
 CURRENCY_CALLBACKS = {"purchase:currency:usd": "USD", "purchase:currency:new_syp": "NEW.SYP"}
 CONFIRM_CALLBACK = "purchase:confirm"
 CANCEL_CALLBACK = "purchase:cancel"
-
 
 class PurchaseOrderState(StatesGroup):
     amount = State()
@@ -30,24 +28,14 @@ class PurchaseOrderState(StatesGroup):
     currency = State()
     confirmation = State()
 
-
 def _cancel_markup() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="إلغاء", callback_data=CANCEL_CALLBACK)]]
-    )
-
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="إلغاء", callback_data=CANCEL_CALLBACK)]])
 
 def _currency_markup() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text="USD", callback_data="purchase:currency:usd"),
-                InlineKeyboardButton(text="NEW.SYP", callback_data="purchase:currency:new_syp"),
-            ],
-            [InlineKeyboardButton(text="إلغاء", callback_data=CANCEL_CALLBACK)],
-        ]
-    )
-
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="USD", callback_data="purchase:currency:usd"),
+        InlineKeyboardButton(text="NEW.SYP", callback_data="purchase:currency:new_syp"),
+    ], [InlineKeyboardButton(text="إلغاء", callback_data=CANCEL_CALLBACK)]])
 
 def _wallet_markup(wallets: tuple[object, ...]) -> InlineKeyboardMarkup:
     buttons: list[list[InlineKeyboardButton]] = []
@@ -59,17 +47,9 @@ def _wallet_markup(wallets: tuple[object, ...]) -> InlineKeyboardMarkup:
             continue
         network_code = getattr(network, "value", str(network))
         short_address = address if len(address) <= 14 else f"{address[:8]}…{address[-5:]}"
-        buttons.append(
-            [
-                InlineKeyboardButton(
-                    text=f"{network_code} · {short_address}",
-                    callback_data=f"{WALLET_CALLBACK_PREFIX}{wallet_id}",
-                )
-            ]
-        )
+        buttons.append([InlineKeyboardButton(text=f"{network_code} · {short_address}", callback_data=f"{WALLET_CALLBACK_PREFIX}{wallet_id}")])
     buttons.append([InlineKeyboardButton(text="إلغاء", callback_data=CANCEL_CALLBACK)])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
-
 
 def parse_positive_amount(raw: str | None) -> Decimal | None:
     try:
@@ -78,22 +58,45 @@ def parse_positive_amount(raw: str | None) -> Decimal | None:
         return None
     return amount if amount.is_finite() and amount > 0 else None
 
-
-def render_confirmation(data: dict[str, object]) -> str:
-    """Render selections only; all financial calculations remain in the application service."""
-    return (
-        "راجع بيانات الطلب قبل التأكيد:\n"
-        f"• المبلغ المطلوب: {data['requested_amount']} USDT\n"
-        f"• الشبكة: {data['network_code']}\n"
-        f"• عملة الدفع: {data['payment_currency']}\n\n"
-        "سيتم احتساب المبلغ وتعليمات الدفع الرسمية من الخدمة عند التأكيد."
+def _build_input(data: dict[str, object], user_id: int) -> TelegramOrderInput:
+    return TelegramOrderInput.from_values(
+        user_id=user_id,
+        wallet_id=str(data.get("wallet_id", "")),
+        network_code=str(data.get("network_code", "")),
+        requested_amount=str(data.get("requested_amount", "")),
+        payment_currency=str(data.get("payment_currency", "")),
+        idempotency_key=str(data.get("idempotency_key", "")),
     )
 
+def _quote_fingerprint(quote: object) -> tuple[str, ...]:
+    financials = quote.financials
+    rate = quote.exchange_rate_snapshot
+    return (
+        str(financials.requested_amount), str(financials.fee_percent), str(financials.fee_amount),
+        str(financials.net_usdt_amount), str(financials.payment_currency), str(financials.exchange_rate),
+        str(financials.local_amount), str(financials.rounding_policy_version),
+        str(quote.fee_policy_snapshot.version), str(rate.version if rate else ""),
+        str(rate.rate if rate else ""),
+    )
+
+def render_confirmation(data: dict[str, object], quote: object) -> str:
+    financials = quote.financials
+    rate = quote.exchange_rate_snapshot
+    lines = [
+        "راجع عرض السعر قبل تأكيد الطلب:",
+        f"• المبلغ المطلوب: {financials.requested_amount} USDT",
+        f"• رسوم الخدمة: {financials.fee_amount} USDT ({financials.fee_percent}%)",
+        f"• صافي USDT: {financials.net_usdt_amount} USDT",
+        f"• عملة الدفع: {financials.payment_currency}",
+        f"• المبلغ المطلوب دفعه: {financials.local_amount} {financials.payment_currency}",
+    ]
+    if rate is not None:
+        lines.append(f"• سعر الصرف: {rate.rate} {financials.payment_currency}/USDT")
+    lines.extend(["", "عرض السعر صالح لمدة 10 دقائق تقريبًا، ويُعاد التحقق منه لحظة التأكيد."])
+    return "\n".join(lines)
 
 def render_created_order(order_text: str) -> str:
-    """Render only the immutable result returned by the order-creation adapter."""
     return f"{order_text}\n\nاحتفظ برقم الطلب. لا ترسل أي مبلغ إلا وفق تعليمات الدفع الرسمية للطلب."
-
 
 async def _require_private(message: Message, state: FSMContext) -> bool:
     if is_private_message(message):
@@ -102,10 +105,7 @@ async def _require_private(message: Message, state: FSMContext) -> bool:
     await message.answer(PRIVATE_CHAT_REQUIRED)
     return False
 
-
-async def _load_wallets(
-    message: Message, state: FSMContext, composition: CustomerComposition, user_id: int
-) -> None:
+async def _load_wallets(message: Message, state: FSMContext, composition: CustomerComposition, user_id: int) -> None:
     response = await composition.wallets.list_available_for_order(user_id)
     if not response.ok:
         await message.answer(WALLETS_RETRY_MESSAGE, reply_markup=_cancel_markup())
@@ -117,9 +117,7 @@ async def _load_wallets(
     await state.set_state(PurchaseOrderState.wallet)
     await message.answer("اختر المحفظة الموثقة التي سيُرسل إليها USDT.", reply_markup=_wallet_markup(response.wallets))
 
-
 def build_customer_purchase_order_router(composition: CustomerComposition) -> Router:
-    """Bounded private-chat order collection; services own validation and finance."""
     router = Router(name="customer-purchase-order")
 
     @router.message(Command("buy", "purchase"))
@@ -164,10 +162,7 @@ def build_customer_purchase_order_router(composition: CustomerComposition) -> Ro
             await query.answer(ORDER_RETRY_MESSAGE, show_alert=True)
             return
         response = await composition.wallets.list_available_for_order(user_id)
-        wallet = next(
-            (item for item in response.wallets if getattr(item, "wallet_id", None) == selected_wallet_id),
-            None,
-        )
+        wallet = next((item for item in response.wallets if getattr(item, "wallet_id", None) == selected_wallet_id), None)
         if not response.ok or wallet is None:
             await query.answer("المحفظة لم تعد متاحة. اختر محفظة أخرى.", show_alert=True)
             return
@@ -190,19 +185,29 @@ def build_customer_purchase_order_router(composition: CustomerComposition) -> Ro
         if currency is None:
             await query.answer("عملة غير صالحة.", show_alert=True)
             return
+        user_id = authenticated_telegram_user_id(query)
+        if user_id is None:
+            await query.answer(ORDER_RETRY_MESSAGE, show_alert=True)
+            return
         await state.update_data(payment_currency=currency)
         data = await state.get_data()
+        try:
+            request = _build_input(data, user_id)
+        except ValueError:
+            await state.clear()
+            await query.answer("بيانات الطلب غير مكتملة. ابدأ من جديد.", show_alert=True)
+            return
+        preview = await composition.order_creation.preview(request)
+        if not preview.ok or preview.quote is None:
+            await query.answer(preview.text or ORDER_RETRY_MESSAGE, show_alert=True)
+            return
+        await state.update_data(quote_fingerprint=_quote_fingerprint(preview.quote))
         await state.set_state(PurchaseOrderState.confirmation)
         await query.answer()
-        await query.message.answer(
-            render_confirmation(data),
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [InlineKeyboardButton(text="تأكيد الطلب", callback_data=CONFIRM_CALLBACK)],
-                    [InlineKeyboardButton(text="إلغاء", callback_data=CANCEL_CALLBACK)],
-                ]
-            ),
-        )
+        await query.message.answer(render_confirmation(data, preview.quote), reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="تأكيد الطلب", callback_data=CONFIRM_CALLBACK)],
+            [InlineKeyboardButton(text="إلغاء", callback_data=CANCEL_CALLBACK)],
+        ]))
 
     @router.callback_query(PurchaseOrderState.confirmation, F.data == CONFIRM_CALLBACK)
     async def confirm(query: CallbackQuery, state: FSMContext) -> None:
@@ -210,19 +215,27 @@ def build_customer_purchase_order_router(composition: CustomerComposition) -> Ro
             await query.answer()
             return
         user_id = authenticated_telegram_user_id(query)
+        if user_id is None:
+            await query.answer(ORDER_RETRY_MESSAGE, show_alert=True)
+            return
         data = await state.get_data()
         try:
-            request = TelegramOrderInput.from_values(
-                user_id=user_id or 0,
-                wallet_id=str(data.get("wallet_id", "")),
-                network_code=str(data.get("network_code", "")),
-                requested_amount=str(data.get("requested_amount", "")),
-                payment_currency=str(data.get("payment_currency", "")),
-                idempotency_key=str(data.get("idempotency_key", "")),
-            )
+            request = _build_input(data, user_id)
         except ValueError:
             await state.clear()
             await query.answer("بيانات الطلب غير مكتملة. ابدأ من جديد.", show_alert=True)
+            return
+        preview = await composition.order_creation.preview(request)
+        if not preview.ok or preview.quote is None:
+            await query.answer(preview.text or ORDER_RETRY_MESSAGE, show_alert=True)
+            return
+        if tuple(data.get("quote_fingerprint", ())) != _quote_fingerprint(preview.quote):
+            await state.update_data(quote_fingerprint=_quote_fingerprint(preview.quote))
+            await query.answer("تغير السعر أو الرسوم. راجع العرض المحدث ثم أكد مرة أخرى.", show_alert=True)
+            await query.message.answer(render_confirmation(data, preview.quote), reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="تأكيد الطلب", callback_data=CONFIRM_CALLBACK)],
+                [InlineKeyboardButton(text="إلغاء", callback_data=CANCEL_CALLBACK)],
+            ]))
             return
         response = await composition.order_creation.handle(request)
         await query.answer()
