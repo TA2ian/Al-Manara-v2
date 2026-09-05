@@ -16,12 +16,15 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand, ErrorEvent
 from supabase import create_client
 
+from app.application.admin_order_listing import AdminOrderListingService
 from app.application.customer_identity import CustomerIdentityService
 from app.composition_root import build_customer_composition
+from app.infrastructure.persistence.admin_order_listing_repository import SupabaseAdminOrderListingRepository
 from app.infrastructure.persistence.customer_identity_repository import SupabaseCustomerIdentityRepository
 from app.runtime.telegram.admin_customer_identity import TelegramAdminCustomerIdentityHandler
 from app.runtime.telegram.admin_dashboard import build_admin_dashboard_router
 from app.runtime.telegram.admin_identity_review import build_identity_review_router
+from app.runtime.telegram.admin_order_listing import TelegramAdminOrderListingHandler
 from app.runtime.telegram.router import build_customer_router
 
 POLLING_UPDATE_TYPES = ("message", "callback_query")
@@ -143,7 +146,10 @@ def build_telegram_runtime(settings: TelegramBotSettings) -> tuple[Bot, Dispatch
     client = create_client(settings.supabase_url, settings.supabase_service_role_key)
     dispatcher = Dispatcher()
     identity_handler = TelegramAdminCustomerIdentityHandler(CustomerIdentityService(SupabaseCustomerIdentityRepository(client)))
-    dispatcher.include_router(build_admin_dashboard_router(identity_handler))
+    order_listing_handler = TelegramAdminOrderListingHandler(
+        AdminOrderListingService(SupabaseAdminOrderListingRepository(client))
+    )
+    dispatcher.include_router(build_admin_dashboard_router(identity_handler, order_listing_handler))
     dispatcher.include_router(build_identity_review_router(identity_handler))
     dispatcher.include_router(build_customer_router(build_customer_composition(client)))
     dispatcher.errors.register(log_telegram_error)
