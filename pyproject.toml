@@ -1,14 +1,18 @@
 [project]
-name = "repl-nix-workspace"
+name = "al-manara-v2"
 version = "0.1.0"
-description = "Add your description here"
-requires-python = ">=3.13"
+description = "Al-Manara V2 Telegram bot"
+requires-python = ">=3.12"
 dependencies = [
     "aiogram==3.31.0",
     "pillow>=12.3.0",
+    "supabase>=2,<3",
+]
+
+[project.optional-dependencies]
+test = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
-    "supabase>=2,<3",
 ]
 
 [tool.pytest.ini_options]
