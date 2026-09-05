@@ -5,7 +5,12 @@ from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.composition_root import CustomerComposition
-from app.runtime.telegram.customer.orders import ORDER_PAGE_SIZE, render_order_listing_failure, render_order_page
+from app.runtime.telegram.customer.identity import build_customer_identity_router
+from app.runtime.telegram.customer.orders import (
+    ORDER_PAGE_SIZE,
+    render_order_listing_failure,
+    render_order_page,
+)
 from app.runtime.telegram.customer_order_listing import TelegramCustomerOrderListingInput
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
 
@@ -36,19 +41,20 @@ def render_customer_dashboard() -> str:
     )
 
 
+async def _show_dashboard(message: Message) -> None:
+    if not is_private_message(message):
+        await message.answer(PRIVATE_DASHBOARD_MESSAGE)
+        return
+    await message.answer(render_customer_dashboard(), reply_markup=customer_dashboard_markup())
+
+
 def build_customer_dashboard_router(composition: CustomerComposition) -> Router:
     router = Router(name="customer-dashboard")
-
-    async def show_dashboard(message: Message) -> None:
-        if not is_private_message(message):
-            await message.answer(PRIVATE_DASHBOARD_MESSAGE)
-            return
-        await message.answer(render_customer_dashboard(), reply_markup=customer_dashboard_markup())
 
     @router.message(CommandStart())
     @router.message(F.text.startswith("/start "))
     async def start(message: Message) -> None:
-        await show_dashboard(message)
+        await _show_dashboard(message)
 
     @router.callback_query(F.data == DASHBOARD_CALLBACK)
     async def dashboard_callback(query: CallbackQuery) -> None:
