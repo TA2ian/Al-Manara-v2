@@ -5,7 +5,6 @@ from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.composition_root import CustomerComposition
-from app.runtime.telegram.customer.identity import build_customer_identity_router
 from app.runtime.telegram.customer.orders import (
     ORDER_PAGE_SIZE,
     render_order_listing_failure,
