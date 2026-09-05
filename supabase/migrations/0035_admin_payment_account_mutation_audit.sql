@@ -1,7 +1,11 @@
 -- Harden admin payment-account mutations so status changes return the complete
 -- account snapshot and audit entries preserve the previous state.
 
-create or replace function set_admin_payment_account_active(
+-- PostgreSQL cannot change a function's OUT/RETURNS TABLE row type with
+-- CREATE OR REPLACE. Drop the previous signature first, then recreate it.
+drop function if exists set_admin_payment_account_active(bigint, admin_actor_type, currency_code, boolean);
+
+create function set_admin_payment_account_active(
     p_telegram_user_id bigint,
     p_actor_type admin_actor_type,
     p_currency currency_code,
