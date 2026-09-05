@@ -16,7 +16,10 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand, ErrorEvent
 from supabase import create_client
 
-from app.composition_root import build_admin_composition, build_customer_composition
+from app.application.customer_identity import CustomerIdentityService
+from app.composition_root import build_customer_composition
+from app.infrastructure.persistence.customer_identity_repository import SupabaseCustomerIdentityRepository
+from app.runtime.telegram.admin_customer_identity import TelegramAdminCustomerIdentityHandler
 from app.runtime.telegram.admin_dashboard import build_admin_dashboard_router
 from app.runtime.telegram.admin_identity_review import build_identity_review_router
 from app.runtime.telegram.router import build_customer_router
@@ -35,9 +38,7 @@ class TelegramBotSettings:
     supabase_service_role_key: str
 
     @classmethod
-    def from_environment(
-        cls, environment: Mapping[str, str] | None = None
-    ) -> "TelegramBotSettings":
+    def from_environment(cls, environment: Mapping[str, str] | None = None) -> "TelegramBotSettings":
         values = environment if environment is not None else os.environ
         required = {
             "TELEGRAM_BOT_TOKEN": values.get("TELEGRAM_BOT_TOKEN", "").strip(),
@@ -47,7 +48,7 @@ class TelegramBotSettings:
         missing = [name for name, value in required.items() if not value]
         if missing:
             raise RuntimeError(f"Missing required bot configuration: {', '.join(missing)}")
-        return cls(required["TELEGRAM_BOT_TOKEN"], required["SUPABASE_URL"], required["SUPABASE_SERVICE_ROLE_KEY"])
+        return cls(token=required["TELEGRAM_BOT_TOKEN"], supabase_url=required["SUPABASE_URL"], supabase_service_role_key=required["SUPABASE_SERVICE_ROLE_KEY"])
 
 
 class SinglePollerLock:
@@ -139,12 +140,11 @@ async def log_telegram_error(event: ErrorEvent) -> bool:
 
 
 def build_telegram_runtime(settings: TelegramBotSettings) -> tuple[Bot, Dispatcher]:
-    """Build the single V2 composition root for customer and admin routes."""
     client = create_client(settings.supabase_url, settings.supabase_service_role_key)
     dispatcher = Dispatcher()
-    admin_composition = build_admin_composition(client, None)  # type: ignore[arg-type]
-    dispatcher.include_router(build_admin_dashboard_router(admin_composition))
-    dispatcher.include_router(build_identity_review_router(admin_composition.identity_review))
+    identity_handler = TelegramAdminCustomerIdentityHandler(CustomerIdentityService(SupabaseCustomerIdentityRepository(client)))
+    dispatcher.include_router(build_admin_dashboard_router(identity_handler))
+    dispatcher.include_router(build_identity_review_router(identity_handler))
     dispatcher.include_router(build_customer_router(build_customer_composition(client)))
     dispatcher.errors.register(log_telegram_error)
     return Bot(token=settings.token), dispatcher
