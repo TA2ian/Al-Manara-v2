@@ -22,10 +22,8 @@ from app.infrastructure.persistence.customer_identity_repository import (
     SupabaseCustomerIdentityRepository,
 )
 from app.runtime.telegram.admin_customer_identity import TelegramAdminCustomerIdentityHandler
-from app.runtime.telegram.admin_identity_review import (
-    build_identity_review_router,
-    parse_identity_review_callback,
-)
+from app.runtime.telegram.admin_dashboard import build_admin_dashboard_router
+from app.runtime.telegram.admin_identity_review import build_identity_review_router
 from app.runtime.telegram.router import build_customer_router
 
 POLLING_UPDATE_TYPES = ("message", "callback_query")
@@ -177,6 +175,7 @@ def build_telegram_runtime(settings: TelegramBotSettings) -> tuple[Bot, Dispatch
     identity_handler = TelegramAdminCustomerIdentityHandler(
         CustomerIdentityService(SupabaseCustomerIdentityRepository(client))
     )
+    dispatcher.include_router(build_admin_dashboard_router(identity_handler))
     dispatcher.include_router(build_identity_review_router(identity_handler))
     dispatcher.include_router(build_customer_router(build_customer_composition(client)))
     dispatcher.errors.register(log_telegram_error)
@@ -235,10 +234,9 @@ async def run_polling(
         bot._me = identity
         await bot.set_my_commands(
             [
-                BotCommand(command="start", description="عرض المساعدة"),
+                BotCommand(command="start", description="فتح لوحة المنارة"),
                 BotCommand(command="verify", description="إرسال بيانات التحقق"),
                 BotCommand(command="orders", description="عرض طلباتك"),
-                BotCommand(command="identity_pending", description="مراجعة طلبات التحقق"),
             ]
         )
         LOGGER.info("Telegram polling transport is ready for bot id %s.", identity.id)
