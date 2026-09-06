@@ -23,7 +23,7 @@ select ok(
 );
 
 select ok(
-    position("fulfillment_claimed_by" in pg_get_functiondef((
+    position('fulfillment_claimed_by' in pg_get_functiondef((
         select p.oid
         from pg_proc p
         where p.proname = 'list_admin_orders'
