@@ -7,11 +7,13 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 from app.runtime.telegram.admin_order_actions import order_action_markup
 from app.runtime.telegram.admin_order_listing import TelegramAdminOrderListingHandler, TelegramAdminOrderListingInput
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
+from app.runtime.telegram.fulfillment import fulfillment_action_markup
 
 ADMIN_DASHBOARD_CALLBACK = "admin:dashboard"
 ADMIN_IDENTITY_CALLBACK = "admin:identity_pending"
 ADMIN_ORDERS_CALLBACK = "admin:orders"
 ADMIN_REVIEW_ORDERS_CALLBACK = "admin:review_orders"
+ADMIN_FULFILLMENT_CALLBACK = "admin:fulfillment"
 ADMIN_ORDER_PAGE_SIZE = 5
 
 
@@ -20,6 +22,7 @@ def admin_dashboard_markup(*, include_orders: bool = False) -> InlineKeyboardMar
     if include_orders:
         rows.append([InlineKeyboardButton(text="📦 الطلبات النشطة", callback_data=ADMIN_ORDERS_CALLBACK)])
         rows.append([InlineKeyboardButton(text="🔎 المدفوعات قيد المراجعة", callback_data=ADMIN_REVIEW_ORDERS_CALLBACK)])
+        rows.append([InlineKeyboardButton(text="🚚 الطلبات المعتمدة للتنفيذ", callback_data=ADMIN_FULFILLMENT_CALLBACK)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -31,16 +34,22 @@ def render_admin_dashboard() -> str:
     )
 
 
-def _render_orders(page, *, review_actions: bool = False) -> tuple[str, InlineKeyboardMarkup | None]:
+def _render_orders(page, *, review_actions: bool = False, fulfillment_actions: bool = False) -> tuple[str, InlineKeyboardMarkup | None]:
     if not page.items:
-        return (
-            "لا توجد طلبات قيد المراجعة حاليًا." if review_actions else "لا توجد طلبات نشطة حاليًا.",
-            None,
-        )
-    lines = [
-        f"{'🔎 طلبات قيد المراجعة' if review_actions else '📦 الطلبات النشطة'} ({page.total_count})",
-        "",
-    ]
+        if review_actions:
+            empty = "لا توجد طلبات قيد المراجعة حاليًا."
+        elif fulfillment_actions:
+            empty = "لا توجد طلبات معتمدة للتنفيذ حاليًا."
+        else:
+            empty = "لا توجد طلبات نشطة حاليًا."
+        return empty, None
+    if review_actions:
+        title = "🔎 طلبات قيد المراجعة"
+    elif fulfillment_actions:
+        title = "🚚 الطلبات المعتمدة للتنفيذ"
+    else:
+        title = "📦 الطلبات النشطة"
+    lines = [f"{title} ({page.total_count})", ""]
     rows: list[list[InlineKeyboardButton]] = []
     for item in page.items:
         lines.append(
@@ -49,14 +58,24 @@ def _render_orders(page, *, review_actions: bool = False) -> tuple[str, InlineKe
             f"  الشبكة: {item.network_code}"
         )
         if review_actions:
-            action_markup = order_action_markup(item.internal_order_id, item.version)
-            rows.extend(action_markup.inline_keyboard)
+            rows.extend(order_action_markup(item.internal_order_id, item.version).inline_keyboard)
+        elif fulfillment_actions:
+            rows.extend(
+                fulfillment_action_markup(
+                    item.internal_order_id,
+                    item.version,
+                    claimed=False,
+                ).inline_keyboard
+            )
     if page.total_count > page.page_size:
         lines.append(f"\nالصفحة {page.page + 1}")
     return "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
 
-def build_admin_dashboard_router(handler, order_listing: TelegramAdminOrderListingHandler | None = None):
+def build_admin_dashboard_router(
+    handler,
+    order_listing: TelegramAdminOrderListingHandler | None = None,
+):
     router = Router(name="admin-dashboard")
 
     async def authorize(user_id: int):
@@ -147,7 +166,12 @@ def build_admin_dashboard_router(handler, order_listing: TelegramAdminOrderListi
             await query.message.answer(response.message or "تعذر تحميل الطلبات.")
             return
         is_review_list = list_type == "review"
-        text, markup = _render_orders(response.page, review_actions=is_review_list)
+        is_fulfillment_list = list_type == "fulfillment"
+        text, markup = _render_orders(
+            response.page,
+            review_actions=is_review_list,
+            fulfillment_actions=is_fulfillment_list,
+        )
         await query.message.answer(text, reply_markup=markup)
 
     if order_listing is not None:
@@ -158,5 +182,9 @@ def build_admin_dashboard_router(handler, order_listing: TelegramAdminOrderListi
         @router.callback_query(F.data == ADMIN_REVIEW_ORDERS_CALLBACK)
         async def review_orders_callback(query: CallbackQuery) -> None:
             await load_order_list(query, "review")
+
+        @router.callback_query(F.data == ADMIN_FULFILLMENT_CALLBACK)
+        async def fulfillment_callback(query: CallbackQuery) -> None:
+            await load_order_list(query, "fulfillment")
 
     return router
