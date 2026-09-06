@@ -4,7 +4,6 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from app.runtime.telegram.admin_order_actions import order_action_markup
 from app.runtime.telegram.admin_order_listing import TelegramAdminOrderListingHandler, TelegramAdminOrderListingInput
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
 
@@ -19,7 +18,7 @@ def admin_dashboard_markup(*, include_orders: bool = False) -> InlineKeyboardMar
     rows = [[InlineKeyboardButton(text="👥 التحقق من المستخدمين", callback_data=ADMIN_IDENTITY_CALLBACK)]]
     if include_orders:
         rows.append([InlineKeyboardButton(text="📦 الطلبات النشطة", callback_data=ADMIN_ORDERS_CALLBACK)])
-        rows.append([InlineKeyboardButton(text="🔎 مراجعة المدفوعات", callback_data=ADMIN_REVIEW_ORDERS_CALLBACK)])
+        rows.append([InlineKeyboardButton(text="🔎 المدفوعات قيد المراجعة", callback_data=ADMIN_REVIEW_ORDERS_CALLBACK)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -48,8 +47,6 @@ def _render_orders(page, *, review_actions: bool = False) -> tuple[str, InlineKe
             f"  العميل: {item.user_telegram_id}\n"
             f"  الشبكة: {item.network_code}"
         )
-        if review_actions:
-            rows.extend(order_action_markup(item.internal_order_id, item.version).inline_keyboard)
     if page.total_count > page.page_size:
         lines.append(f"\nالصفحة {page.page + 1}")
     return "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
@@ -145,7 +142,7 @@ def build_admin_dashboard_router(handler, order_listing: TelegramAdminOrderListi
         if not response.ok or response.page is None:
             await query.message.answer(response.message or "تعذر تحميل الطلبات.")
             return
-        text, markup = _render_orders(response.page, review_actions=list_type == "review")
+        text, markup = _render_orders(response.page, review_actions=False)
         await query.message.answer(text, reply_markup=markup)
 
     if order_listing is not None:
