@@ -28,6 +28,7 @@ class AdminOrderListItem:
     payment_currency: str | None
     local_amount: Decimal | None
     created_at: datetime
+    fulfillment_claimed_by: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
