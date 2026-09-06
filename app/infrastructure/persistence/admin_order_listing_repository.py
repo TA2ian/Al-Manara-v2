@@ -60,6 +60,7 @@ class SupabaseAdminOrderListingRepository(AdminOrderListingRepository):
                     created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
                 if not isinstance(created_at, datetime) or created_at.tzinfo is None:
                     raise ValueError("created_at must be timezone-aware")
+                claim_owner = row.get("fulfillment_claimed_by")
                 item = AdminOrderListItem(
                     internal_order_id=UUID(str(row["internal_order_id"])),
                     public_order_code=str(row["public_order_code"]),
@@ -72,6 +73,7 @@ class SupabaseAdminOrderListingRepository(AdminOrderListingRepository):
                     payment_currency=str(row["payment_currency"]) if row.get("payment_currency") is not None else None,
                     local_amount=Decimal(str(row["local_amount"])) if row.get("local_amount") is not None else None,
                     created_at=created_at,
+                    fulfillment_claimed_by=int(claim_owner) if claim_owner is not None else None,
                 )
             except (KeyError, TypeError, ValueError) as exc:
                 raise AdminOrderListingPersistenceError("invalid admin order listing payload") from exc
