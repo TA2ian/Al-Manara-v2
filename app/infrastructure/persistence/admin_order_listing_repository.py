@@ -31,16 +31,17 @@ class SupabaseAdminOrderListingRepository(AdminOrderListingRepository):
         self._client = client
 
     async def list_orders(self, admin_telegram_user_id: int, actor_type: str, list_type: AdminOrderListType, page: int, page_size: int) -> AdminOrderPage:
+        rpc_name = "list_admin_fulfillment_orders" if list_type is AdminOrderListType.FULFILLMENT else "list_admin_orders"
+        params = {
+            "p_admin_telegram_user_id": admin_telegram_user_id,
+            "p_actor_type": actor_type,
+            "p_page": page,
+            "p_page_size": page_size,
+        }
+        if rpc_name == "list_admin_orders":
+            params["p_list_type"] = list_type.value
         try:
-            response = await asyncio.to_thread(
-                self._client.rpc("list_admin_orders", {
-                    "p_admin_telegram_user_id": admin_telegram_user_id,
-                    "p_actor_type": actor_type,
-                    "p_list_type": list_type.value,
-                    "p_page": page,
-                    "p_page_size": page_size,
-                }).execute
-            )
+            response = await asyncio.to_thread(self._client.rpc(rpc_name, params).execute)
         except Exception as exc:
             raise AdminOrderListingPersistenceError("admin order listing RPC failed") from exc
         error = getattr(response, "error", None)
