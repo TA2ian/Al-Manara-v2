@@ -142,7 +142,8 @@ def build_admin_dashboard_router(handler, order_listing: TelegramAdminOrderListi
         if not response.ok or response.page is None:
             await query.message.answer(response.message or "تعذر تحميل الطلبات.")
             return
-        text, markup = _render_orders(response.page, review_actions=False)
+        is_review_list = list_type == "review"
+        text, markup = _render_orders(response.page, review_actions=is_review_list)
         await query.message.answer(text, reply_markup=markup)
 
     if order_listing is not None:
