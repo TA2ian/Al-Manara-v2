@@ -1,7 +1,11 @@
 -- Expose active fulfillment claim ownership to the privileged admin listing.
 -- The claim owner is needed only to render truthful claim/complete controls.
 -- Authorization for completion remains authoritative in complete_order_fulfillment.
-create or replace function list_admin_orders(
+-- PostgreSQL cannot change a function's OUT row type with CREATE OR REPLACE,
+-- so the previous signature is dropped before recreating the RPC.
+drop function if exists list_admin_orders(bigint, admin_actor_type, text, integer, integer);
+
+create function list_admin_orders(
     p_admin_telegram_user_id bigint,
     p_actor_type admin_actor_type,
     p_list_type text default 'active',
