@@ -34,7 +34,13 @@ def render_admin_dashboard() -> str:
     )
 
 
-def _render_orders(page, *, review_actions: bool = False, fulfillment_actions: bool = False) -> tuple[str, InlineKeyboardMarkup | None]:
+def _render_orders(
+    page,
+    *,
+    review_actions: bool = False,
+    fulfillment_actions: bool = False,
+    current_admin_user_id: int | None = None,
+) -> tuple[str, InlineKeyboardMarkup | None]:
     if not page.items:
         if review_actions:
             empty = "لا توجد طلبات قيد المراجعة حاليًا."
@@ -60,13 +66,24 @@ def _render_orders(page, *, review_actions: bool = False, fulfillment_actions: b
         if review_actions:
             rows.extend(order_action_markup(item.internal_order_id, item.version).inline_keyboard)
         elif fulfillment_actions:
-            rows.extend(
-                fulfillment_action_markup(
-                    item.internal_order_id,
-                    item.version,
-                    claimed=False,
-                ).inline_keyboard
-            )
+            if item.fulfillment_claimed_by is None:
+                rows.extend(
+                    fulfillment_action_markup(
+                        item.internal_order_id,
+                        item.version,
+                        claimed=False,
+                    ).inline_keyboard
+                )
+            elif item.fulfillment_claimed_by == current_admin_user_id:
+                rows.extend(
+                    fulfillment_action_markup(
+                        item.internal_order_id,
+                        item.version,
+                        claimed=True,
+                    ).inline_keyboard
+                )
+            else:
+                lines.append("  التنفيذ مستلم من مدير آخر؛ لا يمكن إتمامه من هذا الحساب.")
     if page.total_count > page.page_size:
         lines.append(f"\nالصفحة {page.page + 1}")
     return "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
@@ -171,6 +188,7 @@ def build_admin_dashboard_router(
             response.page,
             review_actions=is_review_list,
             fulfillment_actions=is_fulfillment_list,
+            current_admin_user_id=user_id,
         )
         await query.message.answer(text, reply_markup=markup)
 
