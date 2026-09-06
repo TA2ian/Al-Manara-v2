@@ -20,6 +20,7 @@ from app.composition_root import build_admin_composition, build_customer_composi
 from app.runtime.telegram.admin_dashboard import build_admin_dashboard_router
 from app.runtime.telegram.admin_identity_review import build_identity_review_router
 from app.runtime.telegram.admin_order_actions import build_admin_order_actions_router
+from app.runtime.telegram.fulfillment import build_fulfillment_router
 from app.runtime.telegram.router import build_customer_router
 
 POLLING_UPDATE_TYPES = ("message", "callback_query")
@@ -167,6 +168,7 @@ def build_telegram_runtime(settings: TelegramBotSettings) -> tuple[Bot, Dispatch
     )
     dispatcher.include_router(build_identity_review_router(admin.identity_review))
     dispatcher.include_router(build_admin_order_actions_router(admin.review))
+    dispatcher.include_router(build_fulfillment_router(admin.fulfillment))
     dispatcher.include_router(build_customer_router(build_customer_composition(client)))
     dispatcher.errors.register(log_telegram_error)
     return Bot(token=settings.token), dispatcher
