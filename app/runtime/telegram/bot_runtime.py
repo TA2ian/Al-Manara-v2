@@ -16,15 +16,10 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand, ErrorEvent
 from supabase import create_client
 
-from app.application.admin_order_listing import AdminOrderListingService
-from app.application.customer_identity import CustomerIdentityService
-from app.composition_root import build_customer_composition
-from app.infrastructure.persistence.admin_order_listing_repository import SupabaseAdminOrderListingRepository
-from app.infrastructure.persistence.customer_identity_repository import SupabaseCustomerIdentityRepository
-from app.runtime.telegram.admin_customer_identity import TelegramAdminCustomerIdentityHandler
+from app.composition_root import build_admin_composition, build_customer_composition
 from app.runtime.telegram.admin_dashboard import build_admin_dashboard_router
 from app.runtime.telegram.admin_identity_review import build_identity_review_router
-from app.runtime.telegram.admin_order_listing import TelegramAdminOrderListingHandler
+from app.runtime.telegram.admin_order_actions import build_admin_order_actions_router
 from app.runtime.telegram.router import build_customer_router
 
 POLLING_UPDATE_TYPES = ("message", "callback_query")
@@ -51,7 +46,11 @@ class TelegramBotSettings:
         missing = [name for name, value in required.items() if not value]
         if missing:
             raise RuntimeError(f"Missing required bot configuration: {', '.join(missing)}")
-        return cls(token=required["TELEGRAM_BOT_TOKEN"], supabase_url=required["SUPABASE_URL"], supabase_service_role_key=required["SUPABASE_SERVICE_ROLE_KEY"])
+        return cls(
+            token=required["TELEGRAM_BOT_TOKEN"],
+            supabase_url=required["SUPABASE_URL"],
+            supabase_service_role_key=required["SUPABASE_SERVICE_ROLE_KEY"],
+        )
 
 
 class SinglePollerLock:
@@ -101,7 +100,14 @@ class SharedPollerLeaseUnavailable(RuntimeError):
 class SupabaseSharedPollerLease:
     """Supabase RPC adapter for the customer Telegram polling lease."""
 
-    def __init__(self, client: Any, *, owner_id: UUID | None = None, lease_seconds: int = LEASE_DURATION_SECONDS, rpc_timeout_seconds: float = LEASE_RPC_TIMEOUT_SECONDS) -> None:
+    def __init__(
+        self,
+        client: Any,
+        *,
+        owner_id: UUID | None = None,
+        lease_seconds: int = LEASE_DURATION_SECONDS,
+        rpc_timeout_seconds: float = LEASE_RPC_TIMEOUT_SECONDS,
+    ) -> None:
         self._client = client
         self._owner_id = owner_id or uuid4()
         self._lease_seconds = lease_seconds
@@ -121,19 +127,29 @@ class SupabaseSharedPollerLease:
         if function_name != "release_telegram_poller_lease":
             params["p_lease_seconds"] = self._lease_seconds
         try:
-            response = await asyncio.wait_for(asyncio.to_thread(self._client.rpc(function_name, params).execute), timeout=self._rpc_timeout_seconds)
+            response = await asyncio.wait_for(
+                asyncio.to_thread(self._client.rpc(function_name, params).execute),
+                timeout=self._rpc_timeout_seconds,
+            )
         except Exception as exc:
             raise SharedPollerLeaseError("shared poller lease RPC failed") from exc
         if getattr(response, "error", None):
             raise SharedPollerLeaseError("shared poller lease RPC returned an error")
         data = getattr(response, "data", None)
-        if not isinstance(data, list) or len(data) != 1 or not isinstance(data[0], dict) or not isinstance(data[0].get(result_name), bool):
+        if (
+            not isinstance(data, list)
+            or len(data) != 1
+            or not isinstance(data[0], dict)
+            or not isinstance(data[0].get(result_name), bool)
+        ):
             raise SharedPollerLeaseError("shared poller lease RPC returned invalid data")
         return data[0][result_name]
 
 
 def build_shared_poller_lease(settings: TelegramBotSettings) -> SharedPollerLease:
-    return SupabaseSharedPollerLease(create_client(settings.supabase_url, settings.supabase_service_role_key))
+    return SupabaseSharedPollerLease(
+        create_client(settings.supabase_url, settings.supabase_service_role_key)
+    )
 
 
 async def log_telegram_error(event: ErrorEvent) -> bool:
@@ -144,23 +160,30 @@ async def log_telegram_error(event: ErrorEvent) -> bool:
 
 def build_telegram_runtime(settings: TelegramBotSettings) -> tuple[Bot, Dispatcher]:
     client = create_client(settings.supabase_url, settings.supabase_service_role_key)
+    admin = build_admin_composition(client)
     dispatcher = Dispatcher()
-    identity_handler = TelegramAdminCustomerIdentityHandler(CustomerIdentityService(SupabaseCustomerIdentityRepository(client)))
-    order_listing_handler = TelegramAdminOrderListingHandler(
-        AdminOrderListingService(SupabaseAdminOrderListingRepository(client))
+    dispatcher.include_router(
+        build_admin_dashboard_router(admin.identity_review, admin.listing)
     )
-    dispatcher.include_router(build_admin_dashboard_router(identity_handler, order_listing_handler))
-    dispatcher.include_router(build_identity_review_router(identity_handler))
+    dispatcher.include_router(build_identity_review_router(admin.identity_review))
+    dispatcher.include_router(build_admin_order_actions_router(admin.review))
     dispatcher.include_router(build_customer_router(build_customer_composition(client)))
     dispatcher.errors.register(log_telegram_error)
     return Bot(token=settings.token), dispatcher
 
 
-async def _renew_lease_until_stopped(lease: SharedPollerLease, dispatcher: Dispatcher, renewal_interval_seconds: float, renewal_timeout_seconds: float) -> None:
+async def _renew_lease_until_stopped(
+    lease: SharedPollerLease,
+    dispatcher: Dispatcher,
+    renewal_interval_seconds: float,
+    renewal_timeout_seconds: float,
+) -> None:
     while True:
         await asyncio.sleep(renewal_interval_seconds)
         try:
-            renewed = await asyncio.wait_for(lease.renew(), timeout=renewal_timeout_seconds)
+            renewed = await asyncio.wait_for(
+                lease.renew(), timeout=renewal_timeout_seconds
+            )
         except (TimeoutError, SharedPollerLeaseError):
             renewed = False
         if not renewed:
@@ -169,7 +192,13 @@ async def _renew_lease_until_stopped(lease: SharedPollerLease, dispatcher: Dispa
             return
 
 
-async def run_polling(settings: TelegramBotSettings, lease: SharedPollerLease | None = None, *, renewal_interval_seconds: float = LEASE_RENEWAL_INTERVAL_SECONDS, renewal_timeout_seconds: float = LEASE_RPC_TIMEOUT_SECONDS) -> None:
+async def run_polling(
+    settings: TelegramBotSettings,
+    lease: SharedPollerLease | None = None,
+    *,
+    renewal_interval_seconds: float = LEASE_RENEWAL_INTERVAL_SECONDS,
+    renewal_timeout_seconds: float = LEASE_RPC_TIMEOUT_SECONDS,
+) -> None:
     if renewal_interval_seconds <= 0 or renewal_timeout_seconds <= 0:
         raise ValueError("lease renewal interval and timeout must be positive")
     if renewal_interval_seconds + renewal_timeout_seconds >= LEASE_DURATION_SECONDS:
@@ -181,15 +210,24 @@ async def run_polling(settings: TelegramBotSettings, lease: SharedPollerLease | 
     renew_task: asyncio.Task[None] | None = None
     try:
         bot, dispatcher = build_telegram_runtime(settings)
-        renew_task = asyncio.create_task(_renew_lease_until_stopped(shared_lease, dispatcher, renewal_interval_seconds, renewal_timeout_seconds))
+        renew_task = asyncio.create_task(
+            _renew_lease_until_stopped(
+                shared_lease,
+                dispatcher,
+                renewal_interval_seconds,
+                renewal_timeout_seconds,
+            )
+        )
         await bot.delete_webhook(drop_pending_updates=False)
         identity = await bot.get_me()
         bot._me = identity
-        await bot.set_my_commands([
-            BotCommand(command="start", description="فتح لوحة المنارة"),
-            BotCommand(command="verify", description="إرسال بيانات التحقق"),
-            BotCommand(command="orders", description="عرض طلباتك"),
-        ])
+        await bot.set_my_commands(
+            [
+                BotCommand(command="start", description="فتح لوحة المنارة"),
+                BotCommand(command="verify", description="إرسال بيانات التحقق"),
+                BotCommand(command="orders", description="عرض طلباتك"),
+            ]
+        )
         LOGGER.info("Telegram polling transport is ready for bot id %s.", identity.id)
         await dispatcher.start_polling(bot, allowed_updates=POLLING_UPDATE_TYPES)
     finally:
@@ -205,7 +243,9 @@ async def run_polling(settings: TelegramBotSettings, lease: SharedPollerLease | 
 
 
 def main(lock: SinglePollerLock | None = None) -> None:
-    logging.basicConfig(format="%(asctime)s %(levelname)s %(name)s: %(message)s", level=logging.INFO)
+    logging.basicConfig(
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s", level=logging.INFO
+    )
     logging.getLogger("httpx").setLevel(logging.WARNING)
     poller_lock = lock or SinglePollerLock()
     if not poller_lock.acquire():
