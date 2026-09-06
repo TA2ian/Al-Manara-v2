@@ -27,7 +27,7 @@ def test_unclaimed_fulfillment_order_exposes_claim_action():
         current_admin_user_id=1001,
     )
 
-    assert "استلم" in markup.inline_keyboard[0][0].text
+    assert "استلام للتنفيذ" == markup.inline_keyboard[0][0].text
     assert markup.inline_keyboard[0][0].callback_data == f"admin:fulfillment:claim:{ORDER_ID}:8"
     assert "مدير آخر" not in text
 
