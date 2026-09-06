@@ -75,3 +75,7 @@ begin
     select * from filtered;
 end;
 $$;
+
+-- This RPC exposes privileged order data and must never inherit PUBLIC execute.
+revoke execute on function list_admin_fulfillment_orders(bigint, admin_actor_type, integer, integer) from public;
+grant execute on function list_admin_fulfillment_orders(bigint, admin_actor_type, integer, integer) to service_role;
