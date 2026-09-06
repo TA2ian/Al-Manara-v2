@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
-from typing import Protocol
-from uuid import UUID
+from uuid import UUID, uuid4
+
+from aiogram import F, Router
+from aiogram.types import CallbackQuery
 
 from app.application.fulfillment import FulfillmentService
-FULFILLMENT_ERROR_MESSAGE = "fulfillment operation could not be completed"
+from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
+
+FULFILLMENT_ERROR_MESSAGE = "تعذر تنفيذ عملية التسليم. حاول مرة أخرى."
+FULFILLMENT_CALLBACK = re.compile(r"^admin:fulfillment:(claim|complete):([0-9a-fA-F-]{36}):(\d+)$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,11 +30,6 @@ class TelegramFulfillmentResponse:
     version: int | None
     replayed: bool
     message: str
-
-
-class FulfillmentApplication(Protocol):
-    async def claim(self, **kwargs: object): ...
-    async def complete(self, **kwargs: object): ...
 
 
 class TelegramFulfillmentHandler:
@@ -68,17 +69,73 @@ class TelegramFulfillmentHandler:
                 idempotency_key=idempotency_key,
             )
         except ValueError:
-            return TelegramFulfillmentResponse(
-                False,
-                None,
-                None,
-                False,
-                FULFILLMENT_ERROR_MESSAGE,
-            )
+            return TelegramFulfillmentResponse(False, None, None, False, FULFILLMENT_ERROR_MESSAGE)
         except (PermissionError, LookupError, RuntimeError, OSError):
-            return TelegramFulfillmentResponse(
-                False, None, None, False, FULFILLMENT_ERROR_MESSAGE
-            )
+            return TelegramFulfillmentResponse(False, None, None, False, FULFILLMENT_ERROR_MESSAGE)
         except Exception:
-            return TelegramFulfillmentResponse(False, None, None, False, "fulfillment operation failed")
-        return TelegramFulfillmentResponse(True, result.status, result.version, result.replayed, "fulfillment operation accepted")
+            return TelegramFulfillmentResponse(False, None, None, False, "تعذر تنفيذ عملية التسليم.")
+        return TelegramFulfillmentResponse(
+            True, result.status, result.version, result.replayed, "تم تنفيذ عملية التسليم."
+        )
+
+
+def fulfillment_action_markup(order_id: UUID, expected_version: int, *, claimed: bool = False):
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    action = "complete" if claimed else "claim"
+    label = "إتمام التسليم" if claimed else "استلام للتنفيذ"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=label,
+                    callback_data=f"admin:fulfillment:{action}:{order_id}:{expected_version}",
+                )
+            ]
+        ]
+    )
+
+
+def parse_fulfillment_callback(data: str | None) -> tuple[str, UUID, int] | None:
+    match = FULFILLMENT_CALLBACK.fullmatch(data or "")
+    if match is None:
+        return None
+    try:
+        return match.group(1), UUID(match.group(2)), int(match.group(3))
+    except ValueError:
+        return None
+
+
+def build_fulfillment_router(handler: TelegramFulfillmentHandler) -> Router:
+    router = Router(name="admin-fulfillment")
+
+    @router.callback_query(F.data.regexp(FULFILLMENT_CALLBACK.pattern))
+    async def handle_fulfillment(query: CallbackQuery) -> None:
+        parsed = parse_fulfillment_callback(query.data)
+        if parsed is None:
+            await query.answer("هذا الطلب غير صالح.", show_alert=True)
+            return
+        if query.message is None or not is_private_message(query.message):
+            await query.answer("إدارة التسليم متاحة في المحادثة الخاصة فقط.", show_alert=True)
+            return
+        admin_user_id = authenticated_telegram_user_id(query)
+        if admin_user_id is None:
+            await query.answer("تعذر التحقق من هوية المدير.", show_alert=True)
+            return
+        operation, order_id, expected_version = parsed
+        request = TelegramFulfillmentInput(
+            admin_user_id=admin_user_id,
+            actor_type="primary",
+            order_id=order_id,
+            expected_version=expected_version,
+            idempotency_key=str(uuid4()),
+        )
+        response = await (handler.claim(request) if operation == "claim" else handler.complete(request))
+        await query.answer(response.message, show_alert=not response.ok)
+        if response.ok:
+            try:
+                await query.message.edit_reply_markup(reply_markup=None)
+            except Exception:
+                pass
+
+    return router
