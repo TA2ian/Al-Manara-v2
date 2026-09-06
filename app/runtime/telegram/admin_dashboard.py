@@ -4,6 +4,7 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+from app.runtime.telegram.admin_order_actions import order_action_markup
 from app.runtime.telegram.admin_order_listing import TelegramAdminOrderListingHandler, TelegramAdminOrderListingInput
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
 
@@ -47,6 +48,9 @@ def _render_orders(page, *, review_actions: bool = False) -> tuple[str, InlineKe
             f"  العميل: {item.user_telegram_id}\n"
             f"  الشبكة: {item.network_code}"
         )
+        if review_actions:
+            action_markup = order_action_markup(item.internal_order_id, item.version)
+            rows.extend(action_markup.inline_keyboard)
     if page.total_count > page.page_size:
         lines.append(f"\nالصفحة {page.page + 1}")
     return "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
