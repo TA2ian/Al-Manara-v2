@@ -1,6 +1,6 @@
 # Database Layer
 
-The initial PostgreSQL persistence contract is defined in `db/migrations/0001_initial_schema.sql`.
+The PostgreSQL persistence contract is defined by the ordered migrations in `supabase/migrations/`.
 
 ## Current policy
 
@@ -14,4 +14,4 @@ The initial PostgreSQL persistence contract is defined in `db/migrations/0001_in
 - `public_order_code` is separate from `internal_order_id`.
 - Audit logs are append-only.
 
-This migration is the schema contract. Application repositories and services must enforce the same invariants rather than creating alternate state paths.
+There must be exactly one canonical migration tree. Application repositories and services must enforce the same invariants rather than creating alternate state paths.

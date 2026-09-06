@@ -1,8 +1,6 @@
 -- Al-Manara v2 — persistence contract hardening
 -- Applies after 0001_initial_schema.sql.
 
--- Payment accounts are currency-specific in the MVP. Replace the v1 one-account-per-method
--- constraint with a method+currency uniqueness contract.
 alter table admin_payment_accounts
   add column currency currency_code;
 
@@ -19,7 +17,6 @@ alter table admin_payment_accounts
 create unique index admin_payment_accounts_method_currency_uq
   on admin_payment_accounts(payment_method_id, currency);
 
--- Receipt processing is intentionally bounded to three image attempts per order.
 create or replace function enforce_receipt_attempt_limit()
 returns trigger
 language plpgsql
@@ -27,6 +24,10 @@ as $$
 declare
   existing_attempts integer;
 begin
+  -- Serialize attempt allocation per order so concurrent receipt submissions
+  -- cannot observe the same attempt count and claim the same attempt number.
+  perform pg_advisory_xact_lock(hashtextextended(new.internal_order_id::text, 0));
+
   select count(*) into existing_attempts
   from receipt_submissions
   where internal_order_id = new.internal_order_id;
@@ -47,8 +48,6 @@ create trigger receipt_submissions_attempt_limit
 before insert on receipt_submissions
 for each row execute function enforce_receipt_attempt_limit();
 
--- TOTP is the authoritative step-up factor for sensitive admin actions.
--- The secret is stored as application-encrypted ciphertext; plaintext secrets never belong in the DB.
 create table admin_totp_credentials (
   telegram_user_id bigint primary key references admin_users(telegram_user_id) on delete restrict,
   secret_ciphertext text not null,
@@ -77,17 +76,13 @@ create table admin_step_up_confirmations (
 create index admin_step_up_target_idx
   on admin_step_up_confirmations(target_type, target_id, action, created_at desc);
 
--- Keep one active/proposed exchange-rate row per currency pair/state combination.
 create unique index exchange_rates_active_pair_uq
   on exchange_rates(currency_pair)
   where status = 'ACTIVE';
 
--- A financial snapshot must exist exactly once and cannot be removed or modified.
--- 0001 already protects mutation; this index documents the one-to-one invariant explicitly.
 create unique index order_financial_snapshots_order_uq
   on order_financial_snapshots(internal_order_id);
 
--- The launch configuration is still BEP20 + TRC20 only.
 DO $$
 DECLARE
   enabled_count integer;
