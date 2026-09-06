@@ -4,12 +4,14 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+from app.runtime.telegram.admin_order_actions import order_action_markup
 from app.runtime.telegram.admin_order_listing import TelegramAdminOrderListingHandler, TelegramAdminOrderListingInput
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
 
 ADMIN_DASHBOARD_CALLBACK = "admin:dashboard"
 ADMIN_IDENTITY_CALLBACK = "admin:identity_pending"
 ADMIN_ORDERS_CALLBACK = "admin:orders"
+ADMIN_REVIEW_ORDERS_CALLBACK = "admin:review_orders"
 ADMIN_ORDER_PAGE_SIZE = 5
 
 
@@ -17,6 +19,7 @@ def admin_dashboard_markup(*, include_orders: bool = False) -> InlineKeyboardMar
     rows = [[InlineKeyboardButton(text="👥 التحقق من المستخدمين", callback_data=ADMIN_IDENTITY_CALLBACK)]]
     if include_orders:
         rows.append([InlineKeyboardButton(text="📦 الطلبات النشطة", callback_data=ADMIN_ORDERS_CALLBACK)])
+        rows.append([InlineKeyboardButton(text="🔎 مراجعة المدفوعات", callback_data=ADMIN_REVIEW_ORDERS_CALLBACK)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -28,19 +31,28 @@ def render_admin_dashboard() -> str:
     )
 
 
-def _render_orders(page) -> str:
+def _render_orders(page, *, review_actions: bool = False) -> tuple[str, InlineKeyboardMarkup | None]:
     if not page.items:
-        return "لا توجد طلبات نشطة حاليًا."
-    lines = [f"📦 الطلبات النشطة ({page.total_count})", ""]
+        return (
+            "لا توجد طلبات قيد المراجعة حاليًا." if review_actions else "لا توجد طلبات نشطة حاليًا.",
+            None,
+        )
+    lines = [
+        f"{'🔎 طلبات قيد المراجعة' if review_actions else '📦 الطلبات النشطة'} ({page.total_count})",
+        "",
+    ]
+    rows: list[list[InlineKeyboardButton]] = []
     for item in page.items:
         lines.append(
             f"• {item.public_order_code} | {item.status}\n"
             f"  العميل: {item.user_telegram_id}\n"
             f"  الشبكة: {item.network_code}"
         )
+        if review_actions:
+            rows.extend(order_action_markup(item.internal_order_id, item.version).inline_keyboard)
     if page.total_count > page.page_size:
         lines.append(f"\nالصفحة {page.page + 1}")
-    return "\n".join(lines)
+    return "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
 
 def build_admin_dashboard_router(handler, order_listing: TelegramAdminOrderListingHandler | None = None):
@@ -73,7 +85,7 @@ def build_admin_dashboard_router(handler, order_listing: TelegramAdminOrderListi
     @router.callback_query(F.data == ADMIN_DASHBOARD_CALLBACK)
     async def dashboard_callback(query: CallbackQuery) -> None:
         if query.message is None or not is_private_message(query.message):
-            await query.answer("لوحة الإدارة متاحة في المحادثة الخاصة مع البوت فقط.", show_alert=True)
+            await query.answer("لوحة الإدارة متاحة في المحادثة الخاصة فقط.", show_alert=True)
             return
         user_id = authenticated_telegram_user_id(query)
         if user_id is None:
@@ -108,33 +120,41 @@ def build_admin_dashboard_router(handler, order_listing: TelegramAdminOrderListi
             return
         await query.message.answer("للمراجعة التفصيلية أرسل /identity_pending.")
 
+    async def load_order_list(query: CallbackQuery, list_type: str) -> None:
+        if query.message is None or not is_private_message(query.message):
+            await query.answer("عرض الطلبات متاح في المحادثة الخاصة فقط.", show_alert=True)
+            return
+        user_id = authenticated_telegram_user_id(query)
+        if user_id is None:
+            await query.answer("تعذر التحقق من هوية المدير.", show_alert=True)
+            return
+        authorization = await authorize(user_id)
+        if not authorization.ok:
+            await query.answer(authorization.message or "غير مصرح لك.", show_alert=True)
+            return
+        await query.answer()
+        response = await order_listing.handle(
+            TelegramAdminOrderListingInput(
+                admin_user_id=user_id,
+                actor_type="primary",
+                list_type=list_type,
+                page=0,
+                page_size=ADMIN_ORDER_PAGE_SIZE,
+            )
+        )
+        if not response.ok or response.page is None:
+            await query.message.answer(response.message or "تعذر تحميل الطلبات.")
+            return
+        text, markup = _render_orders(response.page, review_actions=list_type == "review")
+        await query.message.answer(text, reply_markup=markup)
+
     if order_listing is not None:
         @router.callback_query(F.data == ADMIN_ORDERS_CALLBACK)
         async def orders_callback(query: CallbackQuery) -> None:
-            if query.message is None or not is_private_message(query.message):
-                await query.answer("عرض الطلبات متاح في المحادثة الخاصة فقط.", show_alert=True)
-                return
-            user_id = authenticated_telegram_user_id(query)
-            if user_id is None:
-                await query.answer("تعذر التحقق من هوية المدير.", show_alert=True)
-                return
-            authorization = await authorize(user_id)
-            if not authorization.ok:
-                await query.answer(authorization.message or "غير مصرح لك.", show_alert=True)
-                return
-            await query.answer()
-            response = await order_listing.handle(
-                TelegramAdminOrderListingInput(
-                    admin_user_id=user_id,
-                    actor_type="primary",
-                    list_type="active",
-                    page=0,
-                    page_size=ADMIN_ORDER_PAGE_SIZE,
-                )
-            )
-            if not response.ok or response.page is None:
-                await query.message.answer(response.message or "تعذر تحميل الطلبات.")
-                return
-            await query.message.answer(_render_orders(response.page))
+            await load_order_list(query, "active")
+
+        @router.callback_query(F.data == ADMIN_REVIEW_ORDERS_CALLBACK)
+        async def review_orders_callback(query: CallbackQuery) -> None:
+            await load_order_list(query, "review")
 
     return router
