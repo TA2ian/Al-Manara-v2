@@ -134,7 +134,16 @@ def build_fulfillment_router(handler: TelegramFulfillmentHandler) -> Router:
         await query.answer(response.message, show_alert=not response.ok)
         if response.ok:
             try:
-                await query.message.edit_reply_markup(reply_markup=None)
+                if operation == "claim" and response.version is not None:
+                    await query.message.edit_reply_markup(
+                        reply_markup=fulfillment_action_markup(
+                            order_id,
+                            response.version,
+                            claimed=True,
+                        )
+                    )
+                else:
+                    await query.message.edit_reply_markup(reply_markup=None)
             except Exception:
                 pass
 
