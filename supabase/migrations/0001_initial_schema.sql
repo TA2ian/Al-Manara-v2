@@ -5,10 +5,7 @@ create extension if not exists pgcrypto;
 
 create type currency_code as enum ('USD', 'NEW.SYP');
 create type network_code as enum ('BEP20', 'TRC20', 'TON', 'ARB', 'ETH', 'SOL');
-create type order_status as enum (
-  'DRAFT', 'PENDING_PAYMENT', 'PAYMENT_SUBMITTED', 'UNDER_REVIEW',
-  'APPROVED', 'COMPLETED', 'REJECTED', 'CANCELLED', 'EXPIRED', 'CLARIFICATION_REQUIRED'
-);
+create type order_status as enum ('DRAFT', 'PENDING_PAYMENT', 'PAYMENT_SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'COMPLETED', 'REJECTED', 'CANCELLED', 'EXPIRED', 'CLARIFICATION_REQUIRED');
 create type wallet_status as enum ('PENDING', 'VERIFIED', 'REJECTED', 'DISABLED');
 create type verification_status as enum ('PENDING', 'APPROVED', 'REJECTED');
 create type receipt_source as enum ('customer', 'admin_verified');
@@ -27,13 +24,7 @@ create table users (
   disabled_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint users_verified_identity_pair check (
-    (verified_name is null and verified_shamcash_account is null and payment_identity_verified_at is null)
-    or
-    (verified_name is not null and length(btrim(verified_name)) between 1 and 200
-     and verified_shamcash_account is not null and length(btrim(verified_shamcash_account)) between 1 and 100
-     and payment_identity_verified_at is not null)
-  )
+  constraint users_verified_identity_pair check ((verified_name is null and verified_shamcash_account is null and payment_identity_verified_at is null) or (verified_name is not null and length(btrim(verified_name)) between 1 and 200 and verified_shamcash_account is not null and length(btrim(verified_shamcash_account)) between 1 and 100 and payment_identity_verified_at is not null))
 );
 
 create table network_configs (
@@ -54,17 +45,14 @@ create table network_configs (
   constraint network_fee_nonnegative check (service_fee_percent >= 0 and service_fee_percent < 100),
   constraint network_amount_bounds check (min_amount > 0 and max_amount >= min_amount)
 );
-
 create unique index network_configs_enabled_code_idx on network_configs(code) where enabled;
-
-insert into network_configs (code, display_name, enabled, address_regex, address_validator, requires_memo, service_fee_percent, min_amount, max_amount, icon_or_emoji)
-values
- ('BEP20', 'BEP20', true, '^0x[0-9A-Fa-f]{40}$', 'evm_address', false, 10.000000, 0.001, 1000000, '🔶'),
- ('TRC20', 'TRC20', true, '^T[1-9A-HJ-NP-Za-km-z]{33}$', 'tron_base58check', false, 5.000000, 0.001, 1000000, '🔴'),
- ('TON', 'TON', false, '.*', 'ton_address', true, 0.000000, 0.001, 1000000, '💎'),
- ('ARB', 'ARB', false, '^0x[0-9A-Fa-f]{40}$', 'evm_address', false, 0.000000, 0.001, 1000000, '🔷'),
- ('ETH', 'ETH', false, '^0x[0-9A-Fa-f]{40}$', 'evm_address', false, 0.000000, 0.001, 1000000, '🔷'),
- ('SOL', 'SOL', false, '.*', 'sol_address', false, 0.000000, 0.001, 1000000, '🟣');
+insert into network_configs (code, display_name, enabled, address_regex, address_validator, requires_memo, service_fee_percent, min_amount, max_amount, icon_or_emoji) values
+('BEP20','BEP20',true,'^0x[0-9A-Fa-f]{40}$','evm_address',false,10.000000,0.001,1000000,'🔶'),
+('TRC20','TRC20',true,'^T[1-9A-HJ-NP-Za-km-z]{33}$','tron_base58check',false,5.000000,0.001,1000000,'🔴'),
+('TON','TON',false,'.*','ton_address',true,0.000000,0.001,1000000,'💎'),
+('ARB','ARB',false,'^0x[0-9A-Fa-f]{40}$','evm_address',false,0.000000,0.001,1000000,'🔷'),
+('ETH','ETH',false,'^0x[0-9A-Fa-f]{40}$','evm_address',false,0.000000,0.001,1000000,'🔷'),
+('SOL','SOL',false,'.*','sol_address',false,0.000000,0.001,1000000,'🟣');
 
 create table wallets (
   id uuid primary key default gen_random_uuid(),
@@ -107,7 +95,7 @@ create table payment_methods (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-insert into payment_methods (code, display_name, status) values ('SHAM_CASH', 'شام كاش', 'ENABLED');
+insert into payment_methods (code, display_name, status) values ('SHAM_CASH','شام كاش','ENABLED');
 
 create table admin_payment_accounts (
   id uuid primary key default gen_random_uuid(),
@@ -136,7 +124,7 @@ create table exchange_rates (
   constraint exchange_rate_positive check (rate > 0),
   constraint exchange_rate_threshold_valid check (sanity_threshold_percent >= 0 and sanity_threshold_percent <= 100)
 );
-create index exchange_rates_pair_status_idx on exchange_rates(currency_pair, status, created_at desc);
+create index exchange_rates_pair_status_idx on exchange_rates(currency_pair,status,created_at desc);
 
 create table settings (
   id boolean primary key default true,
@@ -179,13 +167,10 @@ create table orders (
   constraint orders_operation_nonempty check (shamcash_operation_number is null or length(btrim(shamcash_operation_number)) between 1 and 200),
   constraint orders_version_positive check (version > 0)
 );
-create index orders_user_status_idx on orders(user_id, status, created_at desc);
-create index orders_status_expiry_idx on orders(status, expires_at) where status = 'PENDING_PAYMENT';
-create index orders_review_queue_idx on orders(status, created_at) where status in ('PAYMENT_SUBMITTED', 'UNDER_REVIEW', 'CLARIFICATION_REQUIRED');
-
--- One ShamCash operation cannot be attached to more than one order at all.
-create unique index orders_shamcash_operation_number_uq on orders(shamcash_operation_number)
-where shamcash_operation_number is not null;
+create index orders_user_status_idx on orders(user_id,status,created_at desc);
+create index orders_status_expiry_idx on orders(status,expires_at) where status='PENDING_PAYMENT';
+create index orders_review_queue_idx on orders(status,created_at) where status in ('PAYMENT_SUBMITTED','UNDER_REVIEW','CLARIFICATION_REQUIRED');
+create unique index orders_shamcash_operation_number_uq on orders(shamcash_operation_number) where shamcash_operation_number is not null;
 
 create table order_financial_snapshots (
   internal_order_id uuid primary key references orders(internal_order_id) on delete restrict,
@@ -202,14 +187,10 @@ create table order_financial_snapshots (
   constraint financial_requested_positive check (requested_amount > 0),
   constraint financial_fee_valid check (fee_percent >= 0 and fee_percent < 100),
   constraint financial_amounts_valid check (fee_amount >= 0 and net_usdt_amount > 0),
-  constraint financial_fee_formula check (fee_amount = round(requested_amount * fee_percent / 100, 9)),
-  constraint financial_net_formula check (net_usdt_amount = round(requested_amount - fee_amount, 9)),
-  constraint financial_rate_required_for_syp check ((payment_currency = 'USD' and exchange_rate is null) or (payment_currency = 'NEW.SYP' and exchange_rate is not null and exchange_rate > 0)),
-  constraint financial_local_formula check (
-    (payment_currency = 'USD' and local_amount = round(requested_amount, 9))
-    or
-    (payment_currency = 'NEW.SYP' and local_amount = round(requested_amount * exchange_rate, 9))
-  )
+  constraint financial_fee_formula check (fee_amount=round(requested_amount*fee_percent/100,9)),
+  constraint financial_net_formula check (net_usdt_amount=round(requested_amount-fee_amount,9)),
+  constraint financial_rate_required_for_syp check ((payment_currency='USD' and exchange_rate is null) or (payment_currency='NEW.SYP' and exchange_rate is not null and exchange_rate>0)),
+  constraint financial_local_formula check ((payment_currency='USD' and local_amount=round(requested_amount,9)) or (payment_currency='NEW.SYP' and local_amount=round(requested_amount*exchange_rate,9)))
 );
 
 create table receipt_submissions (
@@ -223,12 +204,12 @@ create table receipt_submissions (
   processing_status text not null default 'PENDING',
   created_at timestamptz not null default now(),
   completed_at timestamptz,
-  constraint receipt_attempt_positive check (attempt_number > 0),
+  constraint receipt_attempt_positive check (attempt_number>0),
   constraint receipt_linkage_status_valid check (linkage_status in ('PENDING','LINKED','BLOCKED','ADMIN_ESCALATION')),
   constraint receipt_processing_status_valid check (processing_status in ('PENDING','PROCESSING','SUCCEEDED','FAILED','ESCALATED'))
 );
-create unique index receipt_submissions_order_attempt_uq on receipt_submissions(internal_order_id, attempt_number);
-create index receipt_submissions_order_idx on receipt_submissions(internal_order_id, created_at desc);
+create unique index receipt_submissions_order_attempt_uq on receipt_submissions(internal_order_id,attempt_number);
+create index receipt_submissions_order_idx on receipt_submissions(internal_order_id,created_at desc);
 
 create table receipt_evidence (
   id uuid primary key default gen_random_uuid(),
@@ -244,7 +225,7 @@ create table receipt_evidence (
   retention_until timestamptz,
   deleted_at timestamptz,
   constraint receipt_evidence_mime check (mime_type in ('image/jpeg','image/png','image/webp')),
-  constraint receipt_evidence_size check (byte_size > 0 and byte_size <= 5242880),
+  constraint receipt_evidence_size check (byte_size>0 and byte_size<=5242880),
   constraint receipt_evidence_sha check (sha256_hex ~ '^[0-9a-fA-F]{64}$')
 );
 
@@ -280,10 +261,7 @@ create table admin_users (
   emergency_only boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint admin_backup_mode_consistency check (
-    (actor_type = 'backup' and emergency_only = true) or
-    (actor_type = 'primary' and emergency_only = false)
-  )
+  constraint admin_backup_mode_consistency check ((actor_type='backup' and emergency_only=true) or (actor_type='primary' and emergency_only=false))
 );
 
 create table audit_logs (
@@ -300,74 +278,18 @@ create table audit_logs (
   created_at timestamptz not null default now(),
   constraint audit_actor_type_pair check (actor_telegram_user_id is null or actor_type is not null)
 );
-create index audit_logs_target_idx on audit_logs(target_type, target_id, created_at desc);
-create index audit_logs_actor_idx on audit_logs(actor_telegram_user_id, created_at desc);
+create index audit_logs_target_idx on audit_logs(target_type,target_id,created_at desc);
+create index audit_logs_actor_idx on audit_logs(actor_telegram_user_id,created_at desc);
 
--- Database-level protection for immutable financial snapshots.
-create or replace function prevent_financial_snapshot_mutation()
-returns trigger
-language plpgsql
-as $$
-begin
-  raise exception 'order financial snapshots are immutable';
-end;
-$$;
+create or replace function prevent_financial_snapshot_mutation() returns trigger language plpgsql as $$ begin raise exception 'order financial snapshots are immutable'; end; $$;
+create trigger order_financial_snapshots_no_update before update or delete on order_financial_snapshots for each row execute function prevent_financial_snapshot_mutation();
 
-create trigger order_financial_snapshots_no_update
-before update or delete on order_financial_snapshots
-for each row execute function prevent_financial_snapshot_mutation();
+create or replace function prevent_audit_mutation() returns trigger language plpgsql as $$ begin raise exception 'audit_logs is append-only'; end; $$;
+create trigger audit_logs_no_update_delete before update or delete on audit_logs for each row execute function prevent_audit_mutation();
 
--- Audit log is append-only from application SQL roles as well as application code.
-create or replace function prevent_audit_mutation()
-returns trigger
-language plpgsql
-as $$
-begin
-  raise exception 'audit_logs is append-only';
-end;
-$$;
+create or replace function validate_order_status_mutation() returns trigger language plpgsql as $$ begin if new.status is distinct from old.status then if new.version <> old.version + 1 then raise exception 'order status mutation requires version increment'; end if; end if; return new; end; $$;
+create trigger orders_status_version_guard before update on orders for each row execute function validate_order_status_mutation();
 
-create trigger audit_logs_no_update_delete
-before update or delete on audit_logs
-for each row execute function prevent_audit_mutation();
-
--- Prevent accidental status mutation outside the authoritative transition path.
--- Application role should use the transition function exposed by the repository layer.
-create or replace function validate_order_status_mutation()
-returns trigger
-language plpgsql
-as $$
-begin
-  if new.status is distinct from old.status then
-    if new.version <> old.version + 1 then
-      raise exception 'order status mutation requires version increment';
-    end if;
-  end if;
-  return new;
-end;
-$$;
-
-create trigger orders_status_version_guard
-before update on orders
-for each row execute function validate_order_status_mutation();
-
--- The launch configuration is explicit: only BEP20/TRC20 are selectable.
-create or replace function assert_launch_networks()
-returns void
-language plpgsql
-as $$
-declare
-  enabled_count integer;
-begin
-  select count(*) into enabled_count from network_configs where enabled;
-  if enabled_count <> 2 then
-    raise exception 'launch requires exactly two enabled networks';
-  end if;
-  if exists (select 1 from network_configs where enabled and code not in ('BEP20','TRC20')) then
-    raise exception 'only BEP20 and TRC20 may be enabled at launch';
-  end if;
-end;
-$$;
-
+create or replace function assert_launch_networks() returns void language plpgsql as $$ declare enabled_count integer; begin select count(*) into enabled_count from network_configs where enabled; if enabled_count <> 2 then raise exception 'launch requires exactly two enabled networks'; end if; if exists (select 1 from network_configs where enabled and code not in ('BEP20','TRC20')) then raise exception 'only BEP20 and TRC20 may be enabled at launch'; end if; end; $$;
 select assert_launch_networks();
 drop function assert_launch_networks();

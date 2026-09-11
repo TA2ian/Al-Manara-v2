@@ -1,0 +1,2 @@
+- [Supabase migration connectivity](supabase-migration-connectivity.md) — use the official CLI migration path when this Replit cannot directly reach the database.
+- [Telegram runtime integration](telegram-runtime-integration-strategy.md) — compose bounded customer/admin routers before adding more flows to the polling runtime.
