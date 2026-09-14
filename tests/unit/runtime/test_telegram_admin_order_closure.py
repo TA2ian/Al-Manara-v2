@@ -2,9 +2,8 @@ from uuid import uuid4
 
 import pytest
 
-from app.application.admin_order_closure import AdminOrderClosureResult
+from app.application.admin_order_closure import AdminOrderClosureResult, MAX_REASON_LENGTH, MIN_REASON_LENGTH
 from app.runtime.telegram.admin_order_closure import (
-    STANDARD_CLOSURE_REASON,
     TelegramAdminClosureInput,
     TelegramAdminOrderClosureHandler,
     parse_closure_callback,
@@ -25,16 +24,14 @@ class FakeService:
 
 
 @pytest.mark.asyncio
-async def test_handler_forwards_privileged_closure_request() -> None:
+async def test_handler_forwards_and_normalizes_free_text_reason() -> None:
     order_id = uuid4()
     session_id = uuid4()
-    service = FakeService(
-        AdminOrderClosureResult(order_id, "ORD-CLOSE01", "CLOSED_WITHOUT_FULFILLMENT", 4, False)
-    )
+    service = FakeService(AdminOrderClosureResult(order_id, "ORD-CLOSE01", "CLOSED_WITHOUT_FULFILLMENT", 4, False))
     handler = TelegramAdminOrderClosureHandler(service)
 
     response = await handler.handle(
-        TelegramAdminClosureInput(100, order_id, 3, session_id, "reason", "close-1")
+        TelegramAdminClosureInput(100, order_id, 3, session_id, "  duplicate   payment  ", "close-1")
     )
 
     assert response.ok is True
@@ -42,6 +39,20 @@ async def test_handler_forwards_privileged_closure_request() -> None:
     assert response.version == 4
     assert service.command.internal_order_id == order_id
     assert service.command.session_id == session_id
+    assert service.command.reason == "duplicate payment"
+
+
+@pytest.mark.asyncio
+async def test_handler_rejects_empty_or_oversized_reason_before_service() -> None:
+    service = FakeService()
+    handler = TelegramAdminOrderClosureHandler(service)
+
+    empty = await handler.handle(TelegramAdminClosureInput(100, uuid4(), 3, uuid4(), "  ", "close-2"))
+    oversized = await handler.handle(TelegramAdminClosureInput(100, uuid4(), 3, uuid4(), "x" * (MAX_REASON_LENGTH + 1), "close-3"))
+
+    assert empty.ok is False
+    assert oversized.ok is False
+    assert service.command is None
 
 
 @pytest.mark.asyncio
@@ -49,9 +60,7 @@ async def test_handler_hides_persistence_errors() -> None:
     service = FakeService(error=RuntimeError("stale order version"))
     handler = TelegramAdminOrderClosureHandler(service)
 
-    response = await handler.handle(
-        TelegramAdminClosureInput(100, uuid4(), 3, uuid4(), "reason", "close-2")
-    )
+    response = await handler.handle(TelegramAdminClosureInput(100, uuid4(), 3, uuid4(), "valid reason", "close-4"))
 
     assert response.ok is False
     assert "stale" not in response.message
@@ -67,5 +76,6 @@ def test_closure_callback_parser_is_strict() -> None:
     assert parse_closure_callback(f"admin:closure:confirm:{order_id}:12:extra") is None
 
 
-def test_standard_closure_reason_is_controlled() -> None:
-    assert 3 <= len(STANDARD_CLOSURE_REASON) <= 1000
+def test_reason_contract_is_bounded() -> None:
+    assert MIN_REASON_LENGTH == 3
+    assert MAX_REASON_LENGTH == 1000
