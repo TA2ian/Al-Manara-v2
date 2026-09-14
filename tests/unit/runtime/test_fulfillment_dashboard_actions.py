@@ -30,7 +30,7 @@ def _page(claimed_by: int | None, version: int = 7) -> AdminOrderPage:
     )
 
 
-def test_fulfillment_list_exposes_claim_when_unclaimed() -> None:
+def test_fulfillment_list_exposes_claim_and_closure_when_unclaimed() -> None:
     page = _page(None)
     text, markup = _render_orders(
         page,
@@ -43,6 +43,7 @@ def test_fulfillment_list_exposes_claim_when_unclaimed() -> None:
     callbacks = [button.callback_data for row in markup.inline_keyboard for button in row]
     assert callbacks == [
         f"admin:fulfillment:claim:{page.items[0].internal_order_id}:7",
+        f"admin:closure:request:{page.items[0].internal_order_id}:7",
     ]
 
 
@@ -73,3 +74,4 @@ def test_fulfillment_list_does_not_offer_action_to_non_owner() -> None:
     assert markup is None
     assert "مستلم من مدير آخر" in text
     assert "admin:fulfillment:" not in text
+    assert "admin:closure:" not in text
