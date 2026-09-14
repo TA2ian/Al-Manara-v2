@@ -34,12 +34,12 @@ select ok(
 );
 
 select ok(
-    position('revoke execute on function close_order_without_fulfillment' in pg_get_functiondef((
+    lower(pg_get_functiondef((
         select p.oid from pg_proc p
         where p.proname = 'close_order_without_fulfillment'
         limit 1
-    ))) = 0,
-    'function body does not contain privilege mutation statements'
+    ))) like '%security invoker%',
+    'closure executes with invoker security context'
 );
 
 select * from finish();
