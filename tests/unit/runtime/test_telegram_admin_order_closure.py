@@ -4,8 +4,10 @@ import pytest
 
 from app.application.admin_order_closure import AdminOrderClosureResult
 from app.runtime.telegram.admin_order_closure import (
+    STANDARD_CLOSURE_REASON,
     TelegramAdminClosureInput,
     TelegramAdminOrderClosureHandler,
+    parse_closure_callback,
 )
 
 
@@ -53,3 +55,17 @@ async def test_handler_hides_persistence_errors() -> None:
 
     assert response.ok is False
     assert "stale" not in response.message
+
+
+def test_closure_callback_parser_is_strict() -> None:
+    order_id = uuid4()
+    valid = f"admin:closure:confirm:{order_id}:12"
+
+    assert parse_closure_callback(valid) == ("confirm", order_id, 12)
+    assert parse_closure_callback("admin:closure:confirm:not-a-uuid:12") is None
+    assert parse_closure_callback(f"admin:closure:confirm:{order_id}:0") == ("confirm", order_id, 0)
+    assert parse_closure_callback(f"admin:closure:confirm:{order_id}:12:extra") is None
+
+
+def test_standard_closure_reason_is_controlled() -> None:
+    assert 3 <= len(STANDARD_CLOSURE_REASON) <= 1000
