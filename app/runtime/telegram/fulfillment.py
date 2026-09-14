@@ -12,6 +12,7 @@ from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is
 
 FULFILLMENT_ERROR_MESSAGE = "تعذر تنفيذ عملية التسليم. حاول مرة أخرى."
 FULFILLMENT_CALLBACK = re.compile(r"^admin:fulfillment:(claim|complete):([0-9a-fA-F-]{36}):(\d+)$")
+CLOSURE_CALLBACK = re.compile(r"^admin:closure:(request|confirm|cancel):([0-9a-fA-F-]{36}):(\d+)$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,16 +85,24 @@ def fulfillment_action_markup(order_id: UUID, expected_version: int, *, claimed:
 
     action = "complete" if claimed else "claim"
     label = "إتمام التسليم" if claimed else "استلام للتنفيذ"
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=label,
+                callback_data=f"admin:fulfillment:{action}:{order_id}:{expected_version}",
+            )
+        ]
+    ]
+    if not claimed:
+        rows.append(
             [
                 InlineKeyboardButton(
-                    text=label,
-                    callback_data=f"admin:fulfillment:{action}:{order_id}:{expected_version}",
+                    text="إغلاق دون تنفيذ",
+                    callback_data=f"admin:closure:request:{order_id}:{expected_version}",
                 )
             ]
-        ]
-    )
+        )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def parse_fulfillment_callback(data: str | None) -> tuple[str, UUID, int] | None:
