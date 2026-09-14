@@ -9,7 +9,12 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from app.application.admin_order_closure import AdminOrderClosureService, MAX_REASON_LENGTH, MIN_REASON_LENGTH
+from app.application.admin_order_closure import (
+    AdminOrderClosureCommand,
+    AdminOrderClosureService,
+    MAX_REASON_LENGTH,
+    MIN_REASON_LENGTH,
+)
 from app.runtime.telegram.admin_session import TelegramAdminSessionHandler
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
 
@@ -50,25 +55,30 @@ class TelegramAdminOrderClosureHandler:
     async def handle(self, request: TelegramAdminClosureInput) -> TelegramAdminClosureResponse:
         if request.admin_user_id <= 0 or request.expected_version < 1:
             return TelegramAdminClosureResponse(False, None, None, False, "invalid closure request")
-        if not isinstance(request.reason, str) or not MIN_REASON_LENGTH <= len(" ".join(request.reason.split())) <= MAX_REASON_LENGTH:
+        if not isinstance(request.reason, str):
             return TelegramAdminClosureResponse(False, None, None, False, "invalid closure request")
-        if not request.idempotency_key.strip():
+        normalized_reason = " ".join(request.reason.split())
+        if not MIN_REASON_LENGTH <= len(normalized_reason) <= MAX_REASON_LENGTH:
+            return TelegramAdminClosureResponse(False, None, None, False, "invalid closure request")
+        if not isinstance(request.idempotency_key, str) or not request.idempotency_key.strip():
             return TelegramAdminClosureResponse(False, None, None, False, "invalid closure request")
         try:
             result = await self._service.close_without_fulfillment(
-                __import__("app.application.admin_order_closure", fromlist=["AdminOrderClosureCommand"]).AdminOrderClosureCommand(
+                AdminOrderClosureCommand(
                     internal_order_id=request.order_id,
                     admin_telegram_user_id=request.admin_user_id,
                     expected_version=request.expected_version,
                     session_id=request.session_id,
-                    reason=request.reason,
+                    reason=normalized_reason,
                     idempotency_key=request.idempotency_key,
                 )
             )
-        except (ValueError, PermissionError, LookupError, RuntimeError, OSError, Exception):
+        except Exception:
             return TelegramAdminClosureResponse(False, None, None, False, CLOSURE_ERROR_MESSAGE)
 
-        return TelegramAdminClosureResponse(True, result.status, result.version, result.replayed, "Order closed without fulfillment.")
+        return TelegramAdminClosureResponse(
+            True, result.status, result.version, result.replayed, "Order closed without fulfillment."
+        )
 
 
 def _confirmation_markup(order_id: UUID, expected_version: int) -> InlineKeyboardMarkup:
@@ -92,7 +102,10 @@ def parse_closure_callback(data: str | None) -> tuple[str, UUID, int] | None:
         return None
 
 
-def build_admin_order_closure_router(handler: TelegramAdminOrderClosureHandler, session_handler: TelegramAdminSessionHandler) -> Router:
+def build_admin_order_closure_router(
+    handler: TelegramAdminOrderClosureHandler,
+    session_handler: TelegramAdminSessionHandler,
+) -> Router:
     router = Router(name="admin-order-closure")
 
     @router.callback_query(F.data.regexp(CLOSURE_CALLBACK.pattern))
@@ -126,7 +139,7 @@ def build_admin_order_closure_router(handler: TelegramAdminOrderClosureHandler, 
             await query.message.edit_reply_markup(reply_markup=None)
             await query.message.answer(
                 f"أرسل سبب الإغلاق الإداري فقط (من {MIN_REASON_LENGTH} إلى {MAX_REASON_LENGTH} حرفًا).\n"
-                "لن يتم تنفيذ أي أمر أو محتوى داخل النص؛ سيُحفظ السبب كسجل تدقيقي فقط."
+                "سيُحفظ كنص تدقيقي فقط ولن يتم تفسيره أو تنفيذه."
             )
             return
 
@@ -184,8 +197,13 @@ def build_admin_order_closure_router(handler: TelegramAdminOrderClosureHandler, 
         if not MIN_REASON_LENGTH <= len(reason) <= MAX_REASON_LENGTH:
             await message.answer(f"سبب الإغلاق يجب أن يكون بين {MIN_REASON_LENGTH} و{MAX_REASON_LENGTH} حرفًا.")
             return
-        order_id = UUID(str(data["order_id"]))
-        expected_version = int(data["expected_version"])
+        try:
+            order_id = UUID(str(data["order_id"]))
+            expected_version = int(data["expected_version"])
+        except (KeyError, TypeError, ValueError):
+            await state.clear()
+            await message.answer("انتهت جلسة الإغلاق. افتح الطلب من جديد.")
+            return
         await state.update_data(reason=reason)
         await state.set_state(AdminClosureState.awaiting_confirmation)
         await message.answer(
