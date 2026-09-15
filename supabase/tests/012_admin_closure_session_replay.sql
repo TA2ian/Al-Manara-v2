@@ -35,16 +35,13 @@ select ok(
     'closure validates session before reading an idempotency replay'
 ) from fn;
 
-with fn as (
-    select pg_get_functiondef(p.oid) as body
-    from pg_proc p
-    where p.proname = 'close_order_without_fulfillment'
-    limit 1
-)
 select ok(
-    lower(body) like '%security invoker%',
+    not p.prosecdef,
     'closure executes with invoker security context'
-) from fn;
+)
+from pg_proc p
+where p.proname = 'close_order_without_fulfillment'
+limit 1;
 
 select * from finish();
 rollback;
