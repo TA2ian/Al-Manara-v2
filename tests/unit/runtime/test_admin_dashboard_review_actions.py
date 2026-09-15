@@ -7,12 +7,7 @@ from app.runtime.telegram.admin_dashboard import _render_orders
 
 
 def _page(item: AdminOrderListItem) -> AdminOrderPage:
-    return AdminOrderPage(
-        items=(item,),
-        page=0,
-        page_size=5,
-        total_count=1,
-    )
+    return AdminOrderPage(items=(item,), page=0, page_size=5, total_count=1)
 
 
 def _item(*, order_id=None, version=4, fulfillment_claimed_by=None) -> AdminOrderListItem:
@@ -33,11 +28,7 @@ def _item(*, order_id=None, version=4, fulfillment_claimed_by=None) -> AdminOrde
 
 
 def _callbacks(markup):
-    return [
-        button.callback_data
-        for row in markup.inline_keyboard
-        for button in row
-    ]
+    return [button.callback_data for row in markup.inline_keyboard for button in row]
 
 
 def test_review_order_list_exposes_version_bound_actions() -> None:
@@ -54,7 +45,7 @@ def test_review_order_list_exposes_version_bound_actions() -> None:
     ]
 
 
-def test_fulfillment_list_exposes_claim_when_order_is_unclaimed() -> None:
+def test_fulfillment_list_exposes_claim_and_closure_when_order_is_unclaimed() -> None:
     order_id = uuid4()
     text, markup = _render_orders(
         _page(_item(order_id=order_id, version=4)),
@@ -66,6 +57,7 @@ def test_fulfillment_list_exposes_claim_when_order_is_unclaimed() -> None:
     assert markup is not None
     assert _callbacks(markup) == [
         f"admin:fulfillment:claim:{order_id}:4",
+        f"admin:closure:request:{order_id}:4",
     ]
 
 
@@ -79,12 +71,10 @@ def test_fulfillment_list_exposes_complete_only_to_claim_owner() -> None:
 
     assert "🚚 الطلبات المعتمدة للتنفيذ" in text
     assert markup is not None
-    assert _callbacks(markup) == [
-        f"admin:fulfillment:complete:{order_id}:5",
-    ]
+    assert _callbacks(markup) == [f"admin:fulfillment:complete:{order_id}:5"]
 
 
-def test_fulfillment_list_hides_complete_from_non_owner() -> None:
+def test_fulfillment_list_hides_complete_and_closure_from_non_owner() -> None:
     order_id = uuid4()
     text, markup = _render_orders(
         _page(_item(order_id=order_id, version=5, fulfillment_claimed_by=222)),
