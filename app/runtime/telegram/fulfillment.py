@@ -41,11 +41,7 @@ class TelegramFulfillmentResponse:
 class TelegramFulfillmentHandler:
     """Framework-neutral adapter; Telegram parsing/authentication stays outside this boundary."""
 
-    def __init__(
-        self,
-        service: FulfillmentService,
-        actor_type_resolver: AdminActorTypeResolver | None = None,
-    ) -> None:
+    def __init__(self, service: FulfillmentService, actor_type_resolver: AdminActorTypeResolver | None = None) -> None:
         self._service = service
         self._actor_type_resolver = actor_type_resolver
 
@@ -93,9 +89,7 @@ class TelegramFulfillmentHandler:
             return TelegramFulfillmentResponse(False, None, None, False, FULFILLMENT_ERROR_MESSAGE)
         except Exception:
             return TelegramFulfillmentResponse(False, None, None, False, "تعذر تنفيذ عملية التسليم.")
-        return TelegramFulfillmentResponse(
-            True, result.status, result.version, result.replayed, "تم تنفيذ عملية التسليم."
-        )
+        return TelegramFulfillmentResponse(True, result.status, result.version, result.replayed, "تم تنفيذ عملية التسليم.")
 
 
 def fulfillment_action_markup(order_id: UUID, expected_version: int, *, claimed: bool = False):
@@ -103,23 +97,9 @@ def fulfillment_action_markup(order_id: UUID, expected_version: int, *, claimed:
 
     action = "complete" if claimed else "claim"
     label = "إتمام التسليم" if claimed else "استلام للتنفيذ"
-    rows = [
-        [
-            InlineKeyboardButton(
-                text=label,
-                callback_data=f"admin:fulfillment:{action}:{order_id}:{expected_version}",
-            )
-        ]
-    ]
+    rows = [[InlineKeyboardButton(text=label, callback_data=f"admin:fulfillment:{action}:{order_id}:{expected_version}")]]
     if not claimed:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text="إغلاق دون تنفيذ",
-                    callback_data=f"admin:closure:request:{order_id}:{expected_version}",
-                )
-            ]
-        )
+        rows.append([InlineKeyboardButton(text="إغلاق دون تنفيذ", callback_data=f"admin:closure:request:{order_id}:{expected_version}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -133,11 +113,9 @@ def parse_fulfillment_callback(data: str | None) -> tuple[str, UUID, int] | None
         return None
 
 
-def build_fulfillment_router(
-    handler: TelegramFulfillmentHandler,
-    actor_type_resolver: AdminActorTypeResolver | None = None,
-) -> Router:
+def build_fulfillment_router(handler: TelegramFulfillmentHandler, actor_type_resolver: AdminActorTypeResolver | None = None) -> Router:
     router = Router(name="admin-fulfillment")
+    resolver = actor_type_resolver or handler._actor_type_resolver
 
     @router.callback_query(F.data.regexp(FULFILLMENT_CALLBACK.pattern))
     async def handle_fulfillment(query: CallbackQuery) -> None:
@@ -153,17 +131,18 @@ def build_fulfillment_router(
             await query.answer("تعذر التحقق من هوية المدير.", show_alert=True)
             return
         operation, order_id, expected_version = parsed
-        actor_type = "primary"
-        if actor_type_resolver is not None:
+        actor_type = None
+        if resolver is not None:
             try:
-                resolved = await actor_type_resolver.resolve_actor_type(admin_user_id)
+                actor_type = await resolver.resolve_actor_type(admin_user_id)
             except Exception:
                 await query.answer("تعذر التحقق من صلاحيات المدير.", show_alert=True)
                 return
-            if resolved is None:
+            if actor_type is None:
                 await query.answer("غير مصرح لك بهذه العملية.", show_alert=True)
                 return
-            actor_type = resolved
+        else:
+            actor_type = "primary"
         request = TelegramFulfillmentInput(
             admin_user_id=admin_user_id,
             actor_type=actor_type,
@@ -176,13 +155,7 @@ def build_fulfillment_router(
         if response.ok:
             try:
                 if operation == "claim" and response.version is not None:
-                    await query.message.edit_reply_markup(
-                        reply_markup=fulfillment_action_markup(
-                            order_id,
-                            response.version,
-                            claimed=True,
-                        )
-                    )
+                    await query.message.edit_reply_markup(reply_markup=fulfillment_action_markup(order_id, response.version, claimed=True))
                 else:
                     await query.message.edit_reply_markup(reply_markup=None)
             except Exception:
