@@ -36,8 +36,9 @@ class Response:
 
 
 @pytest.mark.asyncio
-async def test_claim_maps_rpc_result() -> None:
+async def test_claim_maps_rpc_result_and_passes_session() -> None:
     order_id = uuid4()
+    session_id = uuid4()
     claimed_at = datetime.now(timezone.utc)
     client = FakeClient({
         "claim_order_fulfillment": Response([{
@@ -51,7 +52,7 @@ async def test_claim_maps_rpc_result() -> None:
         }])
     })
 
-    result = await SupabaseFulfillmentRepository(client).claim(order_id, 3, 123, "primary", "claim-1")
+    result = await SupabaseFulfillmentRepository(client).claim(order_id, 3, 123, "primary", "claim-1", session_id)
 
     assert result.internal_order_id == order_id
     assert result.status == "APPROVED"
@@ -59,11 +60,13 @@ async def test_claim_maps_rpc_result() -> None:
     assert result.admin_telegram_user_id == 123
     assert result.replayed is False
     assert client.calls[0][0] == "claim_order_fulfillment"
+    assert client.calls[0][1]["p_session_id"] == str(session_id)
 
 
 @pytest.mark.asyncio
 async def test_complete_maps_rpc_result() -> None:
     order_id = uuid4()
+    session_id = uuid4()
     completed_at = datetime.now(timezone.utc)
     client = FakeClient({
         "complete_order_fulfillment": Response([{
@@ -76,12 +79,13 @@ async def test_complete_maps_rpc_result() -> None:
         }])
     })
 
-    result = await SupabaseFulfillmentRepository(client).complete(order_id, 4, 123, "primary", "complete-1")
+    result = await SupabaseFulfillmentRepository(client).complete(order_id, 4, 123, "primary", "complete-1", session_id)
 
     assert result.status == "COMPLETED"
     assert result.version == 5
     assert result.admin_telegram_user_id == 123
     assert result.replayed is True
+    assert client.calls[0][1]["p_session_id"] == str(session_id)
 
 
 @pytest.mark.asyncio
@@ -90,4 +94,4 @@ async def test_invalid_rpc_response_is_rejected() -> None:
     client = FakeClient({"claim_order_fulfillment": Response([])})
 
     with pytest.raises(FulfillmentPersistenceError):
-        await SupabaseFulfillmentRepository(client).claim(order_id, 1, 123, "primary", "claim-1")
+        await SupabaseFulfillmentRepository(client).claim(order_id, 1, 123, "primary", "claim-1", uuid4())
