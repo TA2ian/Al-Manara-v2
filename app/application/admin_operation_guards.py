@@ -22,6 +22,7 @@ class OperationGuardContext:
     actor_type: str
     permission: AdminPermission | str
     emergency_mode: bool = False
+    sensitive_operation: bool = True
     recent_session_valid: bool = False
     confirmation_valid: bool = False
     kill_switch_active: bool = False
@@ -50,9 +51,9 @@ class AdminOperationGuard:
             emergency_mode=context.emergency_mode,
         ):
             return GuardDecision(False, GuardCode.UNAUTHORIZED)
-        if not context.recent_session_valid:
+        if context.sensitive_operation and not context.recent_session_valid:
             return GuardDecision(False, GuardCode.SESSION_REQUIRED)
-        if not context.confirmation_valid:
+        if context.sensitive_operation and not context.confirmation_valid:
             return GuardDecision(False, GuardCode.CONFIRMATION_REQUIRED)
         if context.kill_switch_active:
             return GuardDecision(False, GuardCode.KILL_SWITCH_ACTIVE)
