@@ -58,7 +58,7 @@ with fn as (
     limit 1
 )
 select ok(
-    position("'session_id', p_session_id" in body) > 0,
+    position('''session_id'', p_session_id' in body) > 0,
     'admin review audit metadata binds the session'
 ) from fn;
 
