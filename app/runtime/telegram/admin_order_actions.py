@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Protocol
 from uuid import UUID, uuid4
 
 from aiogram import F, Router
@@ -16,6 +17,10 @@ ORDER_ACTION_CALLBACK = re.compile(
     r"^admin:order:(approve|reject|clarify):([0-9a-fA-F-]{36}):(\d+)$"
 )
 MAX_REASON_LENGTH = 1000
+
+
+class AdminActorTypeResolver(Protocol):
+    async def resolve_actor_type(self, telegram_user_id: int) -> str | None: ...
 
 
 class AdminOrderActionState(StatesGroup):
@@ -66,8 +71,27 @@ def order_action_markup(order_id: UUID, expected_version: int) -> InlineKeyboard
     )
 
 
-def build_admin_order_actions_router(handler: TelegramAdminOrderReviewHandler) -> Router:
+async def _resolve_actor_type(
+    resolver: AdminActorTypeResolver | None,
+    admin_user_id: int,
+) -> str | None:
+    if resolver is None:
+        return None
+    try:
+        actor_type = await resolver.resolve_actor_type(admin_user_id)
+    except Exception:
+        return None
+    if actor_type not in {"primary", "backup"}:
+        return None
+    return actor_type
+
+
+def build_admin_order_actions_router(
+    handler: TelegramAdminOrderReviewHandler,
+    actor_type_resolver: AdminActorTypeResolver | None = None,
+) -> Router:
     router = Router(name="admin-order-actions")
+    resolver = actor_type_resolver or getattr(handler, "_actor_type_resolver", None)
 
     @router.callback_query(F.data.regexp(ORDER_ACTION_CALLBACK.pattern))
     async def handle_order_action(query: CallbackQuery, state: FSMContext) -> None:
@@ -82,6 +106,10 @@ def build_admin_order_actions_router(handler: TelegramAdminOrderReviewHandler) -
         if admin_user_id is None:
             await query.answer("تعذر التحقق من هوية المدير.", show_alert=True)
             return
+        actor_type = await _resolve_actor_type(resolver, admin_user_id)
+        if actor_type is None:
+            await query.answer("تعذر التحقق من صلاحيات المدير.", show_alert=True)
+            return
 
         if action.action in {"reject", "clarify"}:
             await state.clear()
@@ -89,6 +117,7 @@ def build_admin_order_actions_router(handler: TelegramAdminOrderReviewHandler) -
                 order_action=action.action,
                 order_id=str(action.order_id),
                 expected_version=action.expected_version,
+                actor_type=actor_type,
             )
             await state.set_state(AdminOrderActionState.reason)
             await query.answer()
@@ -100,7 +129,7 @@ def build_admin_order_actions_router(handler: TelegramAdminOrderReviewHandler) -
         response = await handler.handle(
             TelegramAdminReviewInput(
                 admin_user_id=admin_user_id,
-                actor_type="primary",
+                actor_type=actor_type,
                 order_id=action.order_id,
                 expected_version=action.expected_version,
                 action=action.action,
@@ -125,6 +154,11 @@ def build_admin_order_actions_router(handler: TelegramAdminOrderReviewHandler) -
             await state.clear()
             await message.answer("تعذر التحقق من هوية المدير.")
             return
+        actor_type = await _resolve_actor_type(resolver, admin_user_id)
+        if actor_type is None:
+            await state.clear()
+            await message.answer("تعذر التحقق من صلاحيات المدير.")
+            return
         reason = " ".join((message.text or "").split())
         if not 5 <= len(reason) <= MAX_REASON_LENGTH:
             await message.answer("السبب يجب أن يكون بين 5 و1000 حرف.")
@@ -142,7 +176,7 @@ def build_admin_order_actions_router(handler: TelegramAdminOrderReviewHandler) -
         response = await handler.handle(
             TelegramAdminReviewInput(
                 admin_user_id=admin_user_id,
-                actor_type="primary",
+                actor_type=actor_type,
                 order_id=order_id,
                 expected_version=expected_version,
                 action=action,
