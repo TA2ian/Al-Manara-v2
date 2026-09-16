@@ -97,6 +97,7 @@ class TelegramAdminOrderReviewHandler:
                     action=request.action,
                     reason=request.reason,
                     idempotency_key=request.idempotency_key,
+                    session_id=request.session_id,
                 )
             )
         except ValueError:
