@@ -36,7 +36,7 @@ def _callbacks(markup) -> list[str]:
     return [button.callback_data for row in markup.inline_keyboard for button in row]
 
 
-def test_unclaimed_fulfillment_order_exposes_claim_action() -> None:
+def test_unclaimed_fulfillment_order_exposes_claim_and_closure_actions() -> None:
     page = _page()
     order_id = page.items[0].internal_order_id
 
@@ -47,7 +47,10 @@ def test_unclaimed_fulfillment_order_exposes_claim_action() -> None:
     )
 
     assert "🚚 الطلبات المعتمدة للتنفيذ" in text
-    assert _callbacks(markup) == [f"admin:fulfillment:claim:{order_id}:5"]
+    assert _callbacks(markup) == [
+        f"admin:fulfillment:claim:{order_id}:5",
+        f"admin:closure:request:{order_id}:5",
+    ]
 
 
 def test_fulfillment_order_claimed_by_current_admin_exposes_complete_action() -> None:
