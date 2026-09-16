@@ -22,26 +22,39 @@ class FakeFulfillmentRepository:
 
 
 @pytest.mark.asyncio
-async def test_claim_normalizes_actor_and_idempotency_key() -> None:
+async def test_claim_normalizes_actor_and_idempotency_key_and_passes_session() -> None:
     repository = FakeFulfillmentRepository()
     service = FulfillmentService(repository)
+    session_id = uuid4()
 
-    result = await service.claim(uuid4(), 2, 100, " PRIMARY ", "  claim-1  ")
+    result = await service.claim(uuid4(), 2, 100, " PRIMARY ", "  claim-1  ", session_id)
 
     assert result.status == "APPROVED"
     assert repository.calls[0][0] == "claim"
-    assert repository.calls[0][1][3:] == ("primary", "claim-1")
+    assert repository.calls[0][1][3:] == ("primary", "claim-1", session_id)
 
 
 @pytest.mark.asyncio
-async def test_complete_delegates_to_atomic_repository() -> None:
+async def test_complete_delegates_to_atomic_repository_with_session() -> None:
     repository = FakeFulfillmentRepository()
     service = FulfillmentService(repository)
+    session_id = uuid4()
 
-    result = await service.complete(uuid4(), 3, 100, "backup", "complete-1")
+    result = await service.complete(uuid4(), 3, 100, "backup", "complete-1", session_id)
 
     assert result.status == "COMPLETED"
     assert repository.calls[0][0] == "complete"
+    assert repository.calls[0][1][-1] == session_id
+
+
+@pytest.mark.asyncio
+async def test_missing_session_is_rejected_before_persistence() -> None:
+    repository = FakeFulfillmentRepository()
+    service = FulfillmentService(repository)
+
+    with pytest.raises(ValueError, match="recent admin session"):
+        await service.claim(uuid4(), 2, 100, "primary", "claim-1", None)
+    assert repository.calls == []
 
 
 @pytest.mark.asyncio
@@ -50,7 +63,7 @@ async def test_invalid_request_is_rejected_before_persistence() -> None:
     service = FulfillmentService(repository)
 
     with pytest.raises(ValueError, match="expected version"):
-        await service.claim(uuid4(), 0, 100, "primary", "claim-1")
+        await service.claim(uuid4(), 0, 100, "primary", "claim-1", uuid4())
     assert repository.calls == []
 
 
@@ -60,5 +73,5 @@ async def test_invalid_order_identity_is_rejected_before_persistence() -> None:
     service = FulfillmentService(repository)
 
     with pytest.raises(ValueError, match="order id"):
-        await service.claim("not-a-uuid", 1, 100, "primary", "claim-1")
+        await service.claim("not-a-uuid", 1, 100, "primary", "claim-1", uuid4())
     assert repository.calls == []
