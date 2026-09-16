@@ -39,6 +39,7 @@ class OrderRepository(Protocol):
         actor_type: str,
         idempotency_key: str,
         event_payload: dict[str, object] | None = None,
+        session_id: UUID | None = None,
     ) -> PersistedOrderTransition | None: ...
 
 
