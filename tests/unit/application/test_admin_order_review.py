@@ -14,10 +14,31 @@ class FakeTransitions:
         self.order = order
         self.commands = []
 
-    async def transition_order(self, command):
-        self.commands.append(command)
+    async def transition(
+        self,
+        internal_order_id,
+        target_status,
+        expected_version,
+        actor_telegram_user_id,
+        actor_type,
+        idempotency_key,
+        event_payload,
+        session_id,
+    ):
+        self.commands.append(
+            {
+                "internal_order_id": internal_order_id,
+                "target_status": target_status,
+                "expected_version": expected_version,
+                "actor_telegram_user_id": actor_telegram_user_id,
+                "actor_type": actor_type,
+                "idempotency_key": idempotency_key,
+                "event_payload": event_payload,
+                "session_id": session_id,
+            }
+        )
         state_before = self.order.status
-        updated = self.order.transition_to(command.target_status)
+        updated = self.order.transition_to(target_status)
         result = PersistedOrderTransition(
             order=updated,
             state_before=state_before,
@@ -39,7 +60,7 @@ class FakeAdminAuthorization:
 
 
 @pytest.mark.asyncio
-async def test_admin_approval_targets_approved_state_and_binds_session() -> None:
+async def test_admin_approval_uses_dedicated_transition_and_binds_session() -> None:
     order = Order(uuid4(), "ORD-REVIEW01", OrderStatus.UNDER_REVIEW, 2)
     transitions = FakeTransitions(order)
     authorization = FakeAdminAuthorization()
@@ -59,9 +80,32 @@ async def test_admin_approval_targets_approved_state_and_binds_session() -> None
     )
 
     assert result.state_after is OrderStatus.APPROVED
-    assert transitions.commands[0].reason is None
-    assert transitions.commands[0].session_id == session_id
+    assert transitions.commands[0]["event_payload"] is None
+    assert transitions.commands[0]["session_id"] == session_id
+    assert transitions.commands[0]["target_status"] is OrderStatus.APPROVED
     assert authorization.calls == [(1001, "primary")]
+
+
+@pytest.mark.asyncio
+async def test_rejection_passes_only_normalized_reason_to_boundary() -> None:
+    order = Order(uuid4(), "ORD-REVIEW02", OrderStatus.UNDER_REVIEW, 1)
+    transitions = FakeTransitions(order)
+    service = AdminOrderReviewService(transitions, FakeAdminAuthorization())
+
+    await service.review(
+        AdminReviewOrderCommand(
+            internal_order_id=order.internal_order_id,
+            actor_telegram_user_id=1001,
+            actor_type="primary",
+            expected_version=1,
+            action="reject",
+            reason="  payment   mismatch  ",
+            idempotency_key="review-reject-1",
+            session_id=uuid4(),
+        )
+    )
+
+    assert transitions.commands[0]["event_payload"] == {"reason": "payment mismatch"}
 
 
 @pytest.mark.asyncio
@@ -87,7 +131,7 @@ async def test_review_requires_a_session() -> None:
 
 @pytest.mark.asyncio
 async def test_rejection_requires_a_reason() -> None:
-    order = Order(uuid4(), "ORD-REVIEW02", OrderStatus.UNDER_REVIEW, 1)
+    order = Order(uuid4(), "ORD-REVIEW03", OrderStatus.UNDER_REVIEW, 1)
     transitions = FakeTransitions(order)
     service = AdminOrderReviewService(transitions, FakeAdminAuthorization())
 
@@ -100,7 +144,7 @@ async def test_rejection_requires_a_reason() -> None:
                 expected_version=1,
                 action="reject",
                 reason="no",
-                idempotency_key="review-reject-1",
+                idempotency_key="review-reject-short",
                 session_id=uuid4(),
             )
         )
@@ -110,7 +154,7 @@ async def test_rejection_requires_a_reason() -> None:
 
 @pytest.mark.asyncio
 async def test_invalid_actor_type_is_rejected_before_authorization() -> None:
-    order = Order(uuid4(), "ORD-REVIEW03", OrderStatus.UNDER_REVIEW, 1)
+    order = Order(uuid4(), "ORD-REVIEW04", OrderStatus.UNDER_REVIEW, 1)
     transitions = FakeTransitions(order)
     authorization = FakeAdminAuthorization()
     service = AdminOrderReviewService(transitions, authorization)
@@ -134,7 +178,7 @@ async def test_invalid_actor_type_is_rejected_before_authorization() -> None:
 
 @pytest.mark.asyncio
 async def test_unauthorized_admin_cannot_transition_order() -> None:
-    order = Order(uuid4(), "ORD-REVIEW04", OrderStatus.UNDER_REVIEW, 1)
+    order = Order(uuid4(), "ORD-REVIEW05", OrderStatus.UNDER_REVIEW, 1)
     transitions = FakeTransitions(order)
     authorization = FakeAdminAuthorization(authorized=False)
     service = AdminOrderReviewService(transitions, authorization)
