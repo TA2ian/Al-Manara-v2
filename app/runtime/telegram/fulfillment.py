@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Protocol
 from uuid import UUID, uuid4
 
 from aiogram import F, Router
@@ -13,6 +14,10 @@ from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is
 FULFILLMENT_ERROR_MESSAGE = "تعذر تنفيذ عملية التسليم. حاول مرة أخرى."
 FULFILLMENT_CALLBACK = re.compile(r"^admin:fulfillment:(claim|complete):([0-9a-fA-F-]{36}):(\d+)$")
 CLOSURE_CALLBACK = re.compile(r"^admin:closure:(request|confirm|cancel):([0-9a-fA-F-]{36}):(\d+)$")
+
+
+class AdminActorTypeResolver(Protocol):
+    async def resolve_actor_type(self, telegram_user_id: int) -> str | None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,8 +41,13 @@ class TelegramFulfillmentResponse:
 class TelegramFulfillmentHandler:
     """Framework-neutral adapter; Telegram parsing/authentication stays outside this boundary."""
 
-    def __init__(self, service: FulfillmentService) -> None:
+    def __init__(
+        self,
+        service: FulfillmentService,
+        actor_type_resolver: AdminActorTypeResolver | None = None,
+    ) -> None:
         self._service = service
+        self._actor_type_resolver = actor_type_resolver
 
     async def claim(self, request: TelegramFulfillmentInput) -> TelegramFulfillmentResponse:
         return await self._run(request, operation="claim")
@@ -57,6 +67,14 @@ class TelegramFulfillmentHandler:
         ):
             return TelegramFulfillmentResponse(False, None, None, False, "invalid fulfillment request")
         actor_type = request.actor_type.strip().lower()
+        if self._actor_type_resolver is not None:
+            try:
+                resolved = await self._actor_type_resolver.resolve_actor_type(request.admin_user_id)
+            except Exception:
+                return TelegramFulfillmentResponse(False, None, None, False, FULFILLMENT_ERROR_MESSAGE)
+            if resolved is None:
+                return TelegramFulfillmentResponse(False, None, None, False, FULFILLMENT_ERROR_MESSAGE)
+            actor_type = resolved
         idempotency_key = request.idempotency_key.strip()
         if actor_type not in {"primary", "backup"} or not 1 <= len(idempotency_key) <= 128:
             return TelegramFulfillmentResponse(False, None, None, False, "invalid fulfillment request")
@@ -115,7 +133,10 @@ def parse_fulfillment_callback(data: str | None) -> tuple[str, UUID, int] | None
         return None
 
 
-def build_fulfillment_router(handler: TelegramFulfillmentHandler) -> Router:
+def build_fulfillment_router(
+    handler: TelegramFulfillmentHandler,
+    actor_type_resolver: AdminActorTypeResolver | None = None,
+) -> Router:
     router = Router(name="admin-fulfillment")
 
     @router.callback_query(F.data.regexp(FULFILLMENT_CALLBACK.pattern))
@@ -132,9 +153,20 @@ def build_fulfillment_router(handler: TelegramFulfillmentHandler) -> Router:
             await query.answer("تعذر التحقق من هوية المدير.", show_alert=True)
             return
         operation, order_id, expected_version = parsed
+        actor_type = "primary"
+        if actor_type_resolver is not None:
+            try:
+                resolved = await actor_type_resolver.resolve_actor_type(admin_user_id)
+            except Exception:
+                await query.answer("تعذر التحقق من صلاحيات المدير.", show_alert=True)
+                return
+            if resolved is None:
+                await query.answer("غير مصرح لك بهذه العملية.", show_alert=True)
+                return
+            actor_type = resolved
         request = TelegramFulfillmentInput(
             admin_user_id=admin_user_id,
-            actor_type="primary",
+            actor_type=actor_type,
             order_id=order_id,
             expected_version=expected_version,
             idempotency_key=str(uuid4()),
