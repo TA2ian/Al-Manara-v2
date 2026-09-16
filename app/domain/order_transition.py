@@ -16,6 +16,7 @@ class OrderTransitionCommand:
     reason: str | None
     expected_version: int
     idempotency_key: str
+    session_id: UUID | None = None
 
 
 def validate_transition_command(
