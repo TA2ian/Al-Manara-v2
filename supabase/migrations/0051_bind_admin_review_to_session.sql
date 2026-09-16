@@ -50,7 +50,6 @@ begin
         raise exception 'idempotency key is required';
     end if;
 
-    -- Resolve and authorize the actor from the authoritative admin record.
     select au.actor_type
       into v_registered_actor_type
       from admin_users au
@@ -66,8 +65,6 @@ begin
         raise exception 'admin actor type mismatch';
     end if;
 
-    -- The session is bound to both the Telegram identity and its authoritative
-    -- actor type. Validate it before idempotency replay.
     if not exists (
         select 1
           from admin_sessions s
@@ -106,8 +103,6 @@ begin
         end if;
     end if;
 
-    -- A non-finalized row is a reservation made by this same RPC. The order
-    -- lock and transition remain in the same PostgreSQL transaction.
     if not found then
         insert into order_transition_idempotency (
             idempotency_key, internal_order_id, target_status, expected_version,
@@ -170,13 +165,13 @@ begin
     v_new_version := v_current_version + 1;
     v_transitioned_at := now();
 
-    update orders
+    update orders as o
        set status = p_target_status,
            version = v_new_version,
-           approved_at = case when p_target_status = 'APPROVED' then coalesce(approved_at, v_transitioned_at) else approved_at end,
+           approved_at = case when p_target_status = 'APPROVED' then coalesce(o.approved_at, v_transitioned_at) else o.approved_at end,
            updated_at = v_transitioned_at
-     where internal_order_id = p_order_id
-       and version = p_expected_version;
+     where o.internal_order_id = p_order_id
+       and o.version = p_expected_version;
 
     if not found then
         raise exception 'order changed during transition';
