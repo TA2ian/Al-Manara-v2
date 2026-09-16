@@ -29,8 +29,6 @@ class SupabaseOrderRepository(OrderRepository):
         self._client = client
 
     async def get_for_update(self, internal_order_id: UUID) -> Order | None:
-        # Supabase HTTP calls cannot retain a PostgreSQL row lock between calls.
-        # The authoritative lock/version check happens inside the transition RPC.
         rows = await self._rpc("get_order_for_transition", {"p_order_id": str(internal_order_id)})
         if not rows:
             return None
@@ -75,6 +73,7 @@ class SupabaseOrderRepository(OrderRepository):
         actor_type: str,
         idempotency_key: str,
         event_payload: dict[str, object] | None = None,
+        session_id: UUID | None = None,
     ) -> PersistedOrderTransition | None:
         rows = await self._rpc(
             "transition_order_idempotent",
@@ -86,6 +85,7 @@ class SupabaseOrderRepository(OrderRepository):
                 "p_actor_type": actor_type,
                 "p_idempotency_key": idempotency_key.strip(),
                 "p_event_payload": event_payload or {},
+                "p_session_id": str(session_id) if session_id is not None else None,
             },
         )
         if not rows:
