@@ -38,7 +38,7 @@ class TelegramAdminReviewResponse:
 
 
 class AdminReviewApplication(Protocol):
-    async def review(self, command: AdminOrderReviewCommand) -> PersistedOrderTransition: ...
+    async def review(self, command: AdminReviewOrderCommand) -> PersistedOrderTransition: ...
 
 
 class TelegramAdminOrderReviewHandler:
