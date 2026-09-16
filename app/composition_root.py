@@ -88,6 +88,10 @@ def build_admin_composition(client: Any, order_uow: UnitOfWork | None = None) ->
     payment_account_service = AdminPaymentAccountService(
         SupabaseAdminPaymentAccountRepository(client)
     )
+    identity_review = TelegramAdminCustomerIdentityHandler(
+        CustomerIdentityService(SupabaseCustomerIdentityRepository(client)),
+        authorization,
+    )
     return AdminComposition(
         review=TelegramAdminOrderReviewHandler(review_service, authorization),
         listing=TelegramAdminOrderListingHandler(listing_service, authorization),
@@ -95,14 +99,16 @@ def build_admin_composition(client: Any, order_uow: UnitOfWork | None = None) ->
         session=TelegramAdminSessionHandler(session_service),
         fulfillment=TelegramFulfillmentHandler(fulfillment_service, authorization),
         payment_accounts=TelegramAdminPaymentAccountHandler(payment_account_service),
-        identity_review=build_identity_review_handler(client),
+        identity_review=identity_review,
         actor_type=authorization,
     )
 
 
 def build_identity_review_handler(client: Any) -> TelegramAdminCustomerIdentityHandler:
+    authorization = SupabaseAdminAuthorizationRepository(client)
     return TelegramAdminCustomerIdentityHandler(
-        CustomerIdentityService(SupabaseCustomerIdentityRepository(client))
+        CustomerIdentityService(SupabaseCustomerIdentityRepository(client)),
+        authorization,
     )
 
 
