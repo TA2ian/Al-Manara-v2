@@ -4,10 +4,8 @@ from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
 
-from app.application.order_service import OrderTransitionService
 from app.application.ports import PersistedOrderTransition
 from app.domain.order_status import OrderStatus
-from app.domain.order_transition import OrderTransitionCommand
 
 MIN_REASON_LENGTH = 5
 MAX_REASON_LENGTH = 1000
@@ -16,6 +14,20 @@ ADMIN_ACTOR_TYPES = frozenset({"primary", "backup"})
 
 class AdminAuthorizationPort(Protocol):
     async def authorize(self, telegram_user_id: int, actor_type: str) -> bool: ...
+
+
+class AdminReviewTransitionPort(Protocol):
+    async def transition(
+        self,
+        internal_order_id: UUID,
+        target_status: OrderStatus,
+        expected_version: int,
+        actor_telegram_user_id: int,
+        actor_type: str,
+        idempotency_key: str,
+        event_payload: dict[str, object] | None,
+        session_id: UUID,
+    ) -> PersistedOrderTransition: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,7 +45,11 @@ class AdminReviewOrderCommand:
 class AdminOrderReviewService:
     """Application boundary for human admin review of a submitted payment."""
 
-    def __init__(self, transitions: OrderTransitionService, authorization: AdminAuthorizationPort) -> None:
+    def __init__(
+        self,
+        transitions: AdminReviewTransitionPort,
+        authorization: AdminAuthorizationPort,
+    ) -> None:
         self._transitions = transitions
         self._authorization = authorization
 
@@ -84,14 +100,13 @@ class AdminOrderReviewService:
         if not 1 <= len(idempotency_key) <= 128:
             raise ValueError("idempotency key must be between 1 and 128 characters")
 
-        transition = OrderTransitionCommand(
-            internal_order_id=command.internal_order_id,
-            target_status=target,
-            actor_id=command.actor_telegram_user_id,
-            actor_type=actor_type,
-            reason=reason,
-            expected_version=command.expected_version,
-            idempotency_key=idempotency_key,
-            session_id=command.session_id,
+        return await self._transitions.transition(
+            command.internal_order_id,
+            target,
+            command.expected_version,
+            command.actor_telegram_user_id,
+            actor_type,
+            idempotency_key,
+            {"reason": reason} if reason else None,
+            command.session_id,
         )
-        return await self._transitions.transition_order(transition)
