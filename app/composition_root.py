@@ -64,6 +64,7 @@ class AdminComposition:
     fulfillment: TelegramFulfillmentHandler
     payment_accounts: TelegramAdminPaymentAccountHandler
     identity_review: TelegramAdminCustomerIdentityHandler
+    actor_type: SupabaseAdminAuthorizationRepository
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,13 +89,14 @@ def build_admin_composition(client: Any, order_uow: UnitOfWork | None = None) ->
         SupabaseAdminPaymentAccountRepository(client)
     )
     return AdminComposition(
-        review=TelegramAdminOrderReviewHandler(review_service),
-        listing=TelegramAdminOrderListingHandler(listing_service),
-        closure=TelegramAdminOrderClosureHandler(closure_service),
+        review=TelegramAdminOrderReviewHandler(review_service, authorization),
+        listing=TelegramAdminOrderListingHandler(listing_service, authorization),
+        closure=TelegramAdminOrderClosureHandler(closure_service, authorization),
         session=TelegramAdminSessionHandler(session_service),
-        fulfillment=TelegramFulfillmentHandler(fulfillment_service),
+        fulfillment=TelegramFulfillmentHandler(fulfillment_service, authorization),
         payment_accounts=TelegramAdminPaymentAccountHandler(payment_account_service),
         identity_review=build_identity_review_handler(client),
+        actor_type=authorization,
     )
 
 
