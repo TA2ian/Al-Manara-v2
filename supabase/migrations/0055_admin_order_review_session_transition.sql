@@ -1,7 +1,6 @@
 -- Dedicated Admin Order Review transition boundary.
 -- Keeps the generic order transition RPC independent from admin session policy.
--- This boundary owns its own idempotent replay so the generic transition path
--- remains reusable for non-review transitions.
+-- This boundary owns its own session-bound, atomic idempotency contract.
 
 create or replace function admin_review_order_transition_idempotent(
     p_order_id uuid,
@@ -27,9 +26,9 @@ security invoker
 set search_path = public
 as $$
 declare
-    v_order orders%rowtype;
-    v_admin admin_users%rowtype;
     v_existing jsonb;
+    v_order orders%rowtype;
+    v_registered_actor_type admin_actor_type;
     v_reason text := btrim(coalesce(p_event_payload->>'reason', ''));
     v_before order_status;
     v_after order_status;
@@ -41,7 +40,8 @@ begin
        or p_actor_type is null
        or p_session_id is null
        or p_target_status not in ('APPROVED','REJECTED','CLARIFICATION_REQUIRED')
-       or length(btrim(coalesce(p_idempotency_key, ''))) = 0
+       or p_idempotency_key is null
+       or length(btrim(p_idempotency_key)) = 0
        or length(btrim(p_idempotency_key)) > 128 then
         raise exception 'invalid admin review transition input';
     end if;
@@ -52,20 +52,23 @@ begin
     end if;
 
     -- Resolve authorization from the authoritative admin record.
-    select au.*
-      into v_admin
+    select au.actor_type
+      into v_registered_actor_type
       from admin_users au
      where au.telegram_user_id = p_admin_telegram_user_id
        and au.enabled
-       and au.actor_type = p_actor_type
        and (au.actor_type = 'primary' or au.emergency_only)
      for share;
+
     if not found then
-        raise exception 'admin authorization failed';
+        raise exception 'admin is not enabled';
+    end if;
+    if v_registered_actor_type <> p_actor_type then
+        raise exception 'admin actor type mismatch';
     end if;
 
-    -- The explicit session is checked before replay so an old/revoked session
-    -- cannot use a previously successful idempotency key as an authorization oracle.
+    -- Validate the explicit session before replay. This prevents a revoked or
+    -- expired session from using an old idempotency key as an authorization oracle.
     if not exists (
         select 1
           from admin_sessions s
@@ -74,21 +77,46 @@ begin
            and s.revoked_at is null
            and s.expires_at > now()
     ) then
-        raise exception 'admin session invalid or expired';
+        raise exception 'admin session is invalid or expired';
     end if;
 
-    select ik.response_json
+    -- Reserve the key atomically. A concurrent first caller serializes on the
+    -- primary key; the loser reads the committed final result below.
+    insert into order_transition_idempotency (
+        idempotency_key,
+        internal_order_id,
+        target_status,
+        expected_version,
+        actor_telegram_user_id,
+        actor_type,
+        result
+    ) values (
+        btrim(p_idempotency_key),
+        p_order_id,
+        p_target_status,
+        p_expected_version,
+        p_admin_telegram_user_id,
+        p_actor_type,
+        jsonb_build_object('finalized', false)
+    ) on conflict (idempotency_key) do nothing;
+
+    select oti.result
       into v_existing
-      from idempotency_keys ik
-     where ik.telegram_user_id = p_admin_telegram_user_id
-       and ik.operation = 'admin_order_review_transition'
-       and ik.idempotency_key = btrim(p_idempotency_key)
+      from order_transition_idempotency oti
+     where oti.idempotency_key = btrim(p_idempotency_key)
      for update;
 
-    if found then
+    if not found then
+        raise exception 'admin review idempotency reservation disappeared';
+    end if;
+
+    if coalesce((v_existing->>'finalized')::boolean, true) then
         if (v_existing->>'internal_order_id')::uuid <> p_order_id
-           or (v_existing->>'state_after')::order_status <> p_target_status then
-            raise exception 'idempotency key is bound to a different review operation';
+           or (v_existing->>'target_status')::order_status <> p_target_status
+           or (v_existing->>'expected_version')::bigint <> p_expected_version
+           or (v_existing->>'actor_telegram_user_id')::bigint <> p_admin_telegram_user_id
+           or (v_existing->>'actor_type')::admin_actor_type <> p_actor_type then
+            raise exception 'idempotency key belongs to another transition';
         end if;
 
         return query
@@ -98,12 +126,11 @@ begin
             (v_existing->>'status')::order_status,
             (v_existing->>'version')::bigint,
             (v_existing->>'state_before')::order_status,
-            (v_existing->>'state_after')::order_status,
+            (v_existing->>'target_status')::order_status,
             (v_existing->>'transitioned_at')::timestamptz;
         return;
     end if;
 
-    -- Serialize the state transition and version check at the database boundary.
     select *
       into v_order
       from orders o
@@ -171,25 +198,21 @@ begin
             || jsonb_build_object('session_id', p_session_id::text)
     );
 
-    insert into idempotency_keys (
-        telegram_user_id,
-        operation,
-        idempotency_key,
-        response_json
-    ) values (
-        p_admin_telegram_user_id,
-        'admin_order_review_transition',
-        btrim(p_idempotency_key),
-        jsonb_build_object(
-            'internal_order_id', p_order_id,
-            'public_order_code', v_order.public_order_code,
-            'status', p_target_status,
-            'version', p_expected_version + 1,
-            'state_before', v_before,
-            'state_after', v_after,
-            'transitioned_at', v_transitioned_at
-        )
-    );
+    update order_transition_idempotency
+       set result = jsonb_build_object(
+           'finalized', true,
+           'internal_order_id', p_order_id,
+           'public_order_code', v_order.public_order_code,
+           'status', p_target_status,
+           'version', p_expected_version + 1,
+           'state_before', v_before,
+           'target_status', v_after,
+           'expected_version', p_expected_version,
+           'actor_telegram_user_id', p_admin_telegram_user_id,
+           'actor_type', p_actor_type,
+           'transitioned_at', v_transitioned_at
+       )
+     where idempotency_key = btrim(p_idempotency_key);
 
     return query
     select
