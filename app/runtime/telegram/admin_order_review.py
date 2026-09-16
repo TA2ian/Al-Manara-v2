@@ -33,7 +33,7 @@ class TelegramAdminReviewResponse:
 
 
 class AdminReviewApplication(Protocol):
-    async def review(self, command: AdminOrderReviewCommand) -> PersistedOrderTransition: ...
+    async def review(self, command: AdminReviewOrderCommand) -> PersistedOrderTransition: ...
 
 
 class TelegramAdminOrderReviewHandler:
@@ -69,7 +69,7 @@ class TelegramAdminOrderReviewHandler:
 
         try:
             result = await self._service.review(
-                AdminOrderReviewCommand(
+                AdminReviewOrderCommand(
                     internal_order_id=request.order_id,
                     actor_telegram_user_id=request.admin_user_id,
                     actor_type=actor_type,
