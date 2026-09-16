@@ -56,3 +56,42 @@ class SupabaseAdminAuthorizationRepository(AdminAuthorizationPort):
                 "admin authorization RPC returned invalid authorization value"
             )
         return value
+
+    async def resolve_actor_type(self, telegram_user_id: int) -> str | None:
+        """Resolve the actor type from the DB; never trust Telegram/user input for it."""
+        if not isinstance(telegram_user_id, int) or telegram_user_id <= 0:
+            raise ValueError("administrator identity must be positive")
+        try:
+            response = await asyncio.to_thread(
+                self._client.rpc(
+                    "resolve_admin_actor_type",
+                    {"p_telegram_user_id": telegram_user_id},
+                ).execute
+            )
+        except Exception as exc:
+            raise AdminAuthorizationPersistenceError(
+                "admin actor resolution RPC failed"
+            ) from exc
+
+        if getattr(response, "error", None):
+            raise AdminAuthorizationPersistenceError(
+                "admin actor resolution RPC returned an error"
+            )
+
+        data = getattr(response, "data", None)
+        if not isinstance(data, list):
+            raise AdminAuthorizationPersistenceError(
+                "admin actor resolution RPC returned invalid data"
+            )
+        if len(data) == 0:
+            return None
+        if len(data) != 1 or not isinstance(data[0], dict):
+            raise AdminAuthorizationPersistenceError(
+                "admin actor resolution RPC returned invalid result count"
+            )
+        value = data[0].get("actor_type")
+        if value not in {"primary", "backup"}:
+            raise AdminAuthorizationPersistenceError(
+                "admin actor resolution RPC returned invalid actor type"
+            )
+        return value
