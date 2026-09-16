@@ -39,11 +39,12 @@ class FakeAdminAuthorization:
 
 
 @pytest.mark.asyncio
-async def test_admin_approval_targets_approved_state() -> None:
+async def test_admin_approval_targets_approved_state_and_binds_session() -> None:
     order = Order(uuid4(), "ORD-REVIEW01", OrderStatus.UNDER_REVIEW, 2)
     transitions = FakeTransitions(order)
     authorization = FakeAdminAuthorization()
     service = AdminOrderReviewService(transitions, authorization)
+    session_id = uuid4()
 
     result = await service.review(
         AdminReviewOrderCommand(
@@ -53,12 +54,35 @@ async def test_admin_approval_targets_approved_state() -> None:
             expected_version=2,
             action="approve",
             idempotency_key="review-approve-1",
+            session_id=session_id,
         )
     )
 
     assert result.state_after is OrderStatus.APPROVED
     assert transitions.commands[0].reason is None
+    assert transitions.commands[0].session_id == session_id
     assert authorization.calls == [(1001, "primary")]
+
+
+@pytest.mark.asyncio
+async def test_review_requires_a_session() -> None:
+    order = Order(uuid4(), "ORD-REVIEW00", OrderStatus.UNDER_REVIEW, 1)
+    transitions = FakeTransitions(order)
+    service = AdminOrderReviewService(transitions, FakeAdminAuthorization())
+
+    with pytest.raises(ValueError, match="recent admin session"):
+        await service.review(
+            AdminReviewOrderCommand(
+                internal_order_id=order.internal_order_id,
+                actor_telegram_user_id=1001,
+                actor_type="primary",
+                expected_version=1,
+                action="approve",
+                idempotency_key="review-session-required",
+            )
+        )
+
+    assert transitions.commands == []
 
 
 @pytest.mark.asyncio
@@ -77,6 +101,7 @@ async def test_rejection_requires_a_reason() -> None:
                 action="reject",
                 reason="no",
                 idempotency_key="review-reject-1",
+                session_id=uuid4(),
             )
         )
 
@@ -99,6 +124,7 @@ async def test_invalid_actor_type_is_rejected_before_authorization() -> None:
                 expected_version=1,
                 action="approve",
                 idempotency_key="review-invalid-actor",
+                session_id=uuid4(),
             )
         )
 
@@ -122,6 +148,7 @@ async def test_unauthorized_admin_cannot_transition_order() -> None:
                 expected_version=1,
                 action="approve",
                 idempotency_key="review-unauthorized",
+                session_id=uuid4(),
             )
         )
 
