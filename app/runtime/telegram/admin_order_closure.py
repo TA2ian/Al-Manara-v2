@@ -118,6 +118,7 @@ def build_admin_order_closure_router(
     actor_type_resolver: AdminActorTypeResolver | None = None,
 ) -> Router:
     router = Router(name="admin-order-closure")
+    resolver = actor_type_resolver or handler._actor_type_resolver
 
     @router.callback_query(F.data.regexp(CLOSURE_CALLBACK.pattern))
     async def handle_closure(query: CallbackQuery, state: FSMContext) -> None:
@@ -134,9 +135,9 @@ def build_admin_order_closure_router(
             return
 
         actor_type = None
-        if actor_type_resolver is not None:
+        if resolver is not None:
             try:
-                actor_type = await actor_type_resolver.resolve_actor_type(admin_user_id)
+                actor_type = await resolver.resolve_actor_type(admin_user_id)
             except Exception:
                 await query.answer("تعذر التحقق من صلاحيات المدير.", show_alert=True)
                 return
@@ -180,7 +181,10 @@ def build_admin_order_closure_router(
             await query.answer("يجب إرسال سبب الإغلاق وتأكيده أولًا.", show_alert=True)
             return
 
-        session_response = await session_handler.create(admin_user_id, actor_type or "primary")
+        if actor_type is None:
+            await query.answer("تعذر التحقق من صلاحيات المدير.", show_alert=True)
+            return
+        session_response = await session_handler.create(admin_user_id, actor_type)
         if not session_response.ok or session_response.session is None:
             await query.answer(session_response.message or "تعذر إنشاء جلسة إدارية حديثة.", show_alert=True)
             return
