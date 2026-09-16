@@ -46,8 +46,23 @@ values
 insert into users(telegram_user_id)
 values (910000101);
 
-insert into wallets(user_id, network_code, address, normalized_address, status)
-select id, 'BEP20', '0x1111111111111111111111111111111111111111', '0x1111111111111111111111111111111111111111', 'VERIFIED'
+insert into wallets(
+    user_id,
+    network_code,
+    address,
+    normalized_address,
+    status,
+    label,
+    qr_image_file_id
+)
+select
+    id,
+    'BEP20',
+    '0x1111111111111111111111111111111111111111',
+    '0x1111111111111111111111111111111111111111',
+    'VERIFIED',
+    'Contract Test Wallet',
+    'contract-test-qr'
 from users
 where telegram_user_id = 910000101;
 
