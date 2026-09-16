@@ -54,18 +54,14 @@ class TelegramAdminClosureResponse:
 class TelegramAdminOrderClosureHandler:
     """Framework-neutral adapter for the privileged no-fulfillment closure."""
 
-    def __init__(
-        self,
-        service: AdminOrderClosureService,
-        actor_type_resolver: AdminActorTypeResolver | None = None,
-    ) -> None:
+    def __init__(self, service: AdminOrderClosureService, actor_type_resolver: AdminActorTypeResolver | None = None) -> None:
         self._service = service
         self._actor_type_resolver = actor_type_resolver
 
     async def handle(self, request: TelegramAdminClosureInput) -> TelegramAdminClosureResponse:
         if request.admin_user_id <= 0 or request.expected_version < 1:
             return TelegramAdminClosureResponse(False, None, None, False, "invalid closure request")
-        if not isinstance(request.reason, str):
+        if not isinstance(request.session_id, UUID) or not isinstance(request.reason, str):
             return TelegramAdminClosureResponse(False, None, None, False, "invalid closure request")
         normalized_reason = " ".join(request.reason.split())
         if not MIN_REASON_LENGTH <= len(normalized_reason) <= MAX_REASON_LENGTH:
@@ -85,10 +81,7 @@ class TelegramAdminOrderClosureHandler:
             )
         except Exception:
             return TelegramAdminClosureResponse(False, None, None, False, CLOSURE_ERROR_MESSAGE)
-
-        return TelegramAdminClosureResponse(
-            True, result.status, result.version, result.replayed, "Order closed without fulfillment."
-        )
+        return TelegramAdminClosureResponse(True, result.status, result.version, result.replayed, "Order closed without fulfillment.")
 
 
 def _confirmation_markup(order_id: UUID, expected_version: int) -> InlineKeyboardMarkup:
@@ -112,11 +105,7 @@ def parse_closure_callback(data: str | None) -> tuple[str, UUID, int] | None:
         return None
 
 
-def build_admin_order_closure_router(
-    handler: TelegramAdminOrderClosureHandler,
-    session_handler: TelegramAdminSessionHandler,
-    actor_type_resolver: AdminActorTypeResolver | None = None,
-) -> Router:
+def build_admin_order_closure_router(handler: TelegramAdminOrderClosureHandler, session_handler: TelegramAdminSessionHandler, actor_type_resolver: AdminActorTypeResolver | None = None) -> Router:
     router = Router(name="admin-order-closure")
     resolver = actor_type_resolver or handler._actor_type_resolver
 
@@ -133,17 +122,13 @@ def build_admin_order_closure_router(
         if admin_user_id is None:
             await query.answer("تعذر التحقق من هوية المدير.", show_alert=True)
             return
-
-        actor_type = None
-        if resolver is not None:
-            try:
-                actor_type = await resolver.resolve_actor_type(admin_user_id)
-            except Exception:
-                await query.answer("تعذر التحقق من صلاحيات المدير.", show_alert=True)
-                return
-            if actor_type is None:
-                await query.answer("غير مصرح لك بهذه العملية.", show_alert=True)
-                return
+        try:
+            actor_type = await resolver.resolve_actor_type(admin_user_id) if resolver is not None else None
+        except Exception:
+            actor_type = None
+        if actor_type not in {"primary", "backup"}:
+            await query.answer("تعذر التحقق من صلاحيات المدير.", show_alert=True)
+            return
 
         operation, order_id, expected_version = parsed
         data = await state.get_data()
@@ -152,13 +137,20 @@ def build_admin_order_closure_router(
         pending_version = data.get("expected_version")
 
         if operation == "request":
-            await state.set_state(AdminClosureState.awaiting_reason)
+            session_response = await session_handler.create(admin_user_id, actor_type)
+            if not session_response.ok or session_response.session is None:
+                await query.answer(session_response.message or "تعذر إنشاء جلسة إدارية حديثة.", show_alert=True)
+                return
+            await state.clear()
             await state.set_data({
                 "admin_user_id": admin_user_id,
                 "order_id": str(order_id),
                 "expected_version": expected_version,
+                "actor_type": actor_type,
+                "session_id": str(session_response.session.session_id),
             })
-            await query.answer("أرسل سبب الإغلاق.", show_alert=True)
+            await state.set_state(AdminClosureState.awaiting_reason)
+            await query.answer("تم إنشاء جلسة إدارية حديثة. أرسل سبب الإغلاق.", show_alert=True)
             await query.message.edit_reply_markup(reply_markup=None)
             await query.message.answer(
                 f"أرسل سبب الإغلاق الإداري فقط (من {MIN_REASON_LENGTH} إلى {MAX_REASON_LENGTH} حرفًا).\n"
@@ -170,23 +162,23 @@ def build_admin_order_closure_router(
             await query.answer("انتهت جلسة الإغلاق أو لم يعد الطلب مطابقًا. افتح الطلب من جديد.", show_alert=True)
             await state.clear()
             return
-
         if operation == "cancel":
             await state.clear()
             await query.answer("تم إلغاء الإغلاق.")
             await query.message.edit_reply_markup(reply_markup=None)
             return
-
         if await state.get_state() != AdminClosureState.awaiting_confirmation.state:
             await query.answer("يجب إرسال سبب الإغلاق وتأكيده أولًا.", show_alert=True)
             return
 
-        if actor_type is None:
-            await query.answer("تعذر التحقق من صلاحيات المدير.", show_alert=True)
-            return
-        session_response = await session_handler.create(admin_user_id, actor_type)
-        if not session_response.ok or session_response.session is None:
-            await query.answer(session_response.message or "تعذر إنشاء جلسة إدارية حديثة.", show_alert=True)
+        try:
+            order_id = UUID(str(data["order_id"]))
+            expected_version = int(data["expected_version"])
+            session_id = UUID(str(data["session_id"]))
+            reason = str(data["reason"])
+        except (KeyError, TypeError, ValueError):
+            await state.clear()
+            await query.answer("بيانات العملية غير صالحة. افتح الطلب من جديد.", show_alert=True)
             return
 
         response = await handler.handle(
@@ -194,8 +186,8 @@ def build_admin_order_closure_router(
                 admin_user_id=admin_user_id,
                 order_id=order_id,
                 expected_version=expected_version,
-                session_id=session_response.session.session_id,
-                reason=str(data.get("reason", "")),
+                session_id=session_id,
+                reason=reason,
                 idempotency_key=str(uuid4()),
             )
         )
@@ -210,6 +202,7 @@ def build_admin_order_closure_router(
     @router.message(AdminClosureState.awaiting_reason)
     async def receive_reason(message: Message, state: FSMContext) -> None:
         if not is_private_message(message):
+            await state.clear()
             return
         admin_user_id = authenticated_telegram_user_id(message)
         if admin_user_id is None:
