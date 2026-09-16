@@ -15,12 +15,12 @@ from app.application.customer_order_listing import CustomerOrderListingService
 from app.application.disable_wallet import DisableWalletService
 from app.application.fulfillment import FulfillmentService
 from app.application.list_wallets import ListWalletsService
-from app.application.order_service import OrderTransitionService
 from app.application.register_wallet import RegisterWalletService
 from app.application.uow import UnitOfWork
 from app.infrastructure.persistence.admin_authorization_repository import SupabaseAdminAuthorizationRepository
 from app.infrastructure.persistence.admin_order_closure_repository import SupabaseAdminOrderClosureRepository
 from app.infrastructure.persistence.admin_order_listing_repository import SupabaseAdminOrderListingRepository
+from app.infrastructure.persistence.admin_order_review_repository import SupabaseAdminOrderReviewRepository
 from app.infrastructure.persistence.admin_payment_account_repository import SupabaseAdminPaymentAccountRepository
 from app.infrastructure.persistence.admin_session_repository import SupabaseAdminSessionRepository
 from app.infrastructure.persistence.audit_logger import SupabaseAuditLogger
@@ -48,10 +48,10 @@ from app.runtime.telegram.admin_order_listing import TelegramAdminOrderListingHa
 from app.runtime.telegram.admin_order_review import TelegramAdminOrderReviewHandler
 from app.runtime.telegram.admin_payment_account import TelegramAdminPaymentAccountHandler
 from app.runtime.telegram.admin_session import TelegramAdminSessionHandler
-from app.runtime.telegram.fulfillment import TelegramFulfillmentHandler
-from app.runtime.telegram.order_creation_handler import TelegramOrderCreationHandler
 from app.runtime.telegram.customer_identity import TelegramCustomerIdentityHandler
 from app.runtime.telegram.customer_order_listing import TelegramCustomerOrderListingHandler
+from app.runtime.telegram.fulfillment import TelegramFulfillmentHandler
+from app.runtime.telegram.order_creation_handler import TelegramOrderCreationHandler
 from app.runtime.telegram.wallets import TelegramWalletHandler
 
 
@@ -79,8 +79,8 @@ class CustomerComposition:
 
 def build_admin_composition(client: Any, order_uow: UnitOfWork | None = None) -> AdminComposition:
     authorization = SupabaseAdminAuthorizationRepository(client)
-    transitions = OrderTransitionService(order_uow or SupabaseOrderUnitOfWork(client))
-    review_service = AdminOrderReviewService(transitions, authorization)
+    review_repository = SupabaseAdminOrderReviewRepository(client)
+    review_service = AdminOrderReviewService(review_repository, authorization)
     listing_service = AdminOrderListingService(SupabaseAdminOrderListingRepository(client))
     closure_service = AdminOrderClosureService(SupabaseAdminOrderClosureRepository(client))
     session_service = AdminSessionService(SupabaseAdminSessionRepository(client))
