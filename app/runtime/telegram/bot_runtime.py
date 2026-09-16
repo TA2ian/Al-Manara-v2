@@ -152,7 +152,7 @@ def build_telegram_runtime(settings: TelegramBotSettings) -> tuple[Bot, Dispatch
     dispatcher.include_router(build_identity_review_router(admin.identity_review))
     dispatcher.include_router(build_admin_order_actions_router(admin.review, admin.session, admin.actor_type))
     dispatcher.include_router(build_admin_order_closure_router(admin.closure, admin.session, admin.actor_type))
-    dispatcher.include_router(build_fulfillment_router(admin.fulfillment))
+    dispatcher.include_router(build_fulfillment_router(admin.fulfillment, admin.session, admin.actor_type))
     dispatcher.include_router(build_customer_router(build_customer_composition(client)))
     dispatcher.errors.register(log_telegram_error)
     return Bot(token=settings.token), dispatcher
