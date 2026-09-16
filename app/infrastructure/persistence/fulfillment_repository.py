@@ -24,7 +24,10 @@ class SupabaseFulfillmentRepository(FulfillmentRepository):
     def __init__(self, client: SupabaseRpcClient) -> None:
         self._client = client
 
-    async def claim(self, internal_order_id: UUID, expected_version: int, admin_telegram_user_id: int, actor_type: str, idempotency_key: str) -> FulfillmentResult:
+    async def claim(
+        self, internal_order_id: UUID, expected_version: int, admin_telegram_user_id: int,
+        actor_type: str, idempotency_key: str, session_id: UUID
+    ) -> FulfillmentResult:
         return await self._execute(
             "claim_order_fulfillment",
             {
@@ -33,11 +36,15 @@ class SupabaseFulfillmentRepository(FulfillmentRepository):
                 "p_admin_telegram_user_id": admin_telegram_user_id,
                 "p_actor_type": actor_type,
                 "p_idempotency_key": idempotency_key,
+                "p_session_id": str(session_id),
             },
             require_claimed=True,
         )
 
-    async def complete(self, internal_order_id: UUID, expected_version: int, admin_telegram_user_id: int, actor_type: str, idempotency_key: str) -> FulfillmentResult:
+    async def complete(
+        self, internal_order_id: UUID, expected_version: int, admin_telegram_user_id: int,
+        actor_type: str, idempotency_key: str, session_id: UUID
+    ) -> FulfillmentResult:
         return await self._execute(
             "complete_order_fulfillment",
             {
@@ -46,6 +53,7 @@ class SupabaseFulfillmentRepository(FulfillmentRepository):
                 "p_admin_telegram_user_id": admin_telegram_user_id,
                 "p_actor_type": actor_type,
                 "p_idempotency_key": idempotency_key,
+                "p_session_id": str(session_id),
             },
             require_claimed=False,
         )
