@@ -25,6 +25,7 @@ class FulfillmentRepository(Protocol):
         admin_telegram_user_id: int,
         actor_type: str,
         idempotency_key: str,
+        session_id: UUID,
     ) -> FulfillmentResult: ...
 
     async def complete(
@@ -34,6 +35,7 @@ class FulfillmentRepository(Protocol):
         admin_telegram_user_id: int,
         actor_type: str,
         idempotency_key: str,
+        session_id: UUID,
     ) -> FulfillmentResult: ...
 
 
@@ -43,16 +45,47 @@ class FulfillmentService:
     def __init__(self, repository: FulfillmentRepository) -> None:
         self._repository = repository
 
-    async def claim(self, internal_order_id: UUID, expected_version: int, admin_telegram_user_id: int, actor_type: str, idempotency_key: str) -> FulfillmentResult:
-        actor, key = self._validate(internal_order_id, expected_version, admin_telegram_user_id, actor_type, idempotency_key)
-        return await self._repository.claim(internal_order_id, expected_version, admin_telegram_user_id, actor, key)
+    async def claim(
+        self,
+        internal_order_id: UUID,
+        expected_version: int,
+        admin_telegram_user_id: int,
+        actor_type: str,
+        idempotency_key: str,
+        session_id: UUID,
+    ) -> FulfillmentResult:
+        actor, key, session = self._validate(
+            internal_order_id, expected_version, admin_telegram_user_id, actor_type, idempotency_key, session_id
+        )
+        return await self._repository.claim(
+            internal_order_id, expected_version, admin_telegram_user_id, actor, key, session
+        )
 
-    async def complete(self, internal_order_id: UUID, expected_version: int, admin_telegram_user_id: int, actor_type: str, idempotency_key: str) -> FulfillmentResult:
-        actor, key = self._validate(internal_order_id, expected_version, admin_telegram_user_id, actor_type, idempotency_key)
-        return await self._repository.complete(internal_order_id, expected_version, admin_telegram_user_id, actor, key)
+    async def complete(
+        self,
+        internal_order_id: UUID,
+        expected_version: int,
+        admin_telegram_user_id: int,
+        actor_type: str,
+        idempotency_key: str,
+        session_id: UUID,
+    ) -> FulfillmentResult:
+        actor, key, session = self._validate(
+            internal_order_id, expected_version, admin_telegram_user_id, actor_type, idempotency_key, session_id
+        )
+        return await self._repository.complete(
+            internal_order_id, expected_version, admin_telegram_user_id, actor, key, session
+        )
 
     @staticmethod
-    def _validate(internal_order_id: UUID, expected_version: int, admin_telegram_user_id: int, actor_type: str, idempotency_key: str) -> tuple[str, str]:
+    def _validate(
+        internal_order_id: UUID,
+        expected_version: int,
+        admin_telegram_user_id: int,
+        actor_type: str,
+        idempotency_key: str,
+        session_id: UUID,
+    ) -> tuple[str, str, UUID]:
         if not isinstance(internal_order_id, UUID):
             raise ValueError("order id is required")
         if not isinstance(expected_version, int) or expected_version < 1:
@@ -69,4 +102,6 @@ class FulfillmentService:
         key = idempotency_key.strip()
         if not 1 <= len(key) <= 128:
             raise ValueError("idempotency key must be between 1 and 128 characters")
-        return actor, key
+        if not isinstance(session_id, UUID):
+            raise ValueError("recent admin session is required")
+        return actor, key, session_id
