@@ -27,6 +27,7 @@ class AdminReviewOrderCommand:
     action: str
     reason: str | None = None
     idempotency_key: str = ""
+    session_id: UUID | None = None
 
 
 class AdminOrderReviewService:
@@ -52,6 +53,8 @@ class AdminOrderReviewService:
             raise ValueError("review action is required")
         if not isinstance(command.idempotency_key, str):
             raise ValueError("idempotency key is required")
+        if not isinstance(command.session_id, UUID):
+            raise ValueError("recent admin session is required")
 
         if not await self._authorization.authorize(command.actor_telegram_user_id, actor_type):
             raise PermissionError("admin is not authorized for order review")
@@ -89,5 +92,6 @@ class AdminOrderReviewService:
             reason=reason,
             expected_version=command.expected_version,
             idempotency_key=idempotency_key,
+            session_id=command.session_id,
         )
         return await self._transitions.transition_order(transition)
