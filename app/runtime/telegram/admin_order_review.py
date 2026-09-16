@@ -38,7 +38,7 @@ class TelegramAdminReviewResponse:
 
 
 class AdminReviewApplication(Protocol):
-    async def review(self, command: AdminReviewOrderCommand) -> PersistedOrderTransition: ...
+    async def review(self, command: AdminOrderReviewCommand) -> PersistedOrderTransition: ...
 
 
 class TelegramAdminOrderReviewHandler:
@@ -65,6 +65,8 @@ class TelegramAdminOrderReviewHandler:
             return TelegramAdminReviewResponse(False, message="A review action is required.")
         if not isinstance(request.session_id, UUID):
             return TelegramAdminReviewResponse(False, message="A recent admin session is required.")
+        if self._session_validator is None:
+            return TelegramAdminReviewResponse(False, message=REVIEW_ERROR_MESSAGE)
 
         actor_type = request.actor_type
         if self._actor_type_resolver is not None:
@@ -76,15 +78,14 @@ class TelegramAdminOrderReviewHandler:
                 return TelegramAdminReviewResponse(False, message="You are not authorized to review orders.")
             actor_type = resolved
 
-        if self._session_validator is not None:
-            try:
-                valid = await self._session_validator.validate_session(
-                    request.admin_user_id, actor_type, request.session_id
-                )
-            except Exception:
-                return TelegramAdminReviewResponse(False, message=REVIEW_ERROR_MESSAGE)
-            if not valid:
-                return TelegramAdminReviewResponse(False, message="The admin session is no longer valid. Please retry.")
+        try:
+            valid = await self._session_validator.validate_session(
+                request.admin_user_id, actor_type, request.session_id
+            )
+        except Exception:
+            return TelegramAdminReviewResponse(False, message=REVIEW_ERROR_MESSAGE)
+        if not valid:
+            return TelegramAdminReviewResponse(False, message="The admin session is no longer valid. Please retry.")
 
         try:
             result = await self._service.review(
