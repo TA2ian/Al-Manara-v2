@@ -6,7 +6,12 @@ from uuid import UUID
 
 from app.application.admin_order_review import AdminOrderReviewService, AdminReviewOrderCommand
 from app.application.ports import PersistedOrderTransition
+
 REVIEW_ERROR_MESSAGE = "The order could not be updated. Please retry."
+
+
+class AdminActorTypeResolver(Protocol):
+    async def resolve_actor_type(self, telegram_user_id: int) -> str | None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,19 +33,19 @@ class TelegramAdminReviewResponse:
 
 
 class AdminReviewApplication(Protocol):
-    async def review(self, command: AdminReviewOrderCommand) -> PersistedOrderTransition: ...
+    async def review(self, command: AdminOrderReviewCommand) -> PersistedOrderTransition: ...
 
 
 class TelegramAdminOrderReviewHandler:
-    """Framework-neutral adapter for Telegram admin review callbacks/commands.
+    """Framework-neutral adapter for Telegram admin order review."""
 
-    actor_type must come from trusted admin context; it is not an authorization
-    mechanism by itself. The application and database authorization boundaries
-    remain authoritative.
-    """
-
-    def __init__(self, service: AdminReviewApplication | AdminOrderReviewService) -> None:
+    def __init__(
+        self,
+        service: AdminReviewApplication | AdminOrderReviewService,
+        actor_type_resolver: AdminActorTypeResolver | None = None,
+    ) -> None:
         self._service = service
+        self._actor_type_resolver = actor_type_resolver
 
     async def handle(self, request: TelegramAdminReviewInput) -> TelegramAdminReviewResponse:
         if request.admin_user_id <= 0:
@@ -52,12 +57,22 @@ class TelegramAdminOrderReviewHandler:
         if not request.action.strip():
             return TelegramAdminReviewResponse(False, message="A review action is required.")
 
+        actor_type = request.actor_type
+        if self._actor_type_resolver is not None:
+            try:
+                resolved = await self._actor_type_resolver.resolve_actor_type(request.admin_user_id)
+            except Exception:
+                return TelegramAdminReviewResponse(False, message=REVIEW_ERROR_MESSAGE)
+            if resolved is None:
+                return TelegramAdminReviewResponse(False, message="You are not authorized to review orders.")
+            actor_type = resolved
+
         try:
             result = await self._service.review(
-                AdminReviewOrderCommand(
+                AdminOrderReviewCommand(
                     internal_order_id=request.order_id,
                     actor_telegram_user_id=request.admin_user_id,
-                    actor_type=request.actor_type,
+                    actor_type=actor_type,
                     expected_version=request.expected_version,
                     action=request.action,
                     reason=request.reason,
@@ -65,9 +80,7 @@ class TelegramAdminOrderReviewHandler:
                 )
             )
         except ValueError:
-            return TelegramAdminReviewResponse(
-                False, message=REVIEW_ERROR_MESSAGE
-            )
+            return TelegramAdminReviewResponse(False, message=REVIEW_ERROR_MESSAGE)
         except PermissionError:
             return TelegramAdminReviewResponse(False, message="You are not authorized to review orders.")
         except LookupError:
