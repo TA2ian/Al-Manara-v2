@@ -9,7 +9,12 @@ from app.application.admin_order_listing import (
     AdminOrderListingService,
     ListAdminOrdersCommand,
 )
+
 ORDER_LISTING_ERROR_MESSAGE = "Orders could not be loaded. Please retry."
+
+
+class AdminActorTypeResolver(Protocol):
+    async def resolve_actor_type(self, telegram_user_id: int) -> str | None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,8 +38,13 @@ class AdminOrderListingApplication(Protocol):
 
 
 class TelegramAdminOrderListingHandler:
-    def __init__(self, service: AdminOrderListingApplication | AdminOrderListingService) -> None:
+    def __init__(
+        self,
+        service: AdminOrderListingApplication | AdminOrderListingService,
+        actor_type_resolver: AdminActorTypeResolver | None = None,
+    ) -> None:
         self._service = service
+        self._actor_type_resolver = actor_type_resolver
 
     async def handle(self, request: TelegramAdminOrderListingInput) -> TelegramAdminOrderListingResponse:
         if request.admin_user_id <= 0:
@@ -45,10 +55,21 @@ class TelegramAdminOrderListingHandler:
             AdminOrderListType(request.list_type.strip().lower())
         except (AttributeError, ValueError):
             return TelegramAdminOrderListingResponse(False, message="The order list type is invalid.")
+
+        actor_type = request.actor_type
+        if self._actor_type_resolver is not None:
+            try:
+                resolved = await self._actor_type_resolver.resolve_actor_type(request.admin_user_id)
+            except Exception:
+                return TelegramAdminOrderListingResponse(False, message=ORDER_LISTING_ERROR_MESSAGE)
+            if resolved is None:
+                return TelegramAdminOrderListingResponse(False, message="You are not authorized to view orders.")
+            actor_type = resolved
+
         try:
             result = await self._service.list(ListAdminOrdersCommand(
                 admin_telegram_user_id=request.admin_user_id,
-                actor_type=request.actor_type,
+                actor_type=actor_type,
                 list_type=request.list_type,
                 page=request.page,
                 page_size=request.page_size,
@@ -56,10 +77,7 @@ class TelegramAdminOrderListingHandler:
         except PermissionError:
             return TelegramAdminOrderListingResponse(False, message="You are not authorized to view orders.")
         except ValueError:
-            return TelegramAdminOrderListingResponse(
-                False,
-                message=ORDER_LISTING_ERROR_MESSAGE,
-            )
+            return TelegramAdminOrderListingResponse(False, message=ORDER_LISTING_ERROR_MESSAGE)
         except RuntimeError:
             return TelegramAdminOrderListingResponse(False, message=ORDER_LISTING_ERROR_MESSAGE)
         except Exception:
