@@ -30,13 +30,12 @@ class OrderTransitionService:
                 )
 
             validate_transition_command(order.status, command)
-            state_before = order.status
 
-            if command.target_status == state_before:
+            if command.target_status == order.status:
                 result = PersistedOrderTransition(
                     order=order,
-                    state_before=state_before,
-                    state_after=state_before,
+                    state_before=order.status,
+                    state_after=order.status,
                     transitioned_at=datetime.now(timezone.utc),
                 )
                 await self._uow.idempotency.store_result(command.idempotency_key, result)
@@ -51,16 +50,14 @@ class OrderTransitionService:
                 actor_type=command.actor_type,
                 idempotency_key=command.idempotency_key,
                 event_payload={"reason": command.reason} if command.reason else None,
+                session_id=command.session_id,
             )
             if persisted is None:
                 raise RuntimeError("order changed concurrently; transition was not applied")
 
-            # The PostgreSQL idempotent RPC is the concurrency/idempotency
-            # authority. The application snapshot supplies the validated pre-state
-            # when the persistence adapter does not expose it (legacy transition).
             result = PersistedOrderTransition(
                 order=persisted.order,
-                state_before=persisted.state_before if persisted.state_before is not persisted.state_after else state_before,
+                state_before=persisted.state_before,
                 state_after=persisted.state_after,
                 transitioned_at=persisted.transitioned_at,
             )
