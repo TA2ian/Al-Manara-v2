@@ -1,7 +1,10 @@
 from uuid import UUID, uuid4
 
+import pytest
+
 from app.runtime.telegram.admin_order_actions import (
     AdminOrderActionState,
+    _resolve_actor_type,
     order_action_markup,
     parse_order_action_callback,
 )
@@ -37,3 +40,49 @@ def test_order_action_markup_carries_internal_order_id_and_version() -> None:
 
 def test_reason_state_is_defined() -> None:
     assert AdminOrderActionState.reason.state == "AdminOrderActionState:reason"
+
+
+class FakeActorResolver:
+    def __init__(self, actor_type: str | None = "backup", error: Exception | None = None) -> None:
+        self.actor_type = actor_type
+        self.error = error
+        self.calls: list[int] = []
+
+    async def resolve_actor_type(self, telegram_user_id: int) -> str | None:
+        self.calls.append(telegram_user_id)
+        if self.error is not None:
+            raise self.error
+        return self.actor_type
+
+
+@pytest.mark.asyncio
+async def test_resolve_actor_type_uses_db_authority() -> None:
+    resolver = FakeActorResolver("backup")
+
+    result = await _resolve_actor_type(resolver, 123)
+
+    assert result == "backup"
+    assert resolver.calls == [123]
+
+
+@pytest.mark.asyncio
+async def test_resolve_actor_type_rejects_unknown_value() -> None:
+    resolver = FakeActorResolver("primary;DROP")
+
+    result = await _resolve_actor_type(resolver, 123)
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_resolve_actor_type_fails_closed_on_resolution_error() -> None:
+    resolver = FakeActorResolver(error=RuntimeError("db unavailable"))
+
+    result = await _resolve_actor_type(resolver, 123)
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_resolve_actor_type_fails_closed_without_resolver() -> None:
+    assert await _resolve_actor_type(None, 123) is None
