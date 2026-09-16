@@ -17,60 +17,39 @@ class FakeOrderRepository:
         self.transition_calls = 0
         self.atomic_transition_calls = 0
         self.actor = None
+        self.session_id = None
         self.event_payload = None
 
     async def get_for_update(self, internal_order_id):
         return self.order if internal_order_id == self.order.internal_order_id else None
 
     async def transition_if_version(
-        self,
-        internal_order_id,
-        target_status,
-        expected_version,
-        actor_telegram_user_id=None,
-        actor_type=None,
-        event_payload=None,
+        self, internal_order_id, target_status, expected_version,
+        actor_telegram_user_id=None, actor_type=None, event_payload=None,
     ):
         self.transition_calls += 1
         return await self._transition(
-            internal_order_id,
-            target_status,
-            expected_version,
-            actor_telegram_user_id,
-            actor_type,
-            event_payload,
+            internal_order_id, target_status, expected_version,
+            actor_telegram_user_id, actor_type, event_payload, None,
         )
 
     async def transition_idempotent(
-        self,
-        internal_order_id,
-        target_status,
-        expected_version,
-        actor_telegram_user_id,
-        actor_type,
-        idempotency_key,
-        event_payload=None,
+        self, internal_order_id, target_status, expected_version,
+        actor_telegram_user_id, actor_type, idempotency_key,
+        event_payload=None, session_id=None,
     ):
         self.atomic_transition_calls += 1
         return await self._transition(
-            internal_order_id,
-            target_status,
-            expected_version,
-            actor_telegram_user_id,
-            actor_type,
-            event_payload,
+            internal_order_id, target_status, expected_version,
+            actor_telegram_user_id, actor_type, event_payload, session_id,
         )
 
     async def _transition(
-        self,
-        internal_order_id,
-        target_status,
-        expected_version,
-        actor_telegram_user_id,
-        actor_type,
-        event_payload,
+        self, internal_order_id, target_status, expected_version,
+        actor_telegram_user_id, actor_type, event_payload, session_id,
     ):
         self.actor = (actor_telegram_user_id, actor_type)
+        self.session_id = session_id
         self.event_payload = event_payload
         if self.order.version != expected_version:
             return None
@@ -125,15 +104,10 @@ async def test_repeated_approval_is_idempotent() -> None:
     idem = FakeIdempotencyRepository()
     uow: UnitOfWork = FakeUnitOfWork(orders, idem)
     service = OrderTransitionService(uow)
+    session_id = uuid4()
 
     command = OrderTransitionCommand(
-        order.internal_order_id,
-        OrderStatus.APPROVED,
-        123,
-        "primary",
-        None,
-        1,
-        "approve-1",
+        order.internal_order_id, OrderStatus.APPROVED, 123, "primary", None, 1, "approve-1", session_id
     )
 
     first = await service.transition_order(command)
@@ -143,6 +117,7 @@ async def test_repeated_approval_is_idempotent() -> None:
     assert orders.atomic_transition_calls == 1
     assert orders.order.status is OrderStatus.APPROVED
     assert orders.actor == (123, "primary")
+    assert orders.session_id == session_id
     assert orders.event_payload is None
     assert uow.commit_calls == 1
 
@@ -154,21 +129,17 @@ async def test_transition_propagates_reason_to_atomic_persistence_event() -> Non
     idem = FakeIdempotencyRepository()
     uow: UnitOfWork = FakeUnitOfWork(orders, idem)
     service = OrderTransitionService(uow)
+    session_id = uuid4()
 
     command = OrderTransitionCommand(
-        order.internal_order_id,
-        OrderStatus.REJECTED,
-        456,
-        "primary",
-        "receipt mismatch",
-        2,
-        "reject-1",
+        order.internal_order_id, OrderStatus.REJECTED, 456, "primary", "receipt mismatch", 2, "reject-1", session_id
     )
 
     await service.transition_order(command)
 
     assert orders.atomic_transition_calls == 1
     assert orders.actor == (456, "primary")
+    assert orders.session_id == session_id
     assert orders.event_payload == {"reason": "receipt mismatch"}
 
 
@@ -181,13 +152,7 @@ async def test_stale_expected_version_blocks_transition() -> None:
     service = OrderTransitionService(uow)
 
     command = OrderTransitionCommand(
-        order.internal_order_id,
-        OrderStatus.APPROVED,
-        123,
-        "primary",
-        None,
-        3,
-        "approve-stale",
+        order.internal_order_id, OrderStatus.APPROVED, 123, "primary", None, 3, "approve-stale", uuid4()
     )
 
     with pytest.raises(RuntimeError, match="stale order version"):
