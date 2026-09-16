@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any, Protocol
+from uuid import UUID
 
 from app.application.admin_order_review import AdminAuthorizationPort
 
@@ -34,27 +35,16 @@ class SupabaseAdminAuthorizationRepository(AdminAuthorizationPort):
                 ).execute
             )
         except Exception as exc:
-            raise AdminAuthorizationPersistenceError(
-                "admin authorization RPC failed"
-            ) from exc
-
+            raise AdminAuthorizationPersistenceError("admin authorization RPC failed") from exc
         error = getattr(response, "error", None)
         if error:
-            raise AdminAuthorizationPersistenceError(
-                "admin authorization RPC returned an error"
-            )
-
+            raise AdminAuthorizationPersistenceError("admin authorization RPC returned an error")
         data = getattr(response, "data", None)
         if not isinstance(data, list) or len(data) != 1 or not isinstance(data[0], dict):
-            raise AdminAuthorizationPersistenceError(
-                "admin authorization RPC returned invalid data"
-            )
-
+            raise AdminAuthorizationPersistenceError("admin authorization RPC returned invalid data")
         value = data[0].get("authorize_admin_order_review")
         if not isinstance(value, bool):
-            raise AdminAuthorizationPersistenceError(
-                "admin authorization RPC returned invalid authorization value"
-            )
+            raise AdminAuthorizationPersistenceError("admin authorization RPC returned invalid authorization value")
         return value
 
     async def resolve_actor_type(self, telegram_user_id: int) -> str | None:
@@ -69,29 +59,47 @@ class SupabaseAdminAuthorizationRepository(AdminAuthorizationPort):
                 ).execute
             )
         except Exception as exc:
-            raise AdminAuthorizationPersistenceError(
-                "admin actor resolution RPC failed"
-            ) from exc
-
+            raise AdminAuthorizationPersistenceError("admin actor resolution RPC failed") from exc
         if getattr(response, "error", None):
-            raise AdminAuthorizationPersistenceError(
-                "admin actor resolution RPC returned an error"
-            )
-
+            raise AdminAuthorizationPersistenceError("admin actor resolution RPC returned an error")
         data = getattr(response, "data", None)
         if not isinstance(data, list):
-            raise AdminAuthorizationPersistenceError(
-                "admin actor resolution RPC returned invalid data"
-            )
+            raise AdminAuthorizationPersistenceError("admin actor resolution RPC returned invalid data")
         if len(data) == 0:
             return None
         if len(data) != 1 or not isinstance(data[0], dict):
-            raise AdminAuthorizationPersistenceError(
-                "admin actor resolution RPC returned invalid result count"
-            )
+            raise AdminAuthorizationPersistenceError("admin actor resolution RPC returned invalid result count")
         value = data[0].get("actor_type")
         if value not in {"primary", "backup"}:
-            raise AdminAuthorizationPersistenceError(
-                "admin actor resolution RPC returned invalid actor type"
+            raise AdminAuthorizationPersistenceError("admin actor resolution RPC returned invalid actor type")
+        return value
+
+    async def validate_session(self, telegram_user_id: int, actor_type: str, session_id: UUID) -> bool:
+        if not isinstance(telegram_user_id, int) or telegram_user_id <= 0:
+            raise ValueError("administrator identity must be positive")
+        if actor_type not in {"primary", "backup"}:
+            raise ValueError("invalid administrator actor type")
+        if not isinstance(session_id, UUID):
+            raise ValueError("session identity is required")
+        try:
+            response = await asyncio.to_thread(
+                self._client.rpc(
+                    "validate_admin_session",
+                    {
+                        "p_admin_telegram_user_id": telegram_user_id,
+                        "p_actor_type": actor_type,
+                        "p_session_id": str(session_id),
+                    },
+                ).execute
             )
+        except Exception as exc:
+            raise AdminAuthorizationPersistenceError("admin session validation RPC failed") from exc
+        if getattr(response, "error", None):
+            raise AdminAuthorizationPersistenceError("admin session validation RPC returned an error")
+        data = getattr(response, "data", None)
+        if not isinstance(data, list) or len(data) != 1 or not isinstance(data[0], dict):
+            raise AdminAuthorizationPersistenceError("admin session validation RPC returned invalid data")
+        value = data[0].get("validate_admin_session")
+        if not isinstance(value, bool):
+            raise AdminAuthorizationPersistenceError("admin session validation RPC returned invalid result")
         return value
