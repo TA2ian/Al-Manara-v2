@@ -24,15 +24,20 @@ class NetworkConfig:
     requires_memo: bool
     min_amount: Decimal
     max_amount: Decimal
+    network_fee_amount: Decimal
+
+    def __post_init__(self) -> None:
+        if not self.network_fee_amount.is_finite() or self.network_fee_amount < 0:
+            raise ValueError("network fee must be finite and non-negative")
 
 
 NETWORKS: tuple[NetworkConfig, ...] = (
-    NetworkConfig(NetworkCode.BEP20, "BEP20", True, r"^0x[0-9a-fA-F]{40}$", False, Decimal("1"), Decimal("100000")),
-    NetworkConfig(NetworkCode.TRC20, "TRC20", True, r"^T[1-9A-HJ-NP-Za-km-z]{33}$", False, Decimal("1"), Decimal("100000")),
-    NetworkConfig(NetworkCode.ARB, "ARB", True, r"^0x[0-9a-fA-F]{40}$", False, Decimal("0.001"), Decimal("100000")),
-    NetworkConfig(NetworkCode.ETH, "ETH", True, r"^0x[0-9a-fA-F]{40}$", False, Decimal("0.001"), Decimal("100000")),
-    NetworkConfig(NetworkCode.SOL, "SOL", True, r"^[1-9A-HJ-NP-Za-km-z]{32,44}$", False, Decimal("0.001"), Decimal("100000")),
-    NetworkConfig(NetworkCode.POLYGON, "POLYGON", True, r"^0x[0-9a-fA-F]{40}$", False, Decimal("0.001"), Decimal("100000")),
+    NetworkConfig(NetworkCode.BEP20, "BEP20", True, r"^0x[0-9a-fA-F]{40}$", False, Decimal("1"), Decimal("100000"), Decimal("0.15")),
+    NetworkConfig(NetworkCode.TRC20, "TRC20", True, r"^T[1-9A-HJ-NP-Za-km-z]{33}$", False, Decimal("1"), Decimal("100000"), Decimal("1.50")),
+    NetworkConfig(NetworkCode.ARB, "ARB", True, r"^0x[0-9a-fA-F]{40}$", False, Decimal("0.001"), Decimal("100000"), Decimal("0.15")),
+    NetworkConfig(NetworkCode.ETH, "ETH", True, r"^0x[0-9a-fA-F]{40}$", False, Decimal("0.001"), Decimal("100000"), Decimal("0.80")),
+    NetworkConfig(NetworkCode.SOL, "SOL", True, r"^[1-9A-HJ-NP-Za-km-z]{32,44}$", False, Decimal("0.001"), Decimal("100000"), Decimal("1.00")),
+    NetworkConfig(NetworkCode.POLYGON, "POLYGON", True, r"^0x[0-9a-fA-F]{40}$", False, Decimal("0.001"), Decimal("100000"), Decimal("0.20")),
 )
 
 
