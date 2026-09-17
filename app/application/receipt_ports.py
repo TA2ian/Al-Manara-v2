@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from app.domain.receipt_attempt import ReceiptAttempt, ReceiptAttemptStatus
+from app.domain.receipt_attempt import ReceiptAttempt, ReceiptAttemptStatus, ReceiptInputType
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,8 +21,10 @@ class ReceiptAttemptRepository(Protocol):
         telegram_user_id: int,
         idempotency_key: str,
         submitted_at: datetime,
-        mime_type: str,
-        telegram_file_id: str,
+        input_type: ReceiptInputType,
+        transaction_reference: str | None,
+        mime_type: str | None,
+        telegram_file_id: str | None,
     ) -> ReceiptReservation: ...
 
     async def finalize(
