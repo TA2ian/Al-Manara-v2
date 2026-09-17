@@ -1,20 +1,8 @@
 name: database-tests
 
 on:
-  pull_request:
-    paths:
-      - 'supabase/**'
-      - 'tests/database/**'
-      - '.github/workflows/database-tests.yml'
   push:
-    branches:
-      - main
-      - integration/main-canonical-v2
-      - integration/al-manara-migration
-    paths:
-      - 'supabase/**'
-      - 'tests/database/**'
-      - '.github/workflows/database-tests.yml'
+  pull_request:
 
 jobs:
   database:
@@ -26,7 +14,7 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: 2.34.3
+          version: 2.117.0
 
       - name: Start local Supabase
         run: supabase db start
@@ -35,7 +23,7 @@ jobs:
         run: supabase db reset
 
       - name: Lint database
-        run: supabase db lint --level error
+        run: supabase db lint
 
       - name: Run database contract tests
-        run: supabase test db
+        run: supabase db test
