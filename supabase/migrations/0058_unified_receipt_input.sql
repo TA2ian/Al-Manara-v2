@@ -162,7 +162,11 @@ begin
 end;
 $$;
 
-create or replace function finalize_receipt_submission(
+-- PostgreSQL cannot change a function's declared return type with CREATE OR REPLACE.
+-- Drop the legacy signature before recreating the unified result contract.
+drop function if exists finalize_receipt_submission(uuid, text, text, text);
+
+create function finalize_receipt_submission(
     p_submission_id uuid,
     p_processing_status text,
     p_linkage_status text default null,
