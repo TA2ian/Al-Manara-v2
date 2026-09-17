@@ -111,6 +111,13 @@ class CreatePurchaseOrderService:
             if rate_snapshot is None:
                 raise RuntimeError("current exchange rate is unavailable")
             exchange_rate = rate_snapshot.rate
-        financials = OrderFinancials.calculate(requested_amount=command.requested_amount, fee_percent=fee_policy.percent, payment_currency=currency.value, exchange_rate=exchange_rate, rounding_policy_version=rounding_policy_version)
+        financials = OrderFinancials.calculate(
+            requested_amount=command.requested_amount,
+            fee_percent=fee_policy.percent,
+            network_fee_amount=network.network_fee_amount,
+            payment_currency=currency.value,
+            exchange_rate=exchange_rate,
+            rounding_policy_version=rounding_policy_version,
+        )
         quote = PurchaseQuote(financials=financials, exchange_rate_snapshot=rate_snapshot, fee_policy_snapshot=fee_policy, expires_at=now + self._quote_ttl)
         return identity, wallet, network, payment_account, quote
