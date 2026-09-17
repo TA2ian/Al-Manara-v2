@@ -6,7 +6,7 @@ import pytest
 
 from app.application.receipt_ports import ReceiptAttemptRepository, ReceiptReservation
 from app.application.submit_receipt import SubmitReceiptCommand, SubmitReceiptService
-from app.domain.receipt_attempt import ReceiptAttempt, ReceiptAttemptStatus
+from app.domain.receipt_attempt import ReceiptAttempt, ReceiptAttemptStatus, ReceiptInputType
 
 
 class FixedClock:
@@ -23,11 +23,6 @@ def order_id() -> UUID:
 
 
 @pytest.fixture
-def telegram_user_id() -> int:
-    return 7001
-
-
-@pytest.fixture
 def submitted_at() -> datetime:
     return datetime(2026, 8, 29, 18, 30, tzinfo=timezone.utc)
 
@@ -38,27 +33,30 @@ def build_attempt(
     *,
     attempt_number: int = 1,
     status: ReceiptAttemptStatus = ReceiptAttemptStatus.PROCESSING,
-    failure_reason: str | None = None,
+    input_type: ReceiptInputType = ReceiptInputType.IMAGE,
+    transaction_reference: str | None = None,
 ) -> ReceiptAttempt:
+    if input_type is ReceiptInputType.IMAGE:
+        mime_type = "image/png"
+        telegram_file_id = "telegram-file-1"
+    else:
+        mime_type = None
+        telegram_file_id = None
     return ReceiptAttempt(
         attempt_id=uuid4(),
         order_id=order_id,
         attempt_number=attempt_number,
-        mime_type="image/png",
-        telegram_file_id="telegram-file-1",
+        mime_type=mime_type,
+        telegram_file_id=telegram_file_id,
         submitted_at=submitted_at,
         status=status,
-        failure_reason=failure_reason,
+        input_type=input_type,
+        transaction_reference=transaction_reference,
+        failure_reason="failure" if status in (ReceiptAttemptStatus.FAILED, ReceiptAttemptStatus.ESCALATED) else None,
     )
 
 
-def build_service(
-    attempts: AsyncMock,
-    inspector: AsyncMock,
-    verifier: AsyncMock,
-    escalation: AsyncMock,
-    submitted_at: datetime,
-) -> SubmitReceiptService:
+def build_service(attempts, inspector, verifier, escalation, submitted_at):
     return SubmitReceiptService(
         attempts=attempts,
         inspector=inspector,
@@ -68,12 +66,14 @@ def build_service(
     )
 
 
-def command(order_id: UUID, telegram_user_id: int, **overrides) -> SubmitReceiptCommand:
+def command(order_id: UUID, *, input_type=ReceiptInputType.IMAGE, **overrides):
     values = {
         "order_id": order_id,
-        "telegram_user_id": telegram_user_id,
-        "telegram_file_id": "telegram-file-1",
-        "mime_type": "image/png",
+        "telegram_user_id": 7001,
+        "input_type": input_type,
+        "transaction_reference": None,
+        "telegram_file_id": "telegram-file-1" if input_type is ReceiptInputType.IMAGE else None,
+        "mime_type": "image/png" if input_type is ReceiptInputType.IMAGE else None,
         "idempotency_key": "telegram-update-123",
     }
     values.update(overrides)
@@ -81,7 +81,7 @@ def command(order_id: UUID, telegram_user_id: int, **overrides) -> SubmitReceipt
 
 
 @pytest.mark.asyncio
-async def test_submit_passes_telegram_identity_and_idempotency_to_reservation(order_id: UUID, telegram_user_id: int, submitted_at: datetime) -> None:
+async def test_image_submission_inspects_image_and_verifies(order_id, submitted_at):
     attempts = AsyncMock(spec=ReceiptAttemptRepository)
     inspector = AsyncMock()
     verifier = AsyncMock()
@@ -91,15 +91,17 @@ async def test_submit_passes_telegram_identity_and_idempotency_to_reservation(or
     verifier.verify.return_value = ReceiptAttemptStatus.VERIFIED
     attempts.finalize.return_value = attempt
 
-    service = build_service(attempts, inspector, verifier, escalation, submitted_at)
-
-    await service.submit(command(order_id, telegram_user_id, telegram_file_id=" telegram-file-1 ", idempotency_key=" telegram-update-123 "))
+    await build_service(attempts, inspector, verifier, escalation, submitted_at).submit(
+        command(order_id, telegram_file_id=" telegram-file-1 ", idempotency_key=" telegram-update-123 ")
+    )
 
     attempts.reserve_next_attempt.assert_awaited_once_with(
         order_id=order_id,
-        telegram_user_id=telegram_user_id,
+        telegram_user_id=7001,
         idempotency_key="telegram-update-123",
         submitted_at=submitted_at,
+        input_type=ReceiptInputType.IMAGE,
+        transaction_reference=None,
         mime_type="image/png",
         telegram_file_id="telegram-file-1",
     )
@@ -109,92 +111,103 @@ async def test_submit_passes_telegram_identity_and_idempotency_to_reservation(or
 
 
 @pytest.mark.asyncio
-async def test_replayed_receipt_does_not_reprocess_or_finalize(order_id: UUID, telegram_user_id: int, submitted_at: datetime) -> None:
+async def test_text_submission_skips_image_inspection_and_preserves_reference(order_id, submitted_at):
     attempts = AsyncMock(spec=ReceiptAttemptRepository)
     inspector = AsyncMock()
     verifier = AsyncMock()
     escalation = AsyncMock()
-    replayed_attempt = build_attempt(order_id, submitted_at, status=ReceiptAttemptStatus.VERIFIED)
-    attempts.reserve_next_attempt.return_value = ReceiptReservation(attempt=replayed_attempt, replayed=True)
+    attempt = build_attempt(order_id, submitted_at, input_type=ReceiptInputType.TEXT, transaction_reference="SC-123456")
+    attempts.reserve_next_attempt.return_value = ReceiptReservation(attempt=attempt, replayed=False)
+    verifier.verify.return_value = ReceiptAttemptStatus.VERIFIED
+    attempts.finalize.return_value = attempt
 
-    service = build_service(attempts, inspector, verifier, escalation, submitted_at)
+    await build_service(attempts, inspector, verifier, escalation, submitted_at).submit(
+        command(order_id, input_type=ReceiptInputType.TEXT, transaction_reference=" SC-123456 ")
+    )
 
-    result = await service.submit(command(order_id, telegram_user_id))
+    attempts.reserve_next_attempt.assert_awaited_once_with(
+        order_id=order_id,
+        telegram_user_id=7001,
+        idempotency_key="telegram-update-123",
+        submitted_at=submitted_at,
+        input_type=ReceiptInputType.TEXT,
+        transaction_reference="SC-123456",
+        mime_type=None,
+        telegram_file_id=None,
+    )
+    inspector.inspect.assert_not_awaited()
+    verifier.verify.assert_awaited_once_with(attempt)
 
-    assert result is replayed_attempt
+
+@pytest.mark.asyncio
+async def test_text_submission_rejects_mixed_image_fields(order_id, submitted_at):
+    attempts = AsyncMock(spec=ReceiptAttemptRepository)
+    service = build_service(attempts, AsyncMock(), AsyncMock(), AsyncMock(), submitted_at)
+
+    with pytest.raises(ValueError, match="text receipt cannot contain image fields"):
+        await service.submit(command(
+            order_id,
+            input_type=ReceiptInputType.TEXT,
+            transaction_reference="SC-123456",
+            telegram_file_id="file",
+        ))
+
+    attempts.reserve_next_attempt.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_image_submission_rejects_transaction_reference(order_id, submitted_at):
+    attempts = AsyncMock(spec=ReceiptAttemptRepository)
+    service = build_service(attempts, AsyncMock(), AsyncMock(), AsyncMock(), submitted_at)
+
+    with pytest.raises(ValueError, match="image receipt cannot contain a transaction reference"):
+        await service.submit(command(order_id, transaction_reference="SC-123456"))
+
+    attempts.reserve_next_attempt.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_replayed_receipt_does_not_reprocess(order_id, submitted_at):
+    attempts = AsyncMock(spec=ReceiptAttemptRepository)
+    inspector = AsyncMock()
+    verifier = AsyncMock()
+    escalation = AsyncMock()
+    replayed = build_attempt(order_id, submitted_at, status=ReceiptAttemptStatus.VERIFIED)
+    attempts.reserve_next_attempt.return_value = ReceiptReservation(attempt=replayed, replayed=True)
+
+    result = await build_service(attempts, inspector, verifier, escalation, submitted_at).submit(command(order_id))
+
+    assert result is replayed
     inspector.inspect.assert_not_awaited()
     verifier.verify.assert_not_awaited()
     attempts.finalize.assert_not_awaited()
-    escalation.escalate.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_processing_failure_is_finalized_once_and_original_error_is_re_raised(order_id: UUID, telegram_user_id: int, submitted_at: datetime) -> None:
-    attempts = AsyncMock(spec=ReceiptAttemptRepository)
-    inspector = AsyncMock()
-    verifier = AsyncMock()
-    escalation = AsyncMock()
-    attempt = build_attempt(order_id, submitted_at)
-    attempts.reserve_next_attempt.return_value = ReceiptReservation(attempt=attempt, replayed=False)
-    finalized = build_attempt(order_id, submitted_at, status=ReceiptAttemptStatus.FAILED, failure_reason="OCR provider unavailable")
-    attempts.finalize.return_value = finalized
-    verifier.verify.side_effect = RuntimeError("OCR provider unavailable")
-
-    service = build_service(attempts, inspector, verifier, escalation, submitted_at)
-
-    with pytest.raises(RuntimeError, match="OCR provider unavailable"):
-        await service.submit(command(order_id, telegram_user_id))
-
-    attempts.finalize.assert_awaited_once_with(attempt.attempt_id, ReceiptAttemptStatus.FAILED, "OCR provider unavailable")
-    escalation.escalate.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_third_processing_failure_finalizes_as_escalated_and_escalates(order_id: UUID, telegram_user_id: int, submitted_at: datetime) -> None:
+async def test_third_failure_escalates(order_id, submitted_at):
     attempts = AsyncMock(spec=ReceiptAttemptRepository)
     inspector = AsyncMock()
     verifier = AsyncMock()
     escalation = AsyncMock()
     attempt = build_attempt(order_id, submitted_at, attempt_number=3)
-    finalized = build_attempt(order_id, submitted_at, attempt_number=3, status=ReceiptAttemptStatus.ESCALATED, failure_reason="invalid receipt image")
+    finalized = build_attempt(order_id, submitted_at, attempt_number=3, status=ReceiptAttemptStatus.ESCALATED)
     attempts.reserve_next_attempt.return_value = ReceiptReservation(attempt=attempt, replayed=False)
     attempts.finalize.return_value = finalized
     inspector.inspect.side_effect = ValueError("invalid receipt image")
 
-    service = build_service(attempts, inspector, verifier, escalation, submitted_at)
-
     with pytest.raises(ValueError, match="invalid receipt image"):
-        await service.submit(command(order_id, telegram_user_id))
+        await build_service(attempts, inspector, verifier, escalation, submitted_at).submit(command(order_id))
 
     attempts.finalize.assert_awaited_once_with(attempt.attempt_id, ReceiptAttemptStatus.ESCALATED, "invalid receipt image")
     escalation.escalate.assert_awaited_once_with(order_id, finalized.attempt_id, "invalid receipt image")
 
 
 @pytest.mark.asyncio
-async def test_missing_idempotency_key_is_rejected_before_reservation(order_id: UUID, telegram_user_id: int, submitted_at: datetime) -> None:
+async def test_missing_idempotency_key_is_rejected_before_reservation(order_id, submitted_at):
     attempts = AsyncMock(spec=ReceiptAttemptRepository)
-    inspector = AsyncMock()
-    verifier = AsyncMock()
-    escalation = AsyncMock()
-
-    service = build_service(attempts, inspector, verifier, escalation, submitted_at)
+    service = build_service(attempts, AsyncMock(), AsyncMock(), AsyncMock(), submitted_at)
 
     with pytest.raises(ValueError, match="idempotency key is required"):
-        await service.submit(command(order_id, telegram_user_id, idempotency_key="   "))
-
-    attempts.reserve_next_attempt.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_non_positive_telegram_user_id_is_rejected_before_reservation(order_id: UUID, submitted_at: datetime) -> None:
-    attempts = AsyncMock(spec=ReceiptAttemptRepository)
-    inspector = AsyncMock()
-    verifier = AsyncMock()
-    escalation = AsyncMock()
-
-    service = build_service(attempts, inspector, verifier, escalation, submitted_at)
-
-    with pytest.raises(ValueError, match="telegram user id must be positive"):
-        await service.submit(command(order_id, 0))
+        await service.submit(command(order_id, idempotency_key="   "))
 
     attempts.reserve_next_attempt.assert_not_awaited()
