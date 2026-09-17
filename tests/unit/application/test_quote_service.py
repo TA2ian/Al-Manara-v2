@@ -22,7 +22,8 @@ class FakeRates:
 
 class FakeFees:
     async def get_current_policy(self, network_code: str, now: datetime):
-        return FeePolicySnapshot(Decimal("10"), "fee-v1", now)
+        network_fee = Decimal("1.50") if network_code == "TRC20" else Decimal("0.15")
+        return FeePolicySnapshot(Decimal("10"), "fee-v1", now, network_fee)
 
 
 @pytest.mark.asyncio
@@ -39,10 +40,12 @@ async def test_quote_captures_rate_fee_and_expiry() -> None:
     quote = await service.create_quote(QuoteRequest("BEP20", Decimal("100"), "NEW.SYP"))
 
     assert quote.financials.local_amount == Decimal("13500.00")
-    assert quote.financials.net_usdt_amount == Decimal("90.000")
+    assert quote.financials.network_fee_amount == Decimal("0.150")
+    assert quote.financials.net_usdt_amount == Decimal("89.850")
     assert quote.exchange_rate_snapshot is not None
     assert quote.exchange_rate_snapshot.rate == Decimal("135")
     assert quote.fee_policy_snapshot.percent == Decimal("10")
+    assert quote.fee_policy_snapshot.network_fee_amount == Decimal("0.15")
     assert quote.expires_at == issued + timedelta(minutes=10)
 
 
@@ -62,6 +65,8 @@ async def test_quote_accepts_new_syp_alias_and_network_alias() -> None:
     )
 
     assert quote.financials.payment_currency == "NEW.SYP"
+    assert quote.financials.network_fee_amount == Decimal("1.500")
+    assert quote.financials.net_usdt_amount == Decimal("88.500")
     assert quote.financials.local_amount == Decimal("13500.00")
 
 
