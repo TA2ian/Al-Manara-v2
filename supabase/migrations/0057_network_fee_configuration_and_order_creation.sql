@@ -122,7 +122,7 @@ create function create_purchase_order_atomic(
     p_customer_shamcash_account_snapshot text,
     p_admin_payment_account_name_snapshot text,
     p_admin_payment_account_number_snapshot text,
-    p_admin_payment_qr_file_id_snapshot text,
+    p_admin_payment_account_qr_file_id_snapshot text,
     p_quote_issued_at timestamptz,
     p_quote_expires_at timestamptz,
     p_idempotency_key text,
