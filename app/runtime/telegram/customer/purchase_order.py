@@ -73,8 +73,8 @@ def _quote_fingerprint(quote: object) -> tuple[str, ...]:
     rate = quote.exchange_rate_snapshot
     return (
         str(financials.requested_amount), str(financials.fee_percent), str(financials.fee_amount),
-        str(financials.net_usdt_amount), str(financials.payment_currency), str(financials.exchange_rate),
-        str(financials.local_amount), str(financials.rounding_policy_version),
+        str(financials.network_fee_amount), str(financials.net_usdt_amount), str(financials.payment_currency),
+        str(financials.exchange_rate), str(financials.local_amount), str(financials.rounding_policy_version),
         str(quote.fee_policy_snapshot.version), str(rate.version if rate else ""),
         str(rate.rate if rate else ""),
     )
@@ -86,7 +86,8 @@ def render_confirmation(data: dict[str, object], quote: object) -> str:
         "راجع عرض السعر قبل تأكيد الطلب:",
         f"• المبلغ المطلوب: {financials.requested_amount} USDT",
         f"• رسوم الخدمة: {financials.fee_amount} USDT ({financials.fee_percent}%)",
-        f"• صافي USDT: {financials.net_usdt_amount} USDT",
+        f"• رسوم الشبكة: {financials.network_fee_amount} USDT",
+        f"• صافي USDT المستلم: {financials.net_usdt_amount} USDT",
         f"• عملة الدفع: {financials.payment_currency}",
         f"• المبلغ المطلوب دفعه: {financials.local_amount} {financials.payment_currency}",
     ]
