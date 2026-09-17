@@ -73,9 +73,9 @@ async def test_payment_settings_repository_maps_account():
 
 
 @pytest.mark.asyncio
-async def test_network_repository_maps_decimal_bounds():
+async def test_network_repository_maps_decimal_bounds_and_network_fee():
     client = FakeClient(
-        {"get_network_config": FakeResponse([{
+        {"get_network_config_v2": FakeResponse([{
             "code": "BEP20",
             "display_name": "BEP20",
             "enabled": True,
@@ -83,6 +83,7 @@ async def test_network_repository_maps_decimal_bounds():
             "requires_memo": False,
             "min_amount": "0.001",
             "max_amount": "1000000",
+            "network_fee_amount": "0.15",
         }])}
     )
 
@@ -93,12 +94,14 @@ async def test_network_repository_maps_decimal_bounds():
     assert result.enabled is True
     assert result.min_amount == Decimal("0.001")
     assert result.max_amount == Decimal("1000000")
+    assert result.network_fee_amount == Decimal("0.15")
+    assert client.calls == [("get_network_config_v2", {"p_code": "BEP20"})]
 
 
 @pytest.mark.asyncio
 async def test_repository_rejects_malformed_network_payload():
     client = FakeClient(
-        {"get_network_config": FakeResponse([{
+        {"get_network_config_v2": FakeResponse([{
             "code": "BEP20",
             "display_name": "BEP20",
             "enabled": True,
@@ -106,6 +109,7 @@ async def test_repository_rejects_malformed_network_payload():
             "requires_memo": False,
             "min_amount": "not-a-number",
             "max_amount": "100",
+            "network_fee_amount": "0.15",
         }])}
     )
 
