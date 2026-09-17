@@ -59,18 +59,16 @@ async def test_submit_accepts_valid_image_receipt_and_forwards_identity():
     assert service.calls[0].order_id == ORDER_ID
     assert service.calls[0].telegram_user_id == 7
     assert service.calls[0].input_type is ReceiptInputType.IMAGE
+    assert service.calls[0].transaction_reference is None
 
 
 @pytest.mark.asyncio
-async def test_submit_accepts_valid_text_receipt_and_forwards_reference():
+async def test_submit_rejects_text_receipt_without_calling_service():
     service = Submission()
     response = await TelegramReceiptHandler(service).submit(text_data())
-    assert response.ok is True
-    assert response.text == ReceiptMessages.ACCEPTED
-    assert service.calls[0].input_type is ReceiptInputType.TEXT
-    assert service.calls[0].transaction_reference == "SC-123456"
-    assert service.calls[0].telegram_file_id is None
-    assert service.calls[0].mime_type is None
+    assert response.ok is False
+    assert response.text == ReceiptMessages.UNSUPPORTED_FORMAT
+    assert service.calls == []
 
 
 @pytest.mark.asyncio
@@ -89,7 +87,7 @@ async def test_submit_rejects_mixed_text_and_image_payload():
         text_data(telegram_file_id="unexpected-file")
     )
     assert response.ok is False
-    assert response.text == ReceiptMessages.INVALID
+    assert response.text == ReceiptMessages.UNSUPPORTED_FORMAT
     assert service.calls == []
 
 
