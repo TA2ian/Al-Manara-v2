@@ -32,7 +32,12 @@ class SupabaseFeePolicyProvider(FeePolicyProvider):
             return None
         try:
             row = rows[0]
-            return FeePolicySnapshot(percent=_decimal(row["percent"], "percent"), version=str(row["version"]), effective_at=_datetime(row["effective_at"], "effective_at"))
+            return FeePolicySnapshot(
+                percent=_decimal(row["percent"], "percent"),
+                version=str(row["version"]),
+                effective_at=_datetime(row["effective_at"], "effective_at"),
+                network_fee_amount=_decimal(row["network_fee_amount"], "network_fee_amount"),
+            )
         except (KeyError, TypeError, ValueError) as exc:
             raise QuoteSupportPersistenceError("invalid fee policy payload") from exc
 
