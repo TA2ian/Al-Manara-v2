@@ -27,16 +27,25 @@ class SupabaseFeePolicyProvider(FeePolicyProvider):
         self._client = client
 
     async def get_current_policy(self, network_code: str, now: datetime) -> FeePolicySnapshot | None:
-        rows = await _execute_rpc(self._client, "get_current_fee_policy", {"p_network_code": network_code.strip().upper(), "p_now": now.isoformat()})
+        normalized_code = network_code.strip().upper()
+        rows = await _execute_rpc(self._client, "get_current_fee_policy", {"p_network_code": normalized_code, "p_now": now.isoformat()})
         if not rows:
             return None
         try:
             row = rows[0]
+            network_fee_rows = await _execute_rpc(
+                self._client,
+                "get_network_config_v2",
+                {"p_code": normalized_code},
+            )
+            if len(network_fee_rows) != 1:
+                raise ValueError("network fee configuration is unavailable")
+            network_fee_amount = _decimal(network_fee_rows[0]["network_fee_amount"], "network_fee_amount")
             return FeePolicySnapshot(
                 percent=_decimal(row["percent"], "percent"),
                 version=str(row["version"]),
                 effective_at=_datetime(row["effective_at"], "effective_at"),
-                network_fee_amount=_decimal(row["network_fee_amount"], "network_fee_amount"),
+                network_fee_amount=network_fee_amount,
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise QuoteSupportPersistenceError("invalid fee policy payload") from exc
