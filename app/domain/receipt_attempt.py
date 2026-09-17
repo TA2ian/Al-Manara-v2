@@ -28,12 +28,12 @@ class ReceiptAttempt:
     attempt_id: UUID
     order_id: UUID
     attempt_number: int
-    input_type: ReceiptInputType
-    transaction_reference: str | None
     mime_type: str | None
     telegram_file_id: str | None
     submitted_at: datetime
     status: ReceiptAttemptStatus
+    input_type: ReceiptInputType = ReceiptInputType.IMAGE
+    transaction_reference: str | None = None
     failure_reason: str | None = None
 
     def __post_init__(self) -> None:
