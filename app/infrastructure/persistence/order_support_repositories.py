@@ -91,6 +91,7 @@ class SupabaseNetworkOrderRepository:
                 requires_memo=bool(row["requires_memo"]),
                 min_amount=_decimal(row["min_amount"], "min_amount"),
                 max_amount=_decimal(row["max_amount"], "max_amount"),
+                network_fee_amount=_decimal(row["network_fee_amount"], "network_fee_amount"),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise OrderSupportPersistenceError("invalid network config payload") from exc
