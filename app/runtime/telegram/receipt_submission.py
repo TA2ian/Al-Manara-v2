@@ -5,7 +5,7 @@ from typing import Protocol
 from uuid import UUID
 
 from app.application.submit_receipt import SubmitReceiptCommand
-from app.domain.receipt_attempt import ReceiptInputType
+from app.domain.receipt_attempt import ReceiptInputType, SUPPORTED_RECEIPT_MIME_TYPES
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,8 +27,10 @@ class TelegramReceiptResponse:
 
 class ReceiptMessages:
     INVALID = "بيانات الإيصال غير صالحة."
-    ACCEPTED = "تم استلام الإيصال وإرساله للتحقق."
-    FAILED = "تعذر التحقق من الإيصال. يرجى المحاولة ببيانات إيصال صالحة."
+    PDF_GUIDANCE = "يرجى إرسال صورة الإيصال (JPG أو PNG أو WEBP) بدل ملف PDF."
+    UNSUPPORTED_FORMAT = "يرجى إرسال صورة الإيصال بصيغة JPG أو PNG أو WEBP."
+    ACCEPTED = "تم استلام صورة الإيصال وإرسالها للتحقق."
+    FAILED = "تعذر التحقق من الإيصال. يرجى إرسال صورة واضحة وصالحة."
     ERROR = "تعذر معالجة الإيصال حاليًا."
 
 
@@ -38,7 +40,7 @@ class ReceiptSubmissionService(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class TelegramReceiptHandler:
-    """Framework-neutral Telegram adapter for text or image receipt submission."""
+    """Telegram adapter for image-only customer receipt submission."""
 
     submission: ReceiptSubmissionService
 
@@ -47,33 +49,26 @@ class TelegramReceiptHandler:
             return TelegramReceiptResponse(False, ReceiptMessages.INVALID)
         if not isinstance(data.order_id, UUID):
             return TelegramReceiptResponse(False, ReceiptMessages.INVALID)
-        if not isinstance(data.input_type, ReceiptInputType):
-            return TelegramReceiptResponse(False, ReceiptMessages.INVALID)
+        if data.input_type is not ReceiptInputType.IMAGE:
+            return TelegramReceiptResponse(False, ReceiptMessages.UNSUPPORTED_FORMAT)
         if not data.idempotency_key.strip():
             return TelegramReceiptResponse(False, ReceiptMessages.INVALID)
 
-        transaction_reference = (
-            data.transaction_reference.strip()
-            if data.transaction_reference is not None
-            else None
-        )
         telegram_file_id = data.telegram_file_id.strip() if data.telegram_file_id is not None else None
         mime_type = data.mime_type.strip().lower() if data.mime_type is not None else None
 
-        if data.input_type is ReceiptInputType.TEXT:
-            if not transaction_reference or telegram_file_id is not None or mime_type is not None:
-                return TelegramReceiptResponse(False, ReceiptMessages.INVALID)
-        else:
-            if not telegram_file_id or not mime_type or transaction_reference is not None:
-                return TelegramReceiptResponse(False, ReceiptMessages.INVALID)
+        if not telegram_file_id or mime_type not in SUPPORTED_RECEIPT_MIME_TYPES:
+            return TelegramReceiptResponse(False, ReceiptMessages.UNSUPPORTED_FORMAT)
+        if data.transaction_reference is not None:
+            return TelegramReceiptResponse(False, ReceiptMessages.INVALID)
 
         try:
             await self.submission.submit(
                 SubmitReceiptCommand(
                     order_id=data.order_id,
                     telegram_user_id=data.user_id,
-                    input_type=data.input_type,
-                    transaction_reference=transaction_reference,
+                    input_type=ReceiptInputType.IMAGE,
+                    transaction_reference=None,
                     telegram_file_id=telegram_file_id,
                     mime_type=mime_type,
                     idempotency_key=data.idempotency_key.strip(),
