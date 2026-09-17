@@ -9,7 +9,7 @@ from app.runtime.telegram.receipt_submission import TelegramReceiptHandler, Tele
 
 
 @pytest.mark.asyncio
-async def test_text_receipt_is_forwarded_as_text_data():
+async def test_text_receipt_is_rejected_before_submission():
     submission = AsyncMock()
     handler = TelegramReceiptHandler(submission=submission)
 
@@ -23,13 +23,8 @@ async def test_text_receipt_is_forwarded_as_text_data():
         )
     )
 
-    assert response.ok is True
-    command = submission.submit.await_args.args[0]
-    assert isinstance(command, SubmitReceiptCommand)
-    assert command.input_type is ReceiptInputType.TEXT
-    assert command.transaction_reference == "SC-123456"
-    assert command.telegram_file_id is None
-    assert command.mime_type is None
+    assert response.ok is False
+    assert submission.submit.await_count == 0
 
 
 @pytest.mark.asyncio
@@ -50,6 +45,7 @@ async def test_image_receipt_is_forwarded_as_image_data():
 
     assert response.ok is True
     command = submission.submit.await_args.args[0]
+    assert isinstance(command, SubmitReceiptCommand)
     assert command.input_type is ReceiptInputType.IMAGE
     assert command.transaction_reference is None
     assert command.telegram_file_id == "file-1"
