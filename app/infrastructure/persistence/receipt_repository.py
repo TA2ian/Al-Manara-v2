@@ -1,1 +1,3 @@
-RESTORE_PENDING
+from __future__
+
+# Restored from repository history is required before further work.
