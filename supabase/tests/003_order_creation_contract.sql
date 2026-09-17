@@ -1,6 +1,6 @@
 begin;
 
-select plan(20);
+select plan(21);
 
 select ok(
     exists (
@@ -41,7 +41,7 @@ select lives_ok($$
         '10000000-0000-0000-0000-000000000001', 'ORD-CONTRACT-USD', 990000001,
         (select id from wallets where normalized_address = 'tqj7f9wr7qfj9nqk4sj2mr7vf4px6ny8z1'),
         'TRC20', 'TQJ7f9wR7QfJ9nQk4sJ2mR7Vf4pX6nY8Z1',
-        10, 5, 0.5, 9.5, 'USD', null, 10, 'ROUND_HALF_UP:USD=0.01',
+        10, 5, 0.5, 1.5, 8, 'USD', null, 10, 'ROUND_HALF_UP:USD=0.01',
         'Contract Customer', 'SC-CONTRACT-001', 'USD Contract Account', 'USD-ACCOUNT-001', 'USD-QR-001',
         now(), now() + interval '10 minutes', 'contract-idem-usd', 'create_purchase_order'
     )$$, 'USD order creation succeeds');
@@ -49,6 +49,8 @@ select lives_ok($$
 select is((select status::text from orders where internal_order_id = '10000000-0000-0000-0000-000000000001'), 'PENDING_PAYMENT', 'new order starts in PENDING_PAYMENT');
 select is((select version from orders where internal_order_id = '10000000-0000-0000-0000-000000000001'), 1::bigint, 'new order starts at version 1');
 select is((select payment_currency::text from order_financial_snapshots where internal_order_id = '10000000-0000-0000-0000-000000000001'), 'USD', 'USD financial snapshot preserves currency');
+select is((select network_fee_amount from order_financial_snapshots where internal_order_id = '10000000-0000-0000-0000-000000000001'), 1.5::numeric, 'network fee is snapshotted');
+select is((select net_usdt_amount from order_financial_snapshots where internal_order_id = '10000000-0000-0000-0000-000000000001'), 8::numeric, 'net USDT subtracts service and network fees');
 select is((select local_amount from order_financial_snapshots where internal_order_id = '10000000-0000-0000-0000-000000000001'), 10::numeric, 'USD local amount is not converted');
 select ok((select expires_at > created_at from orders where internal_order_id = '10000000-0000-0000-0000-000000000001'), 'quote expiry is persisted after order creation');
 
@@ -57,7 +59,7 @@ select lives_ok($$
         '10000000-0000-0000-0000-000000000002', 'ORD-CONTRACT-USD-REPLAY-IGNORED', 990000001,
         (select id from wallets where normalized_address = 'tqj7f9wr7qfj9nqk4sj2mr7vf4px6ny8z1'),
         'TRC20', 'TQJ7f9wR7QfJ9nQk4sJ2mR7Vf4pX6nY8Z1',
-        10, 5, 0.5, 9.5, 'USD', null, 10, 'ROUND_HALF_UP:USD=0.01',
+        10, 5, 0.5, 1.5, 8, 'USD', null, 10, 'ROUND_HALF_UP:USD=0.01',
         'Contract Customer', 'SC-CONTRACT-001', 'USD Contract Account', 'USD-ACCOUNT-001', 'USD-QR-001',
         now(), now() + interval '10 minutes', 'contract-idem-usd', 'create_purchase_order'
     )$$, 'reusing an idempotency key is replay-safe');
@@ -69,7 +71,7 @@ select lives_ok($$
         '10000000-0000-0000-0000-000000000003', 'ORD-CONTRACT-SYP', 990000001,
         (select id from wallets where normalized_address = 'tqj7f9wr7qfj9nqk4sj2mr7vf4px6ny8z1'),
         'TRC20', 'TQJ7f9wR7QfJ9nQk4sJ2mR7Vf4pX6nY8Z1',
-        10, 5, 0.5, 9.5, 'NEW.SYP', 10000, 100000, 'ROUND_HALF_UP:NEW.SYP=0.01',
+        10, 5, 0.5, 1.5, 8, 'NEW.SYP', 10000, 100000, 'ROUND_HALF_UP:NEW.SYP=0.01',
         'Contract Customer', 'SC-CONTRACT-001', 'SYP Contract Account', 'SYP-ACCOUNT-001', 'SYP-QR-001',
         now(), now() + interval '10 minutes', 'contract-idem-syp', 'create_purchase_order'
     )$$, 'NEW.SYP order creation succeeds');
@@ -82,7 +84,7 @@ select throws_ok($$
     select * from create_purchase_order_atomic(
         '10000000-0000-0000-0000-000000000004', 'ORD-CONTRACT-BAD-WALLET', 990000001,
         (select id from wallets where normalized_address = 'tqj7f9wr7qfj9nqk4sj2mr7vf4px6ny8z1'),
-        'BEP20', '0x0000000000000000000000000000000000000001', 10, 5, 0.5, 9.5,
+        'BEP20', '0x0000000000000000000000000000000000000001', 10, 5, 0.5, 0.15, 9.35,
         'USD', null, 10, 'ROUND_HALF_UP:USD=0.01', 'Contract Customer', 'SC-CONTRACT-001',
         'USD Contract Account', 'USD-ACCOUNT-001', 'USD-QR-001', now(), now() + interval '10 minutes',
         'contract-idem-bad-wallet', 'create_purchase_order'
@@ -92,7 +94,7 @@ select throws_ok($$
     select * from create_purchase_order_atomic(
         '10000000-0000-0000-0000-000000000005', 'ORD-CONTRACT-BAD-AMOUNT', 990000001,
         (select id from wallets where normalized_address = 'tqj7f9wr7qfj9nqk4sj2mr7vf4px6ny8z1'),
-        'TRC20', 'TQJ7f9wR7QfJ9nQk4sJ2mR7Vf4pX6nY8Z1', 0.0001, 5, 0.000005, 0.000095,
+        'TRC20', 'TQJ7f9wR7QfJ9nQk4sJ2mR7Vf4pX6nY8Z1', 0.0001, 5, 0.000005, 1.5, -1.499905,
         'USD', null, 0.0001, 'ROUND_HALF_UP:USD=0.01', 'Contract Customer', 'SC-CONTRACT-001',
         'USD Contract Account', 'USD-ACCOUNT-001', 'USD-QR-001', now(), now() + interval '10 minutes',
         'contract-idem-bad-amount', 'create_purchase_order'
@@ -102,7 +104,7 @@ select throws_ok($$
     select * from create_purchase_order_atomic(
         '10000000-0000-0000-0000-000000000006', 'ORD-CONTRACT-BAD-IDENTITY', 990000001,
         (select id from wallets where normalized_address = 'tqj7f9wr7qfj9nqk4sj2mr7vf4px6ny8z1'),
-        'TRC20', 'TQJ7f9wR7QfJ9nQk4sJ2mR7Vf4pX6nY8Z1', 10, 5, 0.5, 9.5,
+        'TRC20', 'TQJ7f9wR7QfJ9nQk4sJ2mR7Vf4pX6nY8Z1', 10, 5, 0.5, 1.5, 8,
         'USD', null, 10, 'ROUND_HALF_UP:USD=0.01', 'Wrong Name', 'SC-CONTRACT-001',
         'USD Contract Account', 'USD-ACCOUNT-001', 'USD-QR-001', now(), now() + interval '10 minutes',
         'contract-idem-bad-identity', 'create_purchase_order'
@@ -112,7 +114,7 @@ select throws_ok($$
     select * from create_purchase_order_atomic(
         '10000000-0000-0000-0000-000000000007', 'ORD-CONTRACT-BAD-ADMIN', 990000001,
         (select id from wallets where normalized_address = 'tqj7f9wr7qfj9nqk4sj2mr7vf4px6ny8z1'),
-        'TRC20', 'TQJ7f9wR7QfJ9nQk4sJ2mR7Vf4pX6nY8Z1', 10, 5, 0.5, 9.5,
+        'TRC20', 'TQJ7f9wR7QfJ9nQk4sJ2mR7Vf4pX6nY8Z1', 10, 5, 0.5, 1.5, 8,
         'USD', null, 10, 'ROUND_HALF_UP:USD=0.01', 'Contract Customer', 'SC-CONTRACT-001',
         'Wrong USD Account', 'USD-ACCOUNT-001', 'USD-QR-001', now(), now() + interval '10 minutes',
         'contract-idem-bad-admin', 'create_purchase_order'
