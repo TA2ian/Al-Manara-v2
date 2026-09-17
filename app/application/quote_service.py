@@ -64,6 +64,7 @@ class QuoteService:
         financials = OrderFinancials.calculate(
             requested_amount=request.requested_amount,
             fee_percent=fee_policy.percent,
+            network_fee_amount=fee_policy.network_fee_amount,
             payment_currency=currency.value,
             exchange_rate=exchange_rate,
             rounding_policy_version=self._rounding_policy_version,
