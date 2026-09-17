@@ -25,6 +25,7 @@ class OrderFinancials:
     requested_amount: Decimal
     fee_percent: Decimal
     fee_amount: Decimal
+    network_fee_amount: Decimal
     net_usdt_amount: Decimal
     payment_currency: str
     exchange_rate: Decimal | None
@@ -36,19 +37,23 @@ class OrderFinancials:
         cls,
         requested_amount: Decimal,
         fee_percent: Decimal,
+        network_fee_amount: Decimal,
         payment_currency: str,
         exchange_rate: Decimal | None,
         rounding_policy_version: str,
     ) -> OrderFinancials:
         requested = quantize_half_up(requested_amount, USDT_QUANTUM)
         fee_rate = fee_percent / Decimal("100")
+        network_fee = quantize_half_up(network_fee_amount, USDT_QUANTUM)
         if requested <= 0:
             raise MoneyError("requested_amount must be positive")
         if fee_percent < 0 or fee_percent >= 100:
             raise MoneyError("fee_percent must be in [0, 100)")
+        if network_fee < 0:
+            raise MoneyError("network_fee_amount must be non-negative")
 
         fee = quantize_half_up(requested * fee_rate, USDT_QUANTUM)
-        net = quantize_half_up(requested - fee, USDT_QUANTUM)
+        net = quantize_half_up(requested - fee - network_fee, USDT_QUANTUM)
         if net <= 0:
             raise MoneyError("net_usdt_amount must remain positive")
 
@@ -69,6 +74,7 @@ class OrderFinancials:
             requested_amount=requested,
             fee_percent=fee_percent,
             fee_amount=fee,
+            network_fee_amount=network_fee,
             net_usdt_amount=net,
             payment_currency=payment_currency,
             exchange_rate=exchange_rate,
