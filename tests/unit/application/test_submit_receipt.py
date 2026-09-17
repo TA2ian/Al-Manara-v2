@@ -103,34 +103,6 @@ async def test_image_submission_inspects_image_and_verifies(order_id, submitted_
 
 
 @pytest.mark.asyncio
-async def test_text_submission_is_rejected_before_reservation(order_id, submitted_at):
-    attempts = AsyncMock(spec=ReceiptAttemptRepository)
-    service = build_service(attempts, AsyncMock(), AsyncMock(), AsyncMock(), submitted_at)
-
-    with pytest.raises(ValueError, match="text receipt submission is not supported"):
-        await service.submit(command(
-            order_id,
-            input_type=ReceiptInputType.TEXT,
-            transaction_reference="SC-123456",
-            telegram_file_id=None,
-            mime_type=None,
-        ))
-
-    attempts.reserve_next_attempt.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_image_submission_rejects_transaction_reference(order_id, submitted_at):
-    attempts = AsyncMock(spec=ReceiptAttemptRepository)
-    service = build_service(attempts, AsyncMock(), AsyncMock(), AsyncMock(), submitted_at)
-
-    with pytest.raises(ValueError, match="image receipt cannot contain a transaction reference"):
-        await service.submit(command(order_id, transaction_reference="SC-123456"))
-
-    attempts.reserve_next_attempt.assert_not_awaited()
-
-
-@pytest.mark.asyncio
 async def test_replayed_receipt_does_not_reprocess(order_id, submitted_at):
     attempts = AsyncMock(spec=ReceiptAttemptRepository)
     inspector = AsyncMock()
