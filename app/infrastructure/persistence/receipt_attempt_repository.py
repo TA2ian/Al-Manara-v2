@@ -7,7 +7,7 @@ from typing import Any, Protocol
 from uuid import UUID
 
 from app.application.receipt_ports import ReceiptAttemptRepository, ReceiptReservation
-from app.domain.receipt_attempt import ReceiptAttempt, ReceiptAttemptStatus
+from app.domain.receipt_attempt import ReceiptAttempt, ReceiptAttemptStatus, ReceiptInputType
 
 
 class SupabaseRpcQuery(Protocol):
@@ -48,15 +48,19 @@ class SupabaseReceiptAttemptRepository(ReceiptAttemptRepository):
         telegram_user_id: int,
         idempotency_key: str,
         submitted_at: datetime,
-        mime_type: str,
-        telegram_file_id: str,
+        input_type: ReceiptInputType,
+        transaction_reference: str | None,
+        mime_type: str | None,
+        telegram_file_id: str | None,
     ) -> ReceiptReservation:
         params = {
             "p_order_id": str(order_id),
             "p_telegram_user_id": telegram_user_id,
             "p_idempotency_key": idempotency_key.strip(),
-            "p_telegram_file_id": telegram_file_id.strip(),
-            "p_mime_type": mime_type,
+            "p_input_type": input_type.value,
+            "p_transaction_reference": transaction_reference.strip() if transaction_reference is not None else None,
+            "p_telegram_file_id": telegram_file_id.strip() if telegram_file_id is not None else None,
+            "p_mime_type": mime_type.strip().lower() if mime_type is not None else None,
             "p_submitted_at": submitted_at.isoformat(),
         }
         rows = await self._rpc("reserve_receipt_submission", params)
@@ -132,12 +136,23 @@ class SupabaseReceiptAttemptRepository(ReceiptAttemptRepository):
                 raise ReceiptPersistenceError(
                     "receipt finalization returned an unexpected processing status"
                 )
+            input_type = ReceiptInputType(str(row["input_type"]).strip().upper())
             return ReceiptAttempt(
                 attempt_id=UUID(str(row["submission_id"])),
                 order_id=UUID(str(row["internal_order_id"])),
                 attempt_number=int(row["attempt_number"]),
-                mime_type=str(row["mime_type"]),
-                telegram_file_id=str(row["telegram_file_id"]),
+                input_type=input_type,
+                transaction_reference=(
+                    str(row["transaction_reference"])
+                    if row.get("transaction_reference") is not None
+                    else None
+                ),
+                mime_type=(str(row["mime_type"]) if row.get("mime_type") is not None else None),
+                telegram_file_id=(
+                    str(row["telegram_file_id"])
+                    if row.get("telegram_file_id") is not None
+                    else None
+                ),
                 submitted_at=SupabaseReceiptAttemptRepository._parse_datetime(row["submitted_at"]),
                 status=status,
                 failure_reason=(
@@ -211,6 +226,11 @@ class SupabaseReceiptAttemptRepository(ReceiptAttemptRepository):
                 "idempotency key belongs to another order",
                 "receipt submission is not processing",
                 "only the third receipt attempt may escalate",
+                "invalid receipt input type",
+                "text receipt requires a transaction reference",
+                "image receipt requires a file id",
+                "text receipt cannot contain image fields",
+                "image receipt cannot contain a transaction reference",
             )
         ):
             raise ReceiptPersistenceConflictError(
