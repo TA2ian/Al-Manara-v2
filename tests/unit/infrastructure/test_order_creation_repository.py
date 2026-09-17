@@ -51,7 +51,7 @@ def draft() -> PurchaseOrderDraft:
         customer_payment_identity=CustomerPaymentIdentity("Customer", "0900000000"),
         admin_payment_account=AdminPaymentAccountSnapshot("Al-Manara", "0900000001", "qr-file"),
         financials=OrderFinancials.calculate(
-            Decimal("100"), Decimal("5"), "NEW.SYP", Decimal("135"), "v1"
+            Decimal("100"), Decimal("5"), Decimal("1.50"), "NEW.SYP", Decimal("135"), "v1"
         ),
         quote_issued_at=issued,
         quote_expires_at=datetime(2026, 8, 29, 8, 10, tzinfo=timezone.utc),
@@ -83,6 +83,7 @@ async def test_atomic_order_creation_maps_rpc_payload_and_sends_snapshots() -> N
     assert result.replayed is False
     assert client.calls[0][0] == "create_purchase_order_atomic"
     assert client.calls[0][1]["p_payment_currency"] == "NEW.SYP"
+    assert client.calls[0][1]["p_network_fee_amount"] == "1.500"
     assert client.calls[0][1]["p_quote_expires_at"].endswith("+00:00")
     assert client.calls[0][1]["p_idempotency_key"] == "order:create:123"
 
