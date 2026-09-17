@@ -66,7 +66,7 @@ select ok(
         where conrelid = 'public.receipt_submissions'::regclass
           and conname = 'receipt_submissions_input_type_check'
     ),
-    'receipt input type is constrained to TEXT or IMAGE'
+    'receipt input type remains constrained to TEXT or IMAGE for legacy compatibility'
 );
 
 select ok(
@@ -104,20 +104,19 @@ select ok(
     exists (
         select 1 from pg_proc
         where proname = 'reserve_receipt_submission'
-          and pg_get_functiondef(oid) like '%text receipt requires a transaction reference%'
-          and pg_get_functiondef(oid) like '%image receipt requires a file id%'
+          and pg_get_functiondef(oid) like '%customer receipt submission requires an image%'
+          and pg_get_functiondef(oid) like '%unsupported receipt image type%'
     ),
-    'reservation validates text and image input shapes'
+    'customer reservation accepts images only'
 );
 
 select ok(
     exists (
         select 1 from pg_proc
-        where proname = 'finalize_receipt_submission'
-          and pg_get_functiondef(oid) like '%shamcash_operation_number%'
-          and pg_get_functiondef(oid) like '%v_input_type = ''TEXT''%'
+        where proname = 'get_receipt_verification_snapshot'
+          and pg_get_functiondef(oid) like '%null::text%'
     ),
-    'verified text receipts persist their transaction reference to the order'
+    'receipt verification snapshot does not derive an expected transaction reference'
 );
 
 select * from finish();
