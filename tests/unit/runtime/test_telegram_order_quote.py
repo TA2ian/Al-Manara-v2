@@ -11,7 +11,8 @@ def make_quote(rate: str | None = None):
         requested_amount=Decimal("100.000"),
         fee_amount=Decimal("2.000"),
         fee_percent=Decimal("2"),
-        net_usdt_amount=Decimal("98.000"),
+        network_fee_amount=Decimal("0.150"),
+        net_usdt_amount=Decimal("97.850"),
         payment_currency="USD" if rate is None else "NEW.SYP",
         local_amount=Decimal("98.00") if rate is None else Decimal("125000.00"),
         exchange_rate=None if rate is None else Decimal(rate),
@@ -29,7 +30,8 @@ def test_render_confirmation_exposes_financial_quote() -> None:
     text = render_confirmation({}, make_quote())
     assert "100.000 USDT" in text
     assert "2.000 USDT (2%)" in text
-    assert "98.000 USDT" in text
+    assert "0.150 USDT" in text
+    assert "97.850 USDT" in text
     assert "98.00 USD" in text
     assert "عرض السعر صالح لمدة 10 دقائق" in text
 
