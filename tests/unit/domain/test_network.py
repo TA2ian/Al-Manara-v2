@@ -4,7 +4,7 @@ from app.domain.network import NetworkCode, get_network, normalize_network
 
 
 def test_supported_networks_include_exact_six_operational_codes() -> None:
-    assert tuple(network.value for network in __import__("app.domain.network", fromlist=["NETWORKS"]).NETWORKS) == (
+    assert tuple(network.code.value for network in __import__("app.domain.network", fromlist=["NETWORKS"]).NETWORKS) == (
         "BEP20", "TRC20", "ARB", "ETH", "SOL", "POLYGON"
     )
 
