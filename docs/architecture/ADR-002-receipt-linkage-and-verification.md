@@ -10,6 +10,8 @@ The MVP accepts receipt evidence as image files only: JPEG, PNG, and WEBP. PDF i
 
 If a customer has a ShamCash receipt as a PDF, the bot asks the customer to open the PDF and send a clear screenshot of the receipt page as a supported image. The backend does not receive, parse, render, or process the original PDF.
 
+Customer receipt submission does not accept a transaction-reference text message. The legacy transaction-reference fields remain only for compatibility with historical data and contracts; they are not required or used as customer verification input.
+
 Receipt processing is split into extraction and comparison boundaries:
 
 ```text
@@ -30,11 +32,11 @@ For customer-submitted evidence, the customer is asked to resend a correctly lin
 
 ### Non-blocking comparison fields
 
-Sender name, sender account, recipient name, recipient account, amount, currency, operation type, date, and extraction confidence produce explicit field-level results and warnings. They do not automatically approve or reject the order.
+Sender name, sender account, recipient name, recipient account, amount, currency, operation type, date, extraction confidence, and any transaction reference visible on the image produce explicit field-level results and warnings. A transaction reference is evidence only; it is not supplied by the customer as a text field and is not a blocking customer-side verification requirement.
 
 ### Duplicate operation number
 
-A successfully linked `shamcash_operation_number` cannot be successfully reused for another order.
+A successfully linked `shamcash_operation_number` cannot be successfully reused for another order. This rule applies only when an operation number is independently established from trusted review evidence; a customer-provided text value cannot establish or satisfy this condition.
 
 ### Image security
 
@@ -45,8 +47,9 @@ OCR/QR processing produces data only. It has no direct authority to modify order
 ## Consequences
 
 - Customer and admin receipt paths share exactly one comparison service.
+- The customer path is image-only; PDF is converted by the user to a supported screenshot/image before submission.
 - PDF parser dependencies and PDF attack surface are excluded from the MVP.
-- A customer with a PDF has an explicit, supported screenshot recovery path.
+- Customer-supplied transaction-reference text cannot create circular self-verification.
 - An unrelated or old receipt cannot be force-linked to an order.
 - Automated extraction remains evidence and review assistance, never financial authorization.
 
@@ -55,6 +58,10 @@ OCR/QR processing produces data only. It has no direct authority to modify order
 ### PDF processing in MVP
 
 Rejected because the current MVP contract explicitly limits receipt evidence to JPEG/PNG/WEBP. Adding PDF parsing now would expand the attack surface and implementation scope without being required for launch.
+
+### Customer transaction-reference text as verification input
+
+Rejected because it is self-asserted data and can become circular if the same value is persisted as the expected reference. The MVP instead derives verification evidence from the submitted image and keeps transaction references, when visible on an image, as non-blocking evidence.
 
 ### Separate customer/admin verification algorithms
 
