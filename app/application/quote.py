@@ -31,10 +31,13 @@ class FeePolicySnapshot:
     percent: Decimal
     version: str
     effective_at: datetime
+    network_fee_amount: Decimal = Decimal("0")
 
     def __post_init__(self) -> None:
         if self.percent < 0 or self.percent >= 100:
             raise ValueError("fee percent must be in [0, 100)")
+        if not self.network_fee_amount.is_finite() or self.network_fee_amount < 0:
+            raise ValueError("network fee must be finite and non-negative")
         if self.effective_at.tzinfo is None:
             raise ValueError("effective_at must be timezone-aware")
         if not self.version.strip():
