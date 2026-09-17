@@ -9,10 +9,10 @@ import re
 class NetworkCode(StrEnum):
     BEP20 = "BEP20"
     TRC20 = "TRC20"
-    TON = "TON"
     ARB = "ARB"
     ETH = "ETH"
     SOL = "SOL"
+    POLYGON = "POLYGON"
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,10 +29,10 @@ class NetworkConfig:
 NETWORKS: tuple[NetworkConfig, ...] = (
     NetworkConfig(NetworkCode.BEP20, "BEP20", True, r"^0x[0-9a-fA-F]{40}$", False, Decimal("1"), Decimal("100000")),
     NetworkConfig(NetworkCode.TRC20, "TRC20", True, r"^T[1-9A-HJ-NP-Za-km-z]{33}$", False, Decimal("1"), Decimal("100000")),
-    NetworkConfig(NetworkCode.TON, "TON", False, r".+", True, Decimal("0.001"), Decimal("0.001")),
-    NetworkConfig(NetworkCode.ARB, "ARB", False, r"^0x[0-9a-fA-F]{40}$", False, Decimal("0.001"), Decimal("0.001")),
-    NetworkConfig(NetworkCode.ETH, "ETH", False, r"^0x[0-9a-fA-F]{40}$", False, Decimal("0.001"), Decimal("0.001")),
-    NetworkConfig(NetworkCode.SOL, "SOL", False, r".+", False, Decimal("0.001"), Decimal("0.001")),
+    NetworkConfig(NetworkCode.ARB, "ARB", True, r"^0x[0-9a-fA-F]{40}$", False, Decimal("0.001"), Decimal("100000")),
+    NetworkConfig(NetworkCode.ETH, "ETH", True, r"^0x[0-9a-fA-F]{40}$", False, Decimal("0.001"), Decimal("100000")),
+    NetworkConfig(NetworkCode.SOL, "SOL", True, r"^[1-9A-HJ-NP-Za-km-z]{32,44}$", False, Decimal("0.001"), Decimal("100000")),
+    NetworkConfig(NetworkCode.POLYGON, "POLYGON", True, r"^0x[0-9a-fA-F]{40}$", False, Decimal("0.001"), Decimal("100000")),
 )
 
 
@@ -43,13 +43,14 @@ _NETWORK_ALIASES: dict[str, NetworkCode] = {
     "TRC20": NetworkCode.TRC20,
     "TRC-20": NetworkCode.TRC20,
     "TRON": NetworkCode.TRC20,
-    "TON": NetworkCode.TON,
     "ARBITRUM": NetworkCode.ARB,
     "ARB": NetworkCode.ARB,
     "ETH": NetworkCode.ETH,
     "ETHEREUM": NetworkCode.ETH,
     "SOL": NetworkCode.SOL,
     "SOLANA": NetworkCode.SOL,
+    "POLYGON": NetworkCode.POLYGON,
+    "MATIC": NetworkCode.POLYGON,
 }
 
 
