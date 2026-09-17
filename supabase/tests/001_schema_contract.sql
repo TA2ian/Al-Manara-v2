@@ -15,14 +15,14 @@ select has_table('public', 'audit_logs', 'audit logs table exists');
 
 select is(
   (select count(*)::integer from public.network_configs where enabled),
-  2,
-  'exactly two networks are enabled at launch'
+  6,
+  'exactly six networks are enabled at launch'
 );
 
 select is(
   (select string_agg(code::text, ',' order by code) from public.network_configs where enabled),
-  'BEP20,TRC20',
-  'only BEP20 and TRC20 are enabled at launch'
+  'BEP20,TRC20,ARB,ETH,SOL,POLYGON',
+  'all six approved networks are enabled at launch'
 );
 
 select * from finish();
