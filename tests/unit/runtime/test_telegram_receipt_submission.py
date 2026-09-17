@@ -2,6 +2,7 @@ from uuid import UUID
 
 import pytest
 
+from app.domain.receipt_attempt import ReceiptInputType
 from app.runtime.telegram.receipt_submission import (
     ReceiptMessages,
     TelegramReceiptHandler,
@@ -24,10 +25,11 @@ class Submission:
         return object()
 
 
-def data(**overrides):
+def image_data(**overrides):
     values = {
         "user_id": 7,
         "order_id": ORDER_ID,
+        "input_type": ReceiptInputType.IMAGE,
         "telegram_file_id": "telegram-file",
         "mime_type": "image/jpeg",
         "idempotency_key": "receipt-1",
@@ -36,20 +38,56 @@ def data(**overrides):
     return TelegramReceiptInput(**values)
 
 
+def text_data(**overrides):
+    values = {
+        "user_id": 7,
+        "order_id": ORDER_ID,
+        "input_type": ReceiptInputType.TEXT,
+        "transaction_reference": "SC-123456",
+        "idempotency_key": "receipt-text-1",
+    }
+    values.update(overrides)
+    return TelegramReceiptInput(**values)
+
+
 @pytest.mark.asyncio
-async def test_submit_accepts_valid_receipt_and_forwards_identity():
+async def test_submit_accepts_valid_image_receipt_and_forwards_identity():
     service = Submission()
-    response = await TelegramReceiptHandler(service).submit(data())
+    response = await TelegramReceiptHandler(service).submit(image_data())
     assert response.ok is True
     assert response.text == ReceiptMessages.ACCEPTED
     assert service.calls[0].order_id == ORDER_ID
     assert service.calls[0].telegram_user_id == 7
+    assert service.calls[0].input_type is ReceiptInputType.IMAGE
+
+
+@pytest.mark.asyncio
+async def test_submit_accepts_valid_text_receipt_and_forwards_reference():
+    service = Submission()
+    response = await TelegramReceiptHandler(service).submit(text_data())
+    assert response.ok is True
+    assert response.text == ReceiptMessages.ACCEPTED
+    assert service.calls[0].input_type is ReceiptInputType.TEXT
+    assert service.calls[0].transaction_reference == "SC-123456"
+    assert service.calls[0].telegram_file_id is None
+    assert service.calls[0].mime_type is None
 
 
 @pytest.mark.asyncio
 async def test_submit_rejects_invalid_input_before_service_call():
     service = Submission()
-    response = await TelegramReceiptHandler(service).submit(data(user_id=0))
+    response = await TelegramReceiptHandler(service).submit(image_data(user_id=0))
+    assert response.ok is False
+    assert response.text == ReceiptMessages.INVALID
+    assert service.calls == []
+
+
+@pytest.mark.asyncio
+async def test_submit_rejects_mixed_text_and_image_payload():
+    service = Submission()
+    response = await TelegramReceiptHandler(service).submit(
+        text_data(telegram_file_id="unexpected-file")
+    )
     assert response.ok is False
     assert response.text == ReceiptMessages.INVALID
     assert service.calls == []
@@ -58,7 +96,7 @@ async def test_submit_rejects_invalid_input_before_service_call():
 @pytest.mark.asyncio
 async def test_submit_maps_validation_failure_to_safe_message():
     service = Submission(ValueError("internal validation detail"))
-    response = await TelegramReceiptHandler(service).submit(data())
+    response = await TelegramReceiptHandler(service).submit(image_data())
     assert response.ok is False
     assert response.text == ReceiptMessages.FAILED
     assert "internal validation detail" not in response.text
@@ -67,7 +105,7 @@ async def test_submit_maps_validation_failure_to_safe_message():
 @pytest.mark.asyncio
 async def test_submit_hides_unexpected_errors():
     service = Submission(RuntimeError("database failure"))
-    response = await TelegramReceiptHandler(service).submit(data())
+    response = await TelegramReceiptHandler(service).submit(image_data())
     assert response.ok is False
     assert response.text == ReceiptMessages.ERROR
     assert "database failure" not in response.text
