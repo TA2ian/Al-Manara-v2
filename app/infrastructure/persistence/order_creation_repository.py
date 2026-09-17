@@ -37,6 +37,7 @@ class SupabaseOrderCreationRepository:
             "p_requested_amount": str(financials.requested_amount),
             "p_fee_percent": str(financials.fee_percent),
             "p_fee_amount": str(financials.fee_amount),
+            "p_network_fee_amount": str(financials.network_fee_amount),
             "p_net_usdt_amount": str(financials.net_usdt_amount),
             "p_payment_currency": financials.payment_currency,
             "p_exchange_rate": (
