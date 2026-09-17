@@ -98,9 +98,8 @@ revoke execute on function get_network_config_v2(text) from public, anon, authen
 grant execute on function get_network_config_v2(text) to service_role;
 
 drop function if exists create_purchase_order_atomic(
-    uuid, text, bigint, uuid, text, text, numeric, numeric, numeric, numeric,
-    text, numeric, numeric, text, text, text, text, text, text, timestamptz,
-    timestamptz, text, text
+    uuid, text, bigint, uuid, text, text, numeric, numeric, numeric, numeric, numeric,
+    text, numeric, numeric, text, text, text, text, text, text, timestamptz, timestamptz, text, text
 );
 
 create function create_purchase_order_atomic(
@@ -236,7 +235,7 @@ begin
     if not found then raise exception 'admin payment account is unavailable'; end if;
     if btrim(v_admin_name) <> btrim(p_admin_payment_account_name_snapshot)
        or btrim(v_admin_number) <> btrim(p_admin_payment_account_number_snapshot)
-       or coalesce(btrim(v_admin_qr), '') <> coalesce(btrim(p_admin_payment_qr_file_id_snapshot), '') then raise exception 'admin payment account snapshot mismatch'; end if;
+       or coalesce(btrim(v_admin_qr), '') <> coalesce(btrim(p_admin_payment_account_qr_file_id_snapshot), '') then raise exception 'admin payment account snapshot mismatch'; end if;
 
     insert into orders (
         internal_order_id, public_order_code, user_id, wallet_id, network_code,
@@ -286,5 +285,5 @@ revoke execute on function create_purchase_order_atomic(
 ) from public, anon, authenticated;
 grant execute on function create_purchase_order_atomic(
     uuid, text, bigint, uuid, text, text, numeric, numeric, numeric, numeric, numeric,
-    text, numeric, numeric, text, text, text, text, text, timestamptz, timestamptz, text, text
+    text, numeric, numeric, text, text, text, text, text, text, timestamptz, timestamptz, text, text
 ) to service_role;
