@@ -1,6 +1,6 @@
 begin;
 
-select plan(21);
+select plan(22);
 
 select ok(
     exists (
@@ -96,7 +96,7 @@ select throws_ok($$
         (select id from wallets where normalized_address = 'tqj7f9wr7qfj9nqk4sj2mr7vf4px6ny8z1'),
         'TRC20', 'TQJ7f9wR7QfJ9nQk4sJ2mR7Vf4pX6nY8Z1', 0.0001, 5, 0.000005, 1.5, -1.499905,
         'USD', null, 0.0001, 'ROUND_HALF_UP:USD=0.01', 'Contract Customer', 'SC-CONTRACT-001',
-        'USD Contract Account', 'USD-ACCOUNT-001', 'USD-QR-001', now(), now() + interval '10 minutes',
+        'USD Contract Account', 'USD-QR-001', 'USD-QR-001', now(), now() + interval '10 minutes',
         'contract-idem-bad-amount', 'create_purchase_order'
     )$$, 'P0001', 'amount is outside network limits', 'amount outside network bounds is rejected');
 
