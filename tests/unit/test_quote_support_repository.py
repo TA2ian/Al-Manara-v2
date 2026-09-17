@@ -30,18 +30,22 @@ class Query:
 
 
 class Client:
-    def __init__(self, response: Response) -> None:
+    def __init__(self, response: Response | dict[str, Response]) -> None:
         self.response = response
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
     def rpc(self, function_name: str, params: dict[str, Any]) -> Query:
         self.calls.append((function_name, params))
-        return Query(self.response)
+        response = self.response[function_name] if isinstance(self.response, dict) else self.response
+        return Query(response)
 
 
 @pytest.mark.asyncio
 async def test_fee_policy_provider_maps_authoritative_snapshot() -> None:
-    client = Client(Response([{"percent": "10.000000", "version": "network_config:3", "effective_at": "2026-09-04T10:00:00+00:00"}]))
+    client = Client({
+        "get_current_fee_policy": Response([{"percent": "10.000000", "version": "network_config:3", "effective_at": "2026-09-04T10:00:00+00:00"}]),
+        "get_network_config_v2": Response([{"network_fee_amount": "0.15"}]),
+    })
     now = datetime(2026, 9, 4, 11, tzinfo=timezone.utc)
 
     result = await SupabaseFeePolicyProvider(client).get_current_policy("bep20", now)
@@ -49,9 +53,11 @@ async def test_fee_policy_provider_maps_authoritative_snapshot() -> None:
     assert result is not None
     assert result.percent == Decimal("10.000000")
     assert result.version == "network_config:3"
+    assert result.network_fee_amount == Decimal("0.15")
     assert result.effective_at.tzinfo is not None
     assert client.calls[0][0] == "get_current_fee_policy"
     assert client.calls[0][1]["p_network_code"] == "BEP20"
+    assert client.calls[1] == ("get_network_config_v2", {"p_code": "BEP20"})
 
 
 @pytest.mark.asyncio
@@ -79,7 +85,10 @@ async def test_provider_returns_none_when_no_current_snapshot_exists() -> None:
 
 @pytest.mark.asyncio
 async def test_provider_rejects_invalid_payload() -> None:
-    client = Client(Response([{"percent": "not-a-number", "version": "x", "effective_at": "2026-09-04T10:00:00+00:00"}]))
+    client = Client({
+        "get_current_fee_policy": Response([{"percent": "not-a-number", "version": "x", "effective_at": "2026-09-04T10:00:00+00:00"}]),
+        "get_network_config_v2": Response([{"network_fee_amount": "0.15"}]),
+    })
 
     with pytest.raises(QuoteSupportPersistenceError):
         await SupabaseFeePolicyProvider(client).get_current_policy("BEP20", datetime.now(timezone.utc))
