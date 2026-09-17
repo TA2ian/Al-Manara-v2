@@ -75,7 +75,7 @@ class SupabaseNetworkOrderRepository:
     async def get_enabled(self, code: str) -> NetworkConfig | None:
         rows = await _execute_rpc(
             self._client,
-            "get_network_config",
+            "get_network_config_v2",
             {"p_code": code.strip().upper()},
         )
         if not rows:
