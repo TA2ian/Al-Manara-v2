@@ -13,7 +13,7 @@ values ('00000000-0000-0000-0000-000000002121',100,10,10,.15,89.85,'USD',100,'te
 insert into admin_sessions(id,admin_telegram_user_id,expires_at) values ('00000000-0000-0000-0000-000000002131',21001001,now()+interval '10 minutes');
 
 select lives_ok($select * from claim_order_fulfillment('00000000-0000-0000-0000-000000002121',1,21001001,'primary','claim-2101','00000000-0000-0000-0000-000000002131')$,'claim succeeds');
-select lives_ok($select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002121',2,21001001,'primary','complete-2101','transfer-2101','00000000-0000-0000-0000-000000002131')$,'completion records manual transfer reference');
+select lives_ok($select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002121',2,21001001,'primary','complete-2101','a' || repeat('b', 63),'00000000-0000-0000-0000-000000002131')$,'completion records manual transfer reference');
 select is((select manual_usdt_transfer_reference from orders where internal_order_id='00000000-0000-0000-0000-000000002121'),'transfer-2101','transfer reference is persisted');
 select is((select status::text from orders where internal_order_id='00000000-0000-0000-0000-000000002121'),'COMPLETED','order completes');
 select is((select version from orders where internal_order_id='00000000-0000-0000-0000-000000002121'),3::bigint,'completion increments version');
