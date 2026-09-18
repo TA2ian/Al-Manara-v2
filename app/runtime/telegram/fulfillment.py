@@ -273,7 +273,8 @@ def build_fulfillment_router(
             session_id=stored_session,
         )
         response = await handler.claim(request)
-        await state.clear()
+        if response.ok:
+            await state.clear()
         await query.answer(response.message, show_alert=not response.ok)
         if response.ok and response.version is not None:
             try:
