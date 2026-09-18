@@ -66,6 +66,12 @@ select lives_ok($$
 select is((select count(*)::integer from orders where user_id = (select id from users where telegram_user_id = 990000001)), 1, 'idempotency replay does not create a second order');
 select is((select public_order_code from orders where internal_order_id = '10000000-0000-0000-0000-000000000001'), 'ORD-CONTRACT-USD', 'idempotency replay keeps the original public order code');
 
+-- The single-active-order invariant intentionally blocks a second live order.
+-- Close the replay-tested order before exercising a separate currency order.
+update orders
+   set status = 'COMPLETED'
+ where internal_order_id = '10000000-0000-0000-0000-000000000001';
+
 select lives_ok($$
     select * from create_purchase_order_atomic(
         '10000000-0000-0000-0000-000000000003', 'ORD-CONTRACT-SYP', 990000001,
