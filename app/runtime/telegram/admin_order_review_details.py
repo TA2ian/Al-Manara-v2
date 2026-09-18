@@ -11,6 +11,7 @@ from app.application.admin_order_review_details import (
     GetAdminOrderReviewDetailsCommand,
 )
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
+from app.runtime.telegram.admin_session import TelegramAdminSessionHandler
 
 DETAILS_CALLBACK = re.compile(r"^admin:order:details:([0-9a-fA-F-]{36})$")
 RECEIPT_CALLBACK = re.compile(r"^admin:order:receipt:([0-9a-fA-F-]{36})$")
@@ -19,6 +20,7 @@ RECEIPT_CALLBACK = re.compile(r"^admin:order:receipt:([0-9a-fA-F-]{36})$")
 def build_admin_order_review_details_router(
     service: AdminOrderReviewDetailsService,
     actor_type_resolver: object,
+    session_handler: TelegramAdminSessionHandler,
 ) -> Router:
     router = Router(name="admin-order-review-details")
 
@@ -26,7 +28,12 @@ def build_admin_order_review_details_router(
         actor_type = await actor_type_resolver.resolve_actor_type(admin_user_id)
         if actor_type not in {"primary", "backup"}:
             raise PermissionError("admin is not authorized")
-        return await service.get(GetAdminOrderReviewDetailsCommand(admin_user_id, actor_type, order_id))
+        session_response = await session_handler.create(admin_user_id, actor_type)
+        if not session_response.ok or session_response.session is None:
+            raise PermissionError("fresh admin session required")
+        return await service.get(GetAdminOrderReviewDetailsCommand(
+            admin_user_id, actor_type, order_id, session_response.session.session_id
+        ))
 
     @router.callback_query(F.data.regexp(DETAILS_CALLBACK.pattern))
     async def open_details(query: CallbackQuery) -> None:
@@ -59,28 +66,20 @@ def build_admin_order_review_details_router(
             f"الإصدار: {details.version}",
             f"العميل: {details.user_telegram_id}",
             f"الشبكة: {details.network_code}",
-            f"المطلوب: {details.requested_amount} USDT",
+            f"المبلغ المطلوب: {details.requested_amount} USDT",
             f"العملة: {details.payment_currency}",
-            f"المبلغ المحلي: {details.local_amount}",
-            f"رسوم الخدمة: {details.fee_percent}% ({details.fee_amount} USDT)",
-            f"صافي الإرسال: {details.net_usdt_amount} USDT",
+            f"المبلغ المحلي المطلوب: {details.local_amount} {details.payment_currency}",
         ]
-        if details.payment_currency == "NEW.SYP" and details.exchange_rate is not None:
-            lines.append(f"سعر الصرف: {details.exchange_rate}")
-        if details.shamcash_operation_number:
-            lines.append(f"رقم عملية شام كاش المسجل: {details.shamcash_operation_number}")
-
         markup = None
-        if details.latest_receipt is None:
+        if details.receipt_submission_id is None:
             lines.append("الإيصال: لا يوجد إيصال مسجل.")
         else:
-            receipt = details.latest_receipt
             lines.extend([
-                f"الإيصال: محاولة {receipt.attempt_number}",
-                f"حالة الإيصال: {receipt.processing_status}",
-                f"حالة الربط: {receipt.linkage_status}",
+                f"الإيصال: محاولة {details.receipt_attempt_number}",
+                f"حالة الإيصال: {details.receipt_processing_status}",
+                f"حالة الربط: {details.receipt_linkage_status}",
             ])
-            if receipt.telegram_file_id:
+            if details.receipt_telegram_file_id:
                 markup = InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(
                         text="🧾 عرض الإيصال",
