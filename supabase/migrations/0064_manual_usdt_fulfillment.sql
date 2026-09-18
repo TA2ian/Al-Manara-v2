@@ -131,7 +131,7 @@ begin
        and ord.version = p_expected_version;
     if not found then raise exception 'order changed concurrently'; end if;
 
-    delete from order_fulfillment_claims where internal_order_id = p_order_id;
+    delete from order_fulfillment_claims as fc where fc.internal_order_id = p_order_id;
 
     insert into audit_logs (
         actor_telegram_user_id, actor_type, action, target_type, target_id,
@@ -175,6 +175,8 @@ begin
         p_expected_version + 1, v_completed_at, false;
 end;
 $$;
+
+revoke execute on function public.complete_order_fulfillment(uuid, bigint, bigint, admin_actor_type, text, uuid) from public, service_role;
 
 grant execute on function public.complete_order_fulfillment(
     uuid, bigint, bigint, admin_actor_type, text, uuid, text
