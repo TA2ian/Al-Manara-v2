@@ -9,6 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
+from app.application.customer_order_details import GetCustomerOrderDetailsCommand
 from app.application.submit_customer_receipt import SubmitCustomerReceiptCommand
 from app.composition_root import CustomerComposition
 from app.domain.receipt_attempt import ReceiptAttemptStatus, SUPPORTED_RECEIPT_MIME_TYPES
@@ -97,7 +98,7 @@ def build_customer_receipt_router(composition: CustomerComposition) -> Router:
             return
         try:
             order = await composition.order_details.get(
-                __import__("app.application.customer_order_details", fromlist=["GetCustomerOrderDetailsCommand"]).GetCustomerOrderDetailsCommand(
+                GetCustomerOrderDetailsCommand(
                     customer_telegram_user_id=user_id,
                     public_order_code=public_code,
                 )
