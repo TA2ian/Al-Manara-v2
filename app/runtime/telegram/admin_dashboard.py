@@ -5,6 +5,7 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.runtime.telegram.admin_order_actions import order_action_markup
+from app.runtime.telegram.admin_order_review_details import receipt_callback_data
 from app.runtime.telegram.admin_order_listing import TelegramAdminOrderListingHandler, TelegramAdminOrderListingInput
 from app.application.admin_order_review_details import AdminOrderReviewDetailsService, GetAdminOrderReviewDetailsCommand
 from app.runtime.telegram.admin_session import TelegramAdminSessionHandler
@@ -66,7 +67,7 @@ def _render_orders(
             f"  الشبكة: {item.network_code}"
         )
         if review_actions:
-            rows.append([InlineKeyboardButton(text="عرض الإيصال والتفاصيل", callback_data=f"admin:order:view:{item.internal_order_id}:{item.version}")])
+            rows.append([InlineKeyboardButton(text="عرض الإيصال والتفاصيل", callback_data=receipt_callback_data(item.internal_order_id))])
             rows.extend(order_action_markup(item.internal_order_id, item.version).inline_keyboard)
         elif fulfillment_actions:
             if item.fulfillment_claimed_by is None:
