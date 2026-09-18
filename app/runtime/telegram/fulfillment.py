@@ -269,7 +269,7 @@ def build_fulfillment_router(
             actor_type=stored_actor_type,
             order_id=stored_order,
             expected_version=stored_version,
-            idempotency_key=str(uuid4()),
+            idempotency_key=str(data["idempotency_key"]),
             session_id=stored_session,
         )
         response = await handler.claim(request)
@@ -315,7 +315,7 @@ def build_fulfillment_router(
                 actor_type=actor_type,
                 order_id=order_id,
                 expected_version=expected_version,
-                idempotency_key=str(uuid4()),
+                idempotency_key=str(data["idempotency_key"]),
                 session_id=session_id,
                 manual_usdt_transfer_reference=reference,
             )
