@@ -46,6 +46,7 @@ class TelegramFulfillmentResponse:
 
 class AdminFulfillmentActionState(StatesGroup):
     confirmation = State()
+    transfer_reference = State()
 
 
 def _confirmation_markup(order_id: UUID, expected_version: int) -> InlineKeyboardMarkup:
@@ -242,6 +243,14 @@ def build_fulfillment_router(
             await query.answer("بيانات العملية غير صالحة. افتح الطلب من جديد.", show_alert=True)
             return
 
+        if stored_operation == "complete":
+            await state.set_state(AdminFulfillmentActionState.transfer_reference)
+            await query.answer("بعد تنفيذ تحويل USDT يدويًا، أرسل رقم العملية/مرجع التحويل.", show_alert=True)
+            await query.message.answer(
+                "نفّذ التحويل يدويًا أولًا إلى محفظة العميل على الشبكة المحددة، ثم أرسل رقم العملية/مرجع التحويل (حتى 200 محرف)."
+            )
+            return
+
         request = TelegramFulfillmentInput(
             admin_user_id=admin_user_id,
             actor_type=stored_actor_type,
@@ -250,18 +259,58 @@ def build_fulfillment_router(
             idempotency_key=str(uuid4()),
             session_id=stored_session,
         )
-        response = await (handler.claim(request) if stored_operation == "claim" else handler.complete(request))
+        response = await handler.claim(request)
         await state.clear()
         await query.answer(response.message, show_alert=not response.ok)
-        if response.ok:
+        if response.ok and response.version is not None:
             try:
-                if stored_operation == "claim" and response.version is not None:
-                    await query.message.edit_reply_markup(
-                        reply_markup=fulfillment_action_markup(stored_order, response.version, claimed=True)
-                    )
-                else:
-                    await query.message.edit_reply_markup(reply_markup=None)
+                await query.message.edit_reply_markup(
+                    reply_markup=fulfillment_action_markup(stored_order, response.version, claimed=True)
+                )
             except Exception:
                 pass
+
+    @router.message(AdminFulfillmentActionState.transfer_reference, F.text)
+    async def receive_transfer_reference(message, state: FSMContext) -> None:
+        if not is_private_message(message):
+            await state.clear()
+            await message.answer("إرسال مرجع التحويل متاح في المحادثة الخاصة فقط.")
+            return
+        admin_user_id = authenticated_telegram_user_id(message)
+        if admin_user_id is None:
+            await state.clear()
+            await message.answer("تعذر التحقق من هوية المدير.")
+            return
+        data = await state.get_data()
+        if data.get("admin_user_id") != admin_user_id:
+            await state.clear()
+            await message.answer("انتهت جلسة العملية. افتح الطلب من جديد.")
+            return
+        reference = " ".join((message.text or "").split())
+        if not 1 <= len(reference) <= 200:
+            await message.answer("مرجع التحويل يجب أن يكون بين 1 و200 محرف.")
+            return
+        try:
+            order_id = UUID(str(data["order_id"]))
+            expected_version = int(data["expected_version"])
+            actor_type = str(data["actor_type"])
+            session_id = UUID(str(data["session_id"]))
+        except (KeyError, TypeError, ValueError):
+            await state.clear()
+            await message.answer("بيانات العملية غير صالحة. افتح الطلب من جديد.")
+            return
+        response = await handler.complete(
+            TelegramFulfillmentInput(
+                admin_user_id=admin_user_id,
+                actor_type=actor_type,
+                order_id=order_id,
+                expected_version=expected_version,
+                idempotency_key=str(uuid4()),
+                session_id=session_id,
+                manual_usdt_transfer_reference=reference,
+            )
+        )
+        await state.clear()
+        await message.answer(response.message)
 
     return router
