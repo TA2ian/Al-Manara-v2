@@ -1,6 +1,6 @@
 begin;
 
-select plan(19);
+select plan(20);
 
 select ok(
   to_regprocedure('public.list_admin_fulfillment_orders(bigint,admin_actor_type,integer,integer)') is not null,
@@ -13,8 +13,8 @@ select ok(
 );
 
 select ok(
-  to_regprocedure('public.complete_order_fulfillment(uuid,bigint,bigint,admin_actor_type,text,uuid)') is not null,
-  'session-bound completion RPC exists'
+  to_regprocedure('public.complete_order_fulfillment(uuid,bigint,bigint,admin_actor_type,text,uuid,text)') is not null,
+  'session-bound completion RPC requires transfer reference'
 );
 
 select ok(
@@ -29,6 +29,15 @@ select ok(
     'EXECUTE'
   ) = false,
   'legacy unbound claim RPC is not executable by service_role'
+);
+
+select ok(
+  has_function_privilege(
+    'service_role',
+    'public.complete_order_fulfillment(uuid,bigint,bigint,admin_actor_type,text,uuid)',
+    'EXECUTE'
+  ) = false,
+  'session-bound completion without transfer reference is disabled'
 );
 
 select ok(
