@@ -1,6 +1,6 @@
 begin;
 
-select plan(12);
+select plan(13);
 
 select ok(
   to_regprocedure('public.finalize_receipt_submission(uuid,text,text,text)') is not null,
