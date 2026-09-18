@@ -31,7 +31,8 @@ insert into wallets (
   '0x0000000000000000000000000000000000002101',
   '0x0000000000000000000000000000000000002101',
   'VERIFIED',
-  'manual test'
+  'manual test',
+  'QR-2101'
 );
 
 insert into orders (
