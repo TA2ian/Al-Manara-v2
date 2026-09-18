@@ -58,6 +58,8 @@ class AdminOrderReviewDetailsService:
             raise ValueError("order id is required")
         if not isinstance(command.session_id, UUID):
             raise ValueError("recent admin session is required")
+        if not isinstance(command.session_id, UUID):
+            raise ValueError("recent admin session is required")
         return await self._repository.get_details(
             command.admin_telegram_user_id,
             command.actor_type,
