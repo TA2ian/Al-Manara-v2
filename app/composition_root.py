@@ -119,7 +119,6 @@ def build_admin_composition(client: Any, order_uow: UnitOfWork | None = None) ->
         payment_accounts=TelegramAdminPaymentAccountHandler(payment_account_service),
         identity_review=identity_review,
         actor_type=authorization,
-        review_details=AdminOrderReviewDetailsService(SupabaseAdminOrderReviewDetailsRepository(client)),
     )
 
 
