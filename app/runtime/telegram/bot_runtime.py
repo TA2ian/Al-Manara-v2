@@ -148,7 +148,7 @@ def build_telegram_runtime(settings: TelegramBotSettings) -> tuple[Bot, Dispatch
     client = create_client(settings.supabase_url, settings.supabase_service_role_key)
     admin = build_admin_composition(client)
     dispatcher = Dispatcher(storage=MemoryStorage())
-    dispatcher.include_router(build_admin_dashboard_router(admin.identity_review, admin.listing))
+    dispatcher.include_router(build_admin_dashboard_router(admin.identity_review, admin.listing, admin.review_details, admin.session))
     dispatcher.include_router(build_identity_review_router(admin.identity_review))
     dispatcher.include_router(build_admin_order_actions_router(admin.review, admin.session, admin.actor_type))
     dispatcher.include_router(build_admin_order_closure_router(admin.closure, admin.session, admin.actor_type))
