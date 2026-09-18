@@ -48,7 +48,6 @@ class TelegramFulfillmentResponse:
 class AdminFulfillmentActionState(StatesGroup):
     confirmation = State()
     transfer_reference = State()
-    transfer_reference = State()
 
 
 def _confirmation_markup(order_id: UUID, expected_version: int) -> InlineKeyboardMarkup:
@@ -132,7 +131,7 @@ class TelegramFulfillmentHandler:
                 actor_type=actor_type,
                 idempotency_key=idempotency_key,
                 session_id=request.session_id,
-                **({"transfer_reference": request.manual_usdt_transfer_reference} if operation == "complete" else {}),
+                **({"manual_usdt_transfer_reference": request.manual_usdt_transfer_reference} if operation == "complete" else {}),
             )
         except ValueError:
             return TelegramFulfillmentResponse(False, None, None, False, FULFILLMENT_ERROR_MESSAGE)
@@ -213,12 +212,13 @@ def build_fulfillment_router(
                 expected_version=expected_version,
                 actor_type=actor_type,
                 session_id=str(session_response.session.session_id),
+                idempotency_key=f"fulfillment:{operation}:{uuid4().hex}",
             )
             if operation == "complete":
                 await state.set_state(AdminFulfillmentActionState.transfer_reference)
                 await query.answer("الجلسة جاهزة. أرسل الآن TXID/Hash التحويل اليدوي.", show_alert=True)
                 await query.message.answer(
-                    "قبل الإتمام: تأكد أنك أرسلت صافي USDT الظاهر في تفاصيل الطلب إلى محفظة العميل على BEP20 أو TRC20.\n"
+                    "قبل الإتمام: تأكد أنك أرسلت صافي USDT الظاهر في تفاصيل الطلب إلى محفظة العميل على الشبكة المحددة.\n"
                     "أرسل TXID/Hash للتحويل (64 حرفًا hexadecimal)."
                 )
             else:
@@ -320,9 +320,11 @@ def build_fulfillment_router(
                 manual_usdt_transfer_reference=reference,
             )
         )
-        await state.clear()
-        await message.answer(response.message if response.ok else "تعذر إتمام التسليم. قد يكون الطلب تغير أو الجلسة انتهت.")
         if response.ok:
+            await state.clear()
+            await message.answer(response.message)
             await message.answer("تم تسجيل التحويل اليدوي وإغلاق الطلب كـ COMPLETED.")
+        else:
+            await message.answer(response.message or "تعذر إتمام التسليم. قد يكون الطلب تغير أو الجلسة انتهت. أعد إرسال TXID بعد التحقق من الطلب.")
 
     return router
