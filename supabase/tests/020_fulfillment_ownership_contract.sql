@@ -1,6 +1,6 @@
 begin;
 
-select plan(18);
+select plan(19);
 
 select ok(
   to_regprocedure('public.list_admin_fulfillment_orders(bigint,admin_actor_type,integer,integer)') is not null,
