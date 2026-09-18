@@ -142,9 +142,8 @@ select throws_ok($$
     20001001,
     'primary',
     'fulfillment-stale-complete',
-    '00000000-0000-0000-0000-000000002031'
-  )
-$$, 'P0001', 'stale order version', 'a pre-claim completion callback is rejected as stale');
+    '00000000-0000-0000-0000-000000002031',
+    repeat('a', 64)', 'a pre-claim completion callback is rejected as stale');
 
 select throws_ok($$
   select * from complete_order_fulfillment(
@@ -153,9 +152,8 @@ select throws_ok($$
     20001002,
     'backup',
     'fulfillment-wrong-owner',
-    '00000000-0000-0000-0000-000000002032'
-  )
-$$, 'P0001', 'fulfillment claim belongs to another admin', 'a non-owner cannot complete the order');
+    '00000000-0000-0000-0000-000000002032',
+    repeat('b', 64)elongs to another admin', 'a non-owner cannot complete the order');
 
 select lives_ok($$
   select * from complete_order_fulfillment(
@@ -167,6 +165,12 @@ select lives_ok($$
     '00000000-0000-0000-0000-000000002031'
   )
 $$, 'the claim owner can complete with the current version and fresh session');
+
+select is(
+  (select manual_usdt_transfer_reference from orders where internal_order_id = '00000000-0000-0000-0000-000000002021'),
+  repeat('c', 64),
+  'completion persists the manual blockchain transfer reference'
+);
 
 select is(
   (select status::text from orders where internal_order_id = '00000000-0000-0000-0000-000000002021'),
