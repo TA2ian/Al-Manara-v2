@@ -8,6 +8,18 @@ from uuid import UUID
 
 
 @dataclass(frozen=True, slots=True)
+class AdminReceiptView:
+    submission_id: UUID
+    attempt_number: int
+    input_type: str
+    processing_status: str
+    linkage_status: str
+    telegram_file_id: str | None
+    mime_type: str | None
+    submitted_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class AdminOrderReviewDetails:
     internal_order_id: UUID
     public_order_code: str
@@ -18,18 +30,12 @@ class AdminOrderReviewDetails:
     requested_amount: Decimal | None
     payment_currency: str | None
     local_amount: Decimal | None
-    receipt_submission_id: UUID | None
-    receipt_attempt_number: int | None
-    receipt_processing_status: str | None
-    receipt_linkage_status: str | None
-    receipt_telegram_file_id: str | None
-    receipt_mime_type: str | None
-    receipt_submitted_at: datetime | None
+    latest_receipt: AdminReceiptView | None
 
 
 @dataclass(frozen=True, slots=True)
 class GetAdminOrderReviewDetailsCommand:
-    admin_telegram_user_id: int
+    admin_user_id: int
     actor_type: str
     order_id: UUID
     session_id: UUID
@@ -50,7 +56,7 @@ class AdminOrderReviewDetailsService:
         self._repository = repository
 
     async def get(self, command: GetAdminOrderReviewDetailsCommand) -> AdminOrderReviewDetails:
-        if not isinstance(command.admin_telegram_user_id, int) or command.admin_telegram_user_id <= 0:
+        if not isinstance(command.admin_user_id, int) or command.admin_user_id <= 0:
             raise ValueError("administrator identity must be positive")
         if command.actor_type not in {"primary", "backup"}:
             raise ValueError("invalid administrator actor type")
@@ -59,7 +65,7 @@ class AdminOrderReviewDetailsService:
         if not isinstance(command.session_id, UUID):
             raise ValueError("recent admin session is required")
         return await self._repository.get_details(
-            command.admin_telegram_user_id,
+            command.admin_user_id,
             command.actor_type,
             command.order_id,
             command.session_id,
