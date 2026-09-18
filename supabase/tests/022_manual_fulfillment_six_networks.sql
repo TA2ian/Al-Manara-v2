@@ -99,7 +99,7 @@ select is((select net_usdt_amount from order_financial_snapshots where internal_
 select is((select net_usdt_amount from order_financial_snapshots where internal_order_id='00000000-0000-0000-0000-000000002225'), 89.000000000::numeric, 'SOL net amount is requested less service and network fees');
 select is((select net_usdt_amount from order_financial_snapshots where internal_order_id='00000000-0000-0000-0000-000000002226'), 89.800000000::numeric, 'POLYGON net amount is requested less service and network fees');
 
-select throws_ok($$select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002226', 2, 22001001, 'primary', 'complete-2207', '00000000-0000-0000-0000-000000002231', repeat('f',64))$$, 'P0001', 'stale order version', 'completed order rejects stale completion');
+select throws_ok($$select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002226', 1, 22001001, 'primary', 'complete-2207', '00000000-0000-0000-0000-000000002231', repeat('f',64))$$, 'P0001', 'stale order version', 'completed order rejects stale completion');
 
 select * from finish();
 rollback;
