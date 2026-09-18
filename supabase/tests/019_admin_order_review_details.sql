@@ -56,7 +56,7 @@ select
   '00000000-0000-0000-0000-000000001901',
   '00000000-0000-0000-0000-000000001911',
   'BEP20',
-  'SHAM_CASH',
+  (select id from payment_methods where code = 'SHAM_CASH' limit 1),
   'UNDER_REVIEW'
 where exists (select 1 from payment_methods where code = 'SHAM_CASH');
 
