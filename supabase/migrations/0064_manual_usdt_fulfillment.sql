@@ -121,14 +121,14 @@ begin
 
     v_completed_at := now();
 
-    update orders
+    update orders as ord
        set status = 'COMPLETED',
-           version = version + 1,
+           version = ord.version + 1,
            manual_usdt_transfer_reference = v_reference,
            completed_at = v_completed_at,
            updated_at = now()
-     where internal_order_id = p_order_id
-       and version = p_expected_version;
+     where ord.internal_order_id = p_order_id
+       and ord.version = p_expected_version;
     if not found then raise exception 'order changed concurrently'; end if;
 
     delete from order_fulfillment_claims where internal_order_id = p_order_id;
