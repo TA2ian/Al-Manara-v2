@@ -51,23 +51,26 @@ def render_order_page(page: CustomerOrderPage) -> tuple[str, InlineKeyboardMarku
             )
         text = "\n".join(lines)
 
-    buttons: list[InlineKeyboardButton] = []
+    rows: list[list[InlineKeyboardButton]] = []
+    navigation: list[InlineKeyboardButton] = []
+    if page.page > 0:
+        navigation.append(
+            InlineKeyboardButton(text="السابق", callback_data=f"orders:page:{page.page - 1}")
+        )
+    if (page.page + 1) * page.page_size < page.total_count:
+        navigation.append(
+            InlineKeyboardButton(text="التالي", callback_data=f"orders:page:{page.page + 1}")
+        )
+    if navigation:
+        rows.append(navigation)
     for item in page.items:
-        buttons.append(
+        rows.append([
             InlineKeyboardButton(
                 text=f"عرض {item.public_order_code}",
                 callback_data=f"orders:open:{item.public_order_code}",
             )
-        )
-    if page.page > 0:
-        buttons.append(
-            InlineKeyboardButton(text="السابق", callback_data=f"orders:page:{page.page - 1}")
-        )
-    if (page.page + 1) * page.page_size < page.total_count:
-        buttons.append(
-            InlineKeyboardButton(text="التالي", callback_data=f"orders:page:{page.page + 1}")
-        )
-    return text, InlineKeyboardMarkup(inline_keyboard=[buttons]) if buttons else None
+        ])
+    return text, InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
 
 def _order_details_text(order: CustomerOrderDetails) -> str:
