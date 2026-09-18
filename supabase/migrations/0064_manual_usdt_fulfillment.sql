@@ -4,8 +4,6 @@
 -- Blockchain submission itself remains manual; this RPC only records the
 -- administrator's confirmation after the transfer has been made.
 
-drop function if exists public.complete_order_fulfillment(uuid, bigint, bigint, admin_actor_type, text, uuid);
-
 create function public.complete_order_fulfillment(
     p_order_id uuid,
     p_expected_version bigint,
