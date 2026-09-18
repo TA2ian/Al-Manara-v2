@@ -61,6 +61,7 @@ async def test_claim_maps_rpc_result_and_passes_session() -> None:
     assert result.replayed is False
     assert client.calls[0][0] == "claim_order_fulfillment"
     assert client.calls[0][1]["p_session_id"] == str(session_id)
+    assert client.calls[0][1]["p_manual_usdt_transfer_reference"] == "0xabc123"
 
 
 @pytest.mark.asyncio
@@ -79,7 +80,7 @@ async def test_complete_maps_rpc_result() -> None:
         }])
     })
 
-    result = await SupabaseFulfillmentRepository(client).complete(order_id, 4, 123, "primary", "complete-1", session_id)
+    result = await SupabaseFulfillmentRepository(client).complete(order_id, 4, 123, "primary", "complete-1", session_id, "0xabc123")
 
     assert result.status == "COMPLETED"
     assert result.version == 5
