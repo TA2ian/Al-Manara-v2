@@ -26,7 +26,6 @@ class FulfillmentRepository(Protocol):
         actor_type: str,
         idempotency_key: str,
         session_id: UUID,
-        manual_usdt_transfer_reference: str,
     ) -> FulfillmentResult: ...
 
     async def complete(
@@ -37,6 +36,7 @@ class FulfillmentRepository(Protocol):
         actor_type: str,
         idempotency_key: str,
         session_id: UUID,
+        manual_usdt_transfer_reference: str,
     ) -> FulfillmentResult: ...
 
 
