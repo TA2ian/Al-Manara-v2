@@ -260,7 +260,7 @@ def build_fulfillment_router(
             await state.set_state(AdminFulfillmentActionState.transfer_reference)
             await query.answer("بعد تنفيذ تحويل USDT يدويًا، أرسل رقم العملية/مرجع التحويل.", show_alert=True)
             await query.message.answer(
-                "نفّذ التحويل يدويًا أولًا إلى محفظة العميل على الشبكة المحددة، ثم أرسل رقم العملية/مرجع التحويل (حتى 200 محرف)."
+                "نفّذ التحويل يدويًا أولًا إلى محفظة العميل على الشبكة المحددة، ثم أرسل TXID/Hash للتحويل (64 حرفًا hexadecimal)."
             )
             return
 
@@ -317,7 +317,7 @@ def build_fulfillment_router(
                 expected_version=expected_version,
                 idempotency_key=str(uuid4()),
                 session_id=session_id,
-                transfer_reference=reference,
+                manual_usdt_transfer_reference=reference,
             )
         )
         await state.clear()
