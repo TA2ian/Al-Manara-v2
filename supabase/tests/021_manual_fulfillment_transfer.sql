@@ -1,6 +1,6 @@
 begin;
 
-select plan(9);
+select plan(11);
 
 select ok(
   to_regprocedure('public.complete_order_fulfillment(uuid,bigint,bigint,admin_actor_type,text,uuid,text)') is not null,
@@ -144,6 +144,24 @@ select ok(
     where internal_order_id = '00000000-0000-0000-0000-000000002121'
   ) = 89.85,
   'snapshot retains net USDT amount for manual transfer'
+);
+
+select ok(
+  exists (
+    select 1 from pg_indexes
+    where schemaname = 'public'
+      and indexname = 'orders_manual_usdt_transfer_reference_uq'
+  ),
+  'manual transfer references have a unique order-level index'
+);
+
+select is(
+  (select count(*)::integer
+     from network_configs
+    where enabled
+      and code in ('BEP20','TRC20','ARB','ETH','SOL','POLYGON')),
+  6,
+  'six operational networks are enabled for manual fulfillment'
 );
 
 select * from finish();
