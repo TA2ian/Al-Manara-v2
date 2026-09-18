@@ -13,6 +13,7 @@ class ReceiptInputType(StrEnum):
 
 class ReceiptAttemptStatus(StrEnum):
     PROCESSING = "processing"
+    SUBMITTED = "submitted"
     FAILED = "failed"
     VERIFIED = "verified"
     ESCALATED = "escalated"
