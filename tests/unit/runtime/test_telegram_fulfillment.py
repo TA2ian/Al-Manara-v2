@@ -113,3 +113,15 @@ async def test_invalid_actor_type_never_calls_application() -> None:
 
     assert response.ok is False
     assert service.calls == []
+
+
+@pytest.mark.asyncio
+async def test_complete_requires_transfer_reference() -> None:
+    service = FakeFulfillmentService()
+    session_validator = FakeSessionValidator()
+    handler = TelegramFulfillmentHandler(service, session_validator=session_validator)  # type: ignore[arg-type]
+
+    response = await handler.complete(TelegramFulfillmentInput(10, "primary", uuid4(), 3, "complete-1", uuid4()))
+
+    assert response.ok is False
+    assert service.calls == []
