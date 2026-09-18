@@ -82,7 +82,7 @@ async def test_complete_rejects_missing_transfer_reference_before_persistence() 
     repository = FakeFulfillmentRepository()
     service = FulfillmentService(repository)
     with pytest.raises(ValueError, match="manual USDT transfer reference"):
-        await service.complete(uuid4(), 3, 100, "primary", "complete-1", uuid4(), "   ")
+        await service.complete(uuid4(), 3, 100, "primary", "complete-1", uuid4(), undefined)
     assert repository.calls == []
 
 
