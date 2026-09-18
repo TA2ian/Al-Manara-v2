@@ -1,6 +1,6 @@
 begin;
 
-select plan(24);
+select plan(27);
 
 select is(
   (select count(*)::integer from network_configs
@@ -94,6 +94,10 @@ select is((select count(*)::integer from audit_logs where target_id in (select i
 
 select is((select net_usdt_amount from order_financial_snapshots where internal_order_id='00000000-0000-0000-0000-000000002221'), 89.850000000::numeric, 'BEP20 net amount is requested less service and network fees');
 select is((select net_usdt_amount from order_financial_snapshots where internal_order_id='00000000-0000-0000-0000-000000002222'), 88.500000000::numeric, 'TRC20 net amount is requested less service and network fees');
+select is((select net_usdt_amount from order_financial_snapshots where internal_order_id='00000000-0000-0000-0000-000000002223'), 89.850000000::numeric, 'ARB net amount is requested less service and network fees');
+select is((select net_usdt_amount from order_financial_snapshots where internal_order_id='00000000-0000-0000-0000-000000002224'), 89.200000000::numeric, 'ETH net amount is requested less service and network fees');
+select is((select net_usdt_amount from order_financial_snapshots where internal_order_id='00000000-0000-0000-0000-000000002225'), 89.000000000::numeric, 'SOL net amount is requested less service and network fees');
+select is((select net_usdt_amount from order_financial_snapshots where internal_order_id='00000000-0000-0000-0000-000000002226'), 89.800000000::numeric, 'POLYGON net amount is requested less service and network fees');
 
 select throws_ok($$select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002226', 2, 22001001, 'primary', 'complete-2207', '00000000-0000-0000-0000-000000002231', repeat('f',64))$$, 'P0001', 'stale order version', 'completed order rejects stale completion');
 
