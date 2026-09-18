@@ -128,6 +128,39 @@ def build_customer_purchase_order_router(composition: CustomerComposition) -> Ro
         if authenticated_telegram_user_id(message) is None:
             await message.answer(ORDER_RETRY_MESSAGE)
             return
+        user_id = authenticated_telegram_user_id(message)
+        if user_id is None:
+            await message.answer(ORDER_RETRY_MESSAGE)
+            return
+
+        active_response = await composition.order_listing.handle(
+            __import__("app.runtime.telegram.customer_order_listing", fromlist=["TelegramCustomerOrderListingInput"]).TelegramCustomerOrderListingInput(
+                authenticated_telegram_user_id=user_id, page=0, page_size=5
+            )
+        )
+        if active_response.ok and active_response.page is not None:
+            active_items = [
+                item for item in active_response.page.items
+                if item.status.value in {
+                    "DRAFT", "PENDING_PAYMENT", "PAYMENT_SUBMITTED",
+                    "UNDER_REVIEW", "APPROVED", "CLARIFICATION_REQUIRED"
+                }
+            ]
+            if active_items:
+                active = active_items[0]
+                await message.answer(
+                    f"لديك طلب قائم بالفعل: {active.public_order_code}\n"
+                    f"الحالة: {active.status.value}\n\n"
+                    "يمكنك متابعة الطلب الحالي قبل إنشاء طلب جديد.",
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                        InlineKeyboardButton(
+                            text="📦 متابعة الطلب",
+                            callback_data=f"orders:open:{active.public_order_code}",
+                        )
+                    ]]),
+                )
+                return
+
         await state.clear()
         await state.update_data(idempotency_key=f"telegram-order:{uuid4().hex}")
         await state.set_state(PurchaseOrderState.amount)
