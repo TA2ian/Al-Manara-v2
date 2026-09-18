@@ -14,9 +14,7 @@ create unique index if not exists orders_manual_usdt_transfer_reference_uq
     on orders(manual_usdt_transfer_reference)
     where manual_usdt_transfer_reference is not null;
 
-drop function if exists list_admin_fulfillment_orders(bigint, admin_actor_type, integer, integer);
-
-create function list_admin_fulfillment_orders(
+create or replace function list_admin_fulfillment_orders(
     p_admin_telegram_user_id bigint,
     p_actor_type admin_actor_type,
     p_page integer default 0,
