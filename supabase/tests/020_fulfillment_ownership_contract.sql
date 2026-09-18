@@ -143,7 +143,9 @@ select throws_ok($$
     'primary',
     'fulfillment-stale-complete',
     '00000000-0000-0000-0000-000000002031',
-    repeat('a', 64)', 'a pre-claim completion callback is rejected as stale');
+    repeat('a', 64)
+  )
+$$, 'P0001', 'stale order version', 'a pre-claim completion callback is rejected as stale');
 
 select throws_ok($$
   select * from complete_order_fulfillment(
@@ -153,7 +155,9 @@ select throws_ok($$
     'backup',
     'fulfillment-wrong-owner',
     '00000000-0000-0000-0000-000000002032',
-    repeat('b', 64)elongs to another admin', 'a non-owner cannot complete the order');
+    repeat('b', 64)
+  )
+$$, 'P0001', 'fulfillment claim belongs to another admin', 'a non-owner cannot complete the order');
 
 select lives_ok($$
   select * from complete_order_fulfillment(
@@ -162,7 +166,8 @@ select lives_ok($$
     20001001,
     'primary',
     'fulfillment-complete-2001',
-    '00000000-0000-0000-0000-000000002031'
+    '00000000-0000-0000-0000-000000002031',
+    repeat('c', 64)
   )
 $$, 'the claim owner can complete with the current version and fresh session');
 
