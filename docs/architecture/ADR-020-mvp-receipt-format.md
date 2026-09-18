@@ -18,7 +18,7 @@ A customer receives at most three processing opportunities for the same receipt/
 2. second failed attempt → explain the concrete reason and provide the final retry opportunity;
 3. third failed attempt → stop automated attempts and escalate the order/evidence to the administrator for manual inspection.
 
-A successful extraction/linkage terminates the retry sequence. Retry attempts are bounded and idempotent; they cannot create multiple active processing jobs for the same order.
+A customer image that passes strict content validation is recorded as SUBMITTED and moves the order into UNDER_REVIEW; this is not a financial approval. Final payment acceptance remains an explicit human-admin decision. Automated extraction/linkage, when enabled later, may enrich a submitted receipt but must never auto-approve the order. Retry attempts are bounded and idempotent; they cannot create multiple active processing jobs for the same order.
 
 Temporary processing resources are cleaned after every attempt, including failure, timeout, and cancellation paths, in accordance with the storage/worker contracts.
 
