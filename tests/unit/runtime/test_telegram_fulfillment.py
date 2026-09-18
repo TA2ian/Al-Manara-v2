@@ -12,13 +12,17 @@ from app.runtime.telegram.fulfillment import TelegramFulfillmentHandler, Telegra
 class FakeFulfillmentService:
     def __init__(self) -> None:
         self.calls: list[str] = []
+        self.claim_kwargs = None
+        self.complete_kwargs = None
 
     async def claim(self, **kwargs):
         self.calls.append("claim")
+        self.claim_kwargs = kwargs
         return FulfillmentResult(kwargs["internal_order_id"], "ORD-1", "APPROVED", 3, 10, datetime.now(timezone.utc), False)
 
     async def complete(self, **kwargs):
         self.calls.append("complete")
+        self.complete_kwargs = kwargs
         return FulfillmentResult(kwargs["internal_order_id"], "ORD-1", "COMPLETED", 4, 10, datetime.now(timezone.utc), False)
 
 
@@ -58,6 +62,8 @@ async def test_complete_accepts_valid_request() -> None:
     assert response.ok is True
     assert response.status == "COMPLETED"
     assert service.calls == ["complete"]
+    assert service.complete_kwargs["manual_usdt_transfer_reference"] == "a" * 64
+    assert service.complete_kwargs["idempotency_key"] == "complete-1"
 
 
 @pytest.mark.asyncio
