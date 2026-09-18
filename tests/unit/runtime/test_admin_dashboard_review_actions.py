@@ -39,6 +39,7 @@ def test_review_order_list_exposes_version_bound_actions() -> None:
     assert "🔎 طلبات قيد المراجعة" in text
     assert markup is not None
     assert _callbacks(markup) == [
+        f"admin:order:details:{order_id}",
         f"admin:order:approve:{order_id}:4",
         f"admin:order:reject:{order_id}:4",
         f"admin:order:clarify:{order_id}:4",
