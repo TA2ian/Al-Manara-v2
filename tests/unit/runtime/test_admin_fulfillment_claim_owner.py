@@ -21,6 +21,9 @@ def _page(claimed_by: int | None = None, version: int = 5) -> AdminOrderPage:
                 payment_currency="USD",
                 local_amount=Decimal("10"),
                 created_at=datetime.now(timezone.utc),
+                fee_amount=Decimal("1"),
+                network_fee_amount=Decimal("0.15"),
+                net_usdt_amount=Decimal("8.85"),
                 fulfillment_claimed_by=claimed_by,
             ),
         ),
@@ -47,6 +50,10 @@ def test_unclaimed_fulfillment_order_exposes_claim_and_closure_actions() -> None
     )
 
     assert "🚚 الطلبات المعتمدة للتنفيذ" in text
+    assert "المبلغ المطلوب: 10 USDT" in text
+    assert "رسوم الخدمة: 1 USDT" in text
+    assert "رسوم الشبكة: 0.15 USDT" in text
+    assert "صافي التحويل: 8.85 USDT" in text
     assert _callbacks(markup) == [
         f"admin:fulfillment:claim:{order_id}:5",
         f"admin:closure:request:{order_id}:5",
