@@ -40,7 +40,7 @@ async def test_complete_delegates_to_atomic_repository_with_session() -> None:
     service = FulfillmentService(repository)
     session_id = uuid4()
 
-    result = await service.complete(uuid4(), 3, 100, "backup", "complete-1", session_id)
+    result = await service.complete(uuid4(), 3, 100, "backup", "complete-1", session_id, "0xabc123")
 
     assert result.status == "COMPLETED"
     assert repository.calls[0][0] == "complete"
@@ -74,4 +74,13 @@ async def test_invalid_order_identity_is_rejected_before_persistence() -> None:
 
     with pytest.raises(ValueError, match="order id"):
         await service.claim("not-a-uuid", 1, 100, "primary", "claim-1", uuid4())
+    assert repository.calls == []
+
+
+@pytest.mark.asyncio
+async def test_complete_rejects_missing_transfer_reference_before_persistence() -> None:
+    repository = FakeFulfillmentRepository()
+    service = FulfillmentService(repository)
+    with pytest.raises(ValueError, match="manual USDT transfer reference"):
+        await service.complete(uuid4(), 3, 100, "primary", "complete-1", uuid4(), "   ")
     assert repository.calls == []
