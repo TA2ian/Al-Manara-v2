@@ -26,6 +26,7 @@ class FulfillmentRepository(Protocol):
         actor_type: str,
         idempotency_key: str,
         session_id: UUID,
+        manual_usdt_transfer_reference: str,
     ) -> FulfillmentResult: ...
 
     async def complete(
@@ -53,6 +54,7 @@ class FulfillmentService:
         actor_type: str,
         idempotency_key: str,
         session_id: UUID,
+        manual_usdt_transfer_reference: str,
     ) -> FulfillmentResult:
         actor, key, session = self._validate(
             internal_order_id, expected_version, admin_telegram_user_id, actor_type, idempotency_key, session_id
@@ -73,9 +75,19 @@ class FulfillmentService:
         actor, key, session = self._validate(
             internal_order_id, expected_version, admin_telegram_user_id, actor_type, idempotency_key, session_id
         )
+        reference = self._validate_transfer_reference(manual_usdt_transfer_reference)
         return await self._repository.complete(
-            internal_order_id, expected_version, admin_telegram_user_id, actor, key, session
+            internal_order_id, expected_version, admin_telegram_user_id, actor, key, session, reference
         )
+
+    @staticmethod
+    def _validate_transfer_reference(value: str) -> str:
+        if not isinstance(value, str):
+            raise ValueError("manual USDT transfer reference is required")
+        reference = value.strip()
+        if not 1 <= len(reference) <= 200:
+            raise ValueError("manual USDT transfer reference must be between 1 and 200 characters")
+        return reference
 
     @staticmethod
     def _validate(
