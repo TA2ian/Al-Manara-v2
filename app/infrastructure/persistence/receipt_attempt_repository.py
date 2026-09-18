@@ -32,6 +32,7 @@ class ReceiptPersistenceNotFoundError(ReceiptPersistenceError):
 
 _PROCESSING_STATUS_MAP: dict[str, ReceiptAttemptStatus] = {
     "PROCESSING": ReceiptAttemptStatus.PROCESSING,
+    "SUBMITTED": ReceiptAttemptStatus.SUBMITTED,
     "SUCCEEDED": ReceiptAttemptStatus.VERIFIED,
     "FAILED": ReceiptAttemptStatus.FAILED,
     "ESCALATED": ReceiptAttemptStatus.ESCALATED,
@@ -190,6 +191,7 @@ class SupabaseReceiptAttemptRepository(ReceiptAttemptRepository):
     @staticmethod
     def _to_processing_status(status: ReceiptAttemptStatus) -> str:
         mapping = {
+            ReceiptAttemptStatus.SUBMITTED: "SUBMITTED",
             ReceiptAttemptStatus.VERIFIED: "SUCCEEDED",
             ReceiptAttemptStatus.FAILED: "FAILED",
             ReceiptAttemptStatus.ESCALATED: "ESCALATED",
