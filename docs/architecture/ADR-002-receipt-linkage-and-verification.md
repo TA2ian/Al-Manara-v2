@@ -12,23 +12,15 @@ If a customer has a ShamCash receipt as a PDF, the bot asks the customer to open
 
 Customer receipt submission does not accept a transaction-reference text message. The legacy transaction-reference fields remain only for compatibility with historical data and contracts; they are not required or used as customer verification input.
 
-Receipt processing is split into extraction and comparison boundaries:
+Receipt processing, when automated extraction is enabled, applies only to customer-submitted images. The admin does not upload or submit a second receipt to the bot. Instead, the admin reviews the customer-submitted receipt and the order's persisted financial data manually, then makes the explicit approval/rejection decision through the existing admin review flow.
 
-```text
-Customer image ─┐
-                ├─> Safe image processing/OCR ─> ReceiptData ─> ReceiptVerificationService
-Admin image ────┘
-```
-
-The source of the file is recorded as `receipt_source` only. It must not select a different comparison algorithm.
+The source of a customer file is recorded as `receipt_source=customer`. The legacy `admin_verified` enum value is retained only for historical schema compatibility and is not a supported MVP submission path.
 
 ### Blocking linkage rule
 
-`public_order_code` is the mandatory blocking linkage field.
+`public_order_code` is the mandatory blocking linkage field for automated customer-receipt linkage.
 
-If it is missing or does not identify the current order, the receipt cannot enter `UNDER_REVIEW` for that order.
-
-For customer-submitted evidence, the customer is asked to resend a correctly linked receipt image. For admin-submitted evidence, the admin is shown the linkage failure and must provide the correct evidence/order context.
+If it is missing or does not identify the current order, the automated customer-receipt path must not link it to that order. The admin review screen may still display the submitted receipt and its extracted/available evidence for manual inspection; the admin can resolve the case through the existing review decision flow.
 
 ### Non-blocking comparison fields
 
@@ -46,12 +38,12 @@ OCR/QR processing produces data only. It has no direct authority to modify order
 
 ## Consequences
 
-- Customer and admin receipt paths share exactly one comparison service.
-- The customer path is image-only; PDF is converted by the user to a supported screenshot/image before submission.
+- The customer receipt path is image-only; the admin does not upload a separate receipt.
 - PDF parser dependencies and PDF attack surface are excluded from the MVP.
 - Customer-supplied transaction-reference text cannot create circular self-verification.
-- An unrelated or old receipt cannot be force-linked to an order.
-- Automated extraction remains evidence and review assistance, never financial authorization.
+- An unrelated or old receipt cannot be force-linked automatically.
+- Automated extraction, when enabled, remains evidence and review assistance, never financial authorization.
+- The admin reviews the order and customer receipt manually and retains explicit control over approval/rejection.
 
 ## Rejected alternatives
 
@@ -66,3 +58,7 @@ Rejected because it is self-asserted data and can become circular if the same va
 ### Separate customer/admin verification algorithms
 
 Rejected because `receipt_source` is provenance metadata, not a business-rule switch.
+
+### Admin-uploaded receipt evidence
+
+Rejected because the admin can inspect the customer's submitted receipt together with the persisted order and financial snapshot directly. A second admin-uploaded evidence path would duplicate evidence handling, complicate provenance/attempt semantics, and add unnecessary attack surface without improving the manual review decision.
