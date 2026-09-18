@@ -20,7 +20,7 @@ insert into orders (internal_order_id, public_order_code, user_id, wallet_id, ne
 select '00000000-0000-0000-0000-000000001721', 'ORD-1701', '00000000-0000-0000-0000-000000001701', '00000000-0000-0000-0000-000000001711', 'BEP20', id, 'PENDING_PAYMENT'
 from payment_methods where code = 'SHAM_CASH';
 
-insert into order_financial_snapshots (internal_order_id, requested_amount, fee_percent, fee_amount, net_usdt_amount, payment_currency, exchange_rate, local_amount, rounding_policy_version, network_config_version)
+insert into order_financial_snapshots (internal_order_id, requested_amount, fee_percent, fee_amount, network_fee_amount, net_usdt_amount, payment_currency, exchange_rate, local_amount, rounding_policy_version, network_config_version)
 values ('00000000-0000-0000-0000-000000001721', 100, 10, 10, 0.15, 89.85, 'USD', null, 100, 'test', 1);
 
 select is((select count(*)::integer from get_customer_order_details(1701000001, 'ORD-1701')), 1, 'owner can resolve own order');
