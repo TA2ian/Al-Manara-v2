@@ -6,7 +6,6 @@ from typing import Any
 
 from app.application.admin_order_closure import AdminOrderClosureService
 from app.application.admin_order_listing import AdminOrderListingService
-from app.application.admin_order_review_details import AdminOrderReviewDetailsService
 from app.application.admin_order_review import AdminOrderReviewService
 from app.application.admin_order_review_details import AdminOrderReviewDetailsService
 from app.application.admin_payment_account import AdminPaymentAccountService
@@ -26,7 +25,6 @@ from app.infrastructure.persistence.admin_authorization_repository import Supaba
 from app.infrastructure.persistence.admin_order_closure_repository import SupabaseAdminOrderClosureRepository
 from app.infrastructure.persistence.admin_order_listing_repository import SupabaseAdminOrderListingRepository
 from app.infrastructure.persistence.admin_order_review_repository import SupabaseAdminOrderReviewRepository
-from app.infrastructure.persistence.admin_order_review_details_repository import SupabaseAdminOrderReviewDetailsRepository
 from app.infrastructure.persistence.admin_order_review_details_repository import SupabaseAdminOrderReviewDetailsRepository
 from app.infrastructure.persistence.admin_payment_account_repository import SupabaseAdminPaymentAccountRepository
 from app.infrastructure.persistence.admin_session_repository import SupabaseAdminSessionRepository
@@ -76,7 +74,6 @@ class AdminComposition:
     payment_accounts: TelegramAdminPaymentAccountHandler
     identity_review: TelegramAdminCustomerIdentityHandler
     actor_type: SupabaseAdminAuthorizationRepository
-    review_details: AdminOrderReviewDetailsService
 
 
 @dataclass(frozen=True, slots=True)
