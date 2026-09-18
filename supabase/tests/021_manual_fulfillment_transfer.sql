@@ -1,6 +1,6 @@
 begin;
 
-select plan(11);
+select plan(12);
 
 select ok(
   to_regprocedure('public.complete_order_fulfillment(uuid,bigint,bigint,admin_actor_type,text,uuid,text)') is not null,
@@ -144,6 +144,15 @@ select ok(
     where internal_order_id = '00000000-0000-0000-0000-000000002121'
   ) = 89.85,
   'snapshot retains net USDT amount for manual transfer'
+);
+
+select ok(
+  has_function_privilege(
+    'service_role',
+    'public.list_admin_fulfillment_orders(bigint,admin_actor_type,integer,integer)',
+    'EXECUTE'
+  ),
+  'fulfillment listing RPC remains service-role only'
 );
 
 select ok(
