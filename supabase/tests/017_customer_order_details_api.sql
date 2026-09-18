@@ -1,6 +1,6 @@
 begin;
 
-select plan(9);
+select plan(10);
 
 select ok(
   to_regprocedure('public.get_customer_order_details(bigint,text)') is not null,
