@@ -1,6 +1,6 @@
 begin;
 
-select plan(27);
+select plan(23);
 
 select is(
   (select count(*)::integer from network_configs
