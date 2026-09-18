@@ -85,8 +85,8 @@ class FulfillmentService:
         if not isinstance(value, str):
             raise ValueError("manual USDT transfer reference is required")
         reference = value.strip()
-        if not 1 <= len(reference) <= 200:
-            raise ValueError("manual USDT transfer reference must be between 1 and 200 characters")
+        if len(reference) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in reference):
+            raise ValueError("manual USDT transfer reference must be a 64-character hexadecimal transaction hash")
         return reference
 
     @staticmethod
