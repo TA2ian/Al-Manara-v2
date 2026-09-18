@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.application.fulfillment import FulfillmentService
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
@@ -33,6 +33,7 @@ class TelegramFulfillmentInput:
     expected_version: int
     idempotency_key: str
     session_id: UUID | None = None
+    transfer_reference: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +47,7 @@ class TelegramFulfillmentResponse:
 
 class AdminFulfillmentActionState(StatesGroup):
     confirmation = State()
+    transfer_reference = State()
     transfer_reference = State()
 
 
@@ -109,6 +111,8 @@ class TelegramFulfillmentHandler:
         idempotency_key = request.idempotency_key.strip()
         if actor_type not in {"primary", "backup"} or not 1 <= len(idempotency_key) <= 128:
             return TelegramFulfillmentResponse(False, None, None, False, "invalid fulfillment request")
+        if operation == "complete" and not isinstance(request.transfer_reference, str):
+            return TelegramFulfillmentResponse(False, None, None, False, "أدخل رقم معاملة البلوكتشين أولًا.")
         if self._session_validator is None:
             return TelegramFulfillmentResponse(False, None, None, False, FULFILLMENT_ERROR_MESSAGE)
         try:
@@ -128,6 +132,7 @@ class TelegramFulfillmentHandler:
                 actor_type=actor_type,
                 idempotency_key=idempotency_key,
                 session_id=request.session_id,
+                **({"transfer_reference": request.transfer_reference} if operation == "complete" else {}),
             )
         except ValueError:
             return TelegramFulfillmentResponse(False, None, None, False, FULFILLMENT_ERROR_MESSAGE)
@@ -209,9 +214,17 @@ def build_fulfillment_router(
                 actor_type=actor_type,
                 session_id=str(session_response.session.session_id),
             )
-            await state.set_state(AdminFulfillmentActionState.confirmation)
-            await query.answer("تم إنشاء جلسة إدارية حديثة. راجع العملية ثم أكد التنفيذ.", show_alert=True)
-            await query.message.edit_reply_markup(reply_markup=_confirmation_markup(order_id, expected_version))
+            if operation == "complete":
+                await state.set_state(AdminFulfillmentActionState.transfer_reference)
+                await query.answer("الجلسة جاهزة. أرسل الآن TXID/Hash التحويل اليدوي.", show_alert=True)
+                await query.message.answer(
+                    "قبل الإتمام: تأكد أنك أرسلت صافي USDT الظاهر في تفاصيل الطلب إلى محفظة العميل على BEP20 أو TRC20.\n"
+                    "أرسل TXID/Hash للتحويل (64 حرفًا hexadecimal)."
+                )
+            else:
+                await state.set_state(AdminFulfillmentActionState.confirmation)
+                await query.answer("تم إنشاء جلسة إدارية حديثة. راجع العملية ثم أكد الاستلام.", show_alert=True)
+                await query.message.edit_reply_markup(reply_markup=_confirmation_markup(order_id, expected_version))
             return
 
         pending_admin = data.get("admin_user_id")
@@ -312,5 +325,48 @@ def build_fulfillment_router(
         )
         await state.clear()
         await message.answer(response.message)
+
+
+    @router.message(AdminFulfillmentActionState.transfer_reference)
+    async def handle_transfer_reference(message: Message, state: FSMContext) -> None:
+        if not is_private_message(message):
+            await state.clear()
+            return
+        admin_user_id = authenticated_telegram_user_id(message)
+        if admin_user_id is None:
+            await state.clear()
+            await message.answer("تعذر التحقق من هوية المدير.")
+            return
+        data = await state.get_data()
+        try:
+            if int(data.get("admin_user_id")) != admin_user_id:
+                raise ValueError
+            order_id = UUID(str(data["order_id"]))
+            expected_version = int(data["expected_version"])
+            actor_type = str(data["actor_type"])
+            session_id = UUID(str(data["session_id"]))
+        except (KeyError, TypeError, ValueError):
+            await state.clear()
+            await message.answer("انتهت جلسة العملية. افتح الطلب من جديد.")
+            return
+        reference = (message.text or "").strip()
+        if len(reference) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in reference):
+            await message.answer("TXID غير صالح. أرسل hash من 64 حرفًا hexadecimal فقط.")
+            return
+        response = await handler.complete(
+            TelegramFulfillmentInput(
+                admin_user_id=admin_user_id,
+                actor_type=actor_type,
+                order_id=order_id,
+                expected_version=expected_version,
+                idempotency_key=str(uuid4()),
+                session_id=session_id,
+                transfer_reference=reference,
+            )
+        )
+        await state.clear()
+        await message.answer(response.message if response.ok else "تعذر إتمام التسليم. قد يكون الطلب تغير أو الجلسة انتهت.")
+        if response.ok:
+            await message.answer("تم تسجيل التحويل اليدوي وإغلاق الطلب كـ COMPLETED.")
 
     return router
