@@ -1,10 +1,9 @@
 -- Final manual fulfillment hardening.
--- Completion requires a recorded blockchain transaction hash and only permits
--- operational networks explicitly supported for manual transfer: BEP20/TRC20.
--- Blockchain submission itself remains manual; this RPC only records the
--- administrator's confirmation after the transfer has been made.
+-- Completion is a manual operational confirmation for every enabled USDT network.
+-- The RPC never submits a blockchain transaction; it only records the TXID/hash
+-- after the administrator has completed the transfer.
 
-create function public.complete_order_fulfillment(
+create or replace function public.complete_order_fulfillment(
     p_order_id uuid,
     p_expected_version bigint,
     p_admin_telegram_user_id bigint,
@@ -101,8 +100,9 @@ begin
         raise exception using errcode='P0001', message='stale order version', detail=format('expected=%s current=%s', p_expected_version, v_version);
     end if;
     if v_status <> 'APPROVED' then raise exception 'order is not eligible for fulfillment completion'; end if;
-    if v_network not in ('BEP20','TRC20') then
-        raise exception 'manual USDT fulfillment is restricted to BEP20 or TRC20';
+
+    if v_network not in ('BEP20','TRC20','ARB','ETH','SOL','POLYGON') then
+        raise exception 'network is not enabled for manual USDT fulfillment';
     end if;
 
     select fs.net_usdt_amount into v_net_usdt
@@ -110,6 +110,15 @@ begin
      where fs.internal_order_id = p_order_id;
     if v_net_usdt is null or v_net_usdt <= 0 then
         raise exception 'order has no valid net USDT fulfillment amount';
+    end if;
+
+    if exists (
+        select 1
+          from orders o
+         where o.manual_usdt_transfer_reference = v_reference
+           and o.internal_order_id <> p_order_id
+    ) then
+        raise exception 'transfer reference is already recorded on another order';
     end if;
 
     select fc.admin_telegram_user_id into v_claim_admin
