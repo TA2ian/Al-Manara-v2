@@ -79,7 +79,7 @@ async def test_complete_maps_rpc_result() -> None:
         }])
     })
 
-    result = await SupabaseFulfillmentRepository(client).complete(order_id, 4, 123, "primary", "complete-1", session_id, "0xabc123")
+    result = await SupabaseFulfillmentRepository(client).complete(order_id, 4, 123, "primary", "complete-1", session_id, "a"*64)
 
     assert result.status == "COMPLETED"
     assert result.version == 5
