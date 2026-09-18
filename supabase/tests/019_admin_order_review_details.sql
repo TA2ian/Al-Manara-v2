@@ -1,6 +1,6 @@
 begin;
 
-select plan(12);
+select plan(9);
 
 select ok(
   to_regprocedure('public.get_admin_order_review_details(bigint,admin_actor_type,uuid,uuid)') is not null,
