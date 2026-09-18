@@ -74,6 +74,9 @@ class SupabaseAdminOrderListingRepository(AdminOrderListingRepository):
                     payment_currency=str(row["payment_currency"]) if row.get("payment_currency") is not None else None,
                     local_amount=Decimal(str(row["local_amount"])) if row.get("local_amount") is not None else None,
                     created_at=created_at,
+                    fee_amount=Decimal(str(row["fee_amount"])) if row.get("fee_amount") is not None else None,
+                    network_fee_amount=Decimal(str(row["network_fee_amount"])) if row.get("network_fee_amount") is not None else None,
+                    net_usdt_amount=Decimal(str(row["net_usdt_amount"])) if row.get("net_usdt_amount") is not None else None,
                     fulfillment_claimed_by=int(claim_owner) if claim_owner is not None else None,
                 )
             except (KeyError, TypeError, ValueError) as exc:
