@@ -178,7 +178,6 @@ begin
 end;
 $$;
 
-revoke execute on function public.complete_order_fulfillment(uuid, bigint, bigint, admin_actor_type, text, uuid) from public, service_role;
 grant execute on function public.complete_order_fulfillment(
     uuid, bigint, bigint, admin_actor_type, text, uuid, text
 ) to service_role;
