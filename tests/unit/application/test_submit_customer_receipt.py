@@ -28,7 +28,7 @@ async def test_customer_receipt_is_validated_then_submitted_for_manual_review():
     inspector = AsyncMock()
     clock = AsyncMock()
     submitted_at = datetime(2026, 9, 18, tzinfo=timezone.utc)
-    clock.now.return_value = submitted_at
+    clock.now = lambda: submitted_at
     processing = build_attempt(order_id)
     submitted = build_attempt(order_id, ReceiptAttemptStatus.SUBMITTED)
     attempts.reserve_next_attempt.return_value = ReceiptReservation(processing, replayed=False)
@@ -61,7 +61,7 @@ async def test_invalid_image_never_reserves_receipt():
     attempts = AsyncMock(spec=ReceiptAttemptRepository)
     inspector = AsyncMock()
     clock = AsyncMock()
-    clock.now.return_value = datetime(2026, 9, 18, tzinfo=timezone.utc)
+    clock.now = lambda: datetime(2026, 9, 18, tzinfo=timezone.utc)
     inspector.inspect_bytes.side_effect = ValueError("invalid image")
 
     with pytest.raises(ValueError, match="invalid image"):
@@ -85,7 +85,7 @@ async def test_replay_does_not_finalize_again():
     attempts = AsyncMock(spec=ReceiptAttemptRepository)
     inspector = AsyncMock()
     clock = AsyncMock()
-    clock.now.return_value = datetime(2026, 9, 18, tzinfo=timezone.utc)
+    clock.now = lambda: datetime(2026, 9, 18, tzinfo=timezone.utc)
     submitted = build_attempt(order_id, ReceiptAttemptStatus.SUBMITTED)
     attempts.reserve_next_attempt.return_value = ReceiptReservation(submitted, replayed=True)
 
