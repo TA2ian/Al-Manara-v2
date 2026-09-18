@@ -23,7 +23,7 @@ insert into users (id, telegram_user_id)
 values ('00000000-0000-0000-0000-000000002101', 21002001);
 
 insert into wallets (
-  id, user_id, network_code, address, normalized_address, status, label
+  id, user_id, network_code, address, normalized_address, status, label, qr_image_file_id
 ) values (
   '00000000-0000-0000-0000-000000002111',
   '00000000-0000-0000-0000-000000002101',
