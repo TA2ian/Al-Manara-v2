@@ -53,7 +53,7 @@ async def test_complete_accepts_valid_request() -> None:
     session_validator = FakeSessionValidator()
     handler = TelegramFulfillmentHandler(service, session_validator=session_validator)  # type: ignore[arg-type]
 
-    response = await handler.complete(TelegramFulfillmentInput(10, "primary", uuid4(), 3, "complete-1", uuid4(), "0xabc123"))
+    response = await handler.complete(TelegramFulfillmentInput(10, "primary", uuid4(), 3, "complete-1", uuid4(), "a"*64))
 
     assert response.ok is True
     assert response.status == "COMPLETED"
