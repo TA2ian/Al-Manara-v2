@@ -28,6 +28,9 @@ class AdminOrderListItem:
     payment_currency: str | None
     local_amount: Decimal | None
     created_at: datetime
+    fee_amount: Decimal | None = None
+    network_fee_amount: Decimal | None = None
+    net_usdt_amount: Decimal | None = None
     fulfillment_claimed_by: int | None = None
 
 
