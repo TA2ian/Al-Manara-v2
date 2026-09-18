@@ -26,7 +26,8 @@ class SupabaseFulfillmentRepository(FulfillmentRepository):
 
     async def claim(
         self, internal_order_id: UUID, expected_version: int, admin_telegram_user_id: int,
-        actor_type: str, idempotency_key: str, session_id: UUID
+        actor_type: str, idempotency_key: str, session_id: UUID,
+        manual_usdt_transfer_reference: str
     ) -> FulfillmentResult:
         return await self._execute(
             "claim_order_fulfillment",
@@ -54,6 +55,7 @@ class SupabaseFulfillmentRepository(FulfillmentRepository):
                 "p_actor_type": actor_type,
                 "p_idempotency_key": idempotency_key,
                 "p_session_id": str(session_id),
+                "p_manual_usdt_transfer_reference": manual_usdt_transfer_reference,
             },
             require_claimed=False,
         )
