@@ -18,6 +18,8 @@ from app.application.fulfillment import FulfillmentService
 from app.application.list_wallets import ListWalletsService
 from app.application.register_wallet import RegisterWalletService
 from app.application.uow import UnitOfWork
+from app.application.submit_customer_receipt import SubmitCustomerReceiptService
+from app.application.receipt_image import ReceiptImageInspectorImpl
 from app.infrastructure.persistence.admin_authorization_repository import SupabaseAdminAuthorizationRepository
 from app.infrastructure.persistence.admin_order_closure_repository import SupabaseAdminOrderClosureRepository
 from app.infrastructure.persistence.admin_order_listing_repository import SupabaseAdminOrderListingRepository
@@ -43,6 +45,7 @@ from app.infrastructure.persistence.quote_support_repository import (
     UuidPublicOrderCodeGenerator,
 )
 from app.infrastructure.persistence.supabase_order_uow import SupabaseOrderUnitOfWork
+from app.infrastructure.persistence.receipt_attempt_repository import SupabaseReceiptAttemptRepository
 from app.infrastructure.persistence.wallet_repository import SupabaseWalletRepository
 from app.runtime.telegram.admin_customer_identity import TelegramAdminCustomerIdentityHandler
 from app.runtime.telegram.admin_order_closure import TelegramAdminOrderClosureHandler
@@ -77,6 +80,7 @@ class CustomerComposition:
     wallets: TelegramWalletHandler
     order_listing: TelegramCustomerOrderListingHandler
     order_details: CustomerOrderDetailsService
+    customer_receipt: SubmitCustomerReceiptService
     identity: TelegramCustomerIdentityHandler
 
 
@@ -142,6 +146,11 @@ def build_customer_composition(client: Any) -> CustomerComposition:
             CustomerOrderListingService(SupabaseCustomerOrderListingRepository(client))
         ),
         order_details=CustomerOrderDetailsService(SupabaseCustomerOrderDetailsRepository(client)),
+        customer_receipt=SubmitCustomerReceiptService(
+            attempts=SupabaseReceiptAttemptRepository(client),
+            inspector=ReceiptImageInspectorImpl(),
+            clock=UtcQuoteClock(),
+        ),
         identity=TelegramCustomerIdentityHandler(
             CustomerIdentityService(SupabaseCustomerIdentityRepository(client))
         ),
