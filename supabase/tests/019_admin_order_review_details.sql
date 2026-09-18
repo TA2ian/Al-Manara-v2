@@ -37,6 +37,11 @@ select ok(
 insert into users (id, telegram_user_id)
 values ('00000000-0000-0000-0000-000000001901', 1901000001);
 
+insert into admin_users (telegram_user_id, actor_type, enabled, emergency_only)
+values (1901999001, 'primary', true, false)
+on conflict (telegram_user_id) do update
+set actor_type = excluded.actor_type, enabled = excluded.enabled, emergency_only = excluded.emergency_only;
+
 insert into wallets (id, user_id, network_code, address, normalized_address, status, label, qr_image_file_id)
 values (
   '00000000-0000-0000-0000-000000001911',
@@ -95,10 +100,10 @@ select ok(
 select is(
   (select count(*)::integer
      from get_admin_order_review_details(
-       (select telegram_user_id from admin_users where enabled limit 1),
-       (select actor_type from admin_users where enabled limit 1),
+       1901999001,
+       'primary',
        '00000000-0000-0000-0000-000000001921',
-       (select id from admin_sessions where revoked_at is null and expires_at > now() limit 1)
+       (select session_id from create_admin_session(1901999001, 'primary'))
      )
   ),
   1,
