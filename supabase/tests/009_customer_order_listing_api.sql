@@ -37,6 +37,8 @@ select
   'PENDING_PAYMENT',
   now() - interval '1 hour'
 from payment_methods where code = 'SHAM_CASH';
+update orders set status = 'COMPLETED' where internal_order_id = '00000000-0000-0000-0000-000000009921';
+
 insert into orders (internal_order_id, public_order_code, user_id, wallet_id, network_code, payment_method_id, status, created_at)
 select
   '00000000-0000-0000-0000-000000009922',
