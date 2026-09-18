@@ -69,7 +69,7 @@ select is((select public_order_code from orders where internal_order_id = '10000
 -- The single-active-order invariant intentionally blocks a second live order.
 -- Close the replay-tested order before exercising a separate currency order.
 update orders
-   set status = 'COMPLETED'
+   set status = 'COMPLETED', version = version + 1
  where internal_order_id = '10000000-0000-0000-0000-000000000001';
 
 select lives_ok($$
