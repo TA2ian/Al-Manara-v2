@@ -63,7 +63,7 @@ begin
         raise exception 'only the third receipt attempt may escalate';
     end if;
 
-    if p_processing_status in ('SUBMITTED','SUCCEEDED') then
+    if p_processing_status = 'SUBMITTED' then
         select o.status::text, o.version, o.public_order_code
           into v_current_status, v_order_version, v_public_order_code
           from orders o
@@ -103,11 +103,21 @@ begin
             jsonb_build_object('status', 'UNDER_REVIEW', 'version', v_order_version + 2),
             jsonb_build_object('source', 'customer_receipt', 'submission_id', p_submission_id, 'public_order_code', v_public_order_code)
         );
+    elsif p_processing_status = 'SUCCEEDED' then
+        select o.status::text
+          into v_current_status
+          from orders o
+         where o.internal_order_id = v_order_id
+         for update;
+        if not found then raise exception 'receipt order not found'; end if;
+        if v_current_status <> 'UNDER_REVIEW' then
+            raise exception 'verified receipt requires order under review';
+        end if;
     end if;
 
     update receipt_submissions as rs
        set processing_status = p_processing_status,
-           linkage_status = case when p_processing_status in ('SUBMITTED','SUCCEEDED') then 'PENDING' else coalesce(p_linkage_status, rs.linkage_status) end,
+           linkage_status = case when p_processing_status = 'SUCCEEDED' then 'LINKED' when p_processing_status = 'SUBMITTED' then 'PENDING' else coalesce(p_linkage_status, rs.linkage_status) end,
            failure_reason = case when p_processing_status in ('FAILED','ESCALATED') then btrim(p_failure_reason) else null end,
            completed_at = now()
      where rs.id = p_submission_id;
