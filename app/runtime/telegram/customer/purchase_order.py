@@ -11,6 +11,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 from app.composition_root import CustomerComposition
 from app.runtime.telegram.contracts import TelegramOrderInput
+from app.runtime.telegram.customer_order_listing import TelegramCustomerOrderListingInput
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
 
 PRIVATE_CHAT_REQUIRED = "حفاظًا على خصوصيتك، أكمل إنشاء الطلب في محادثة خاصة مع البوت."
@@ -134,7 +135,7 @@ def build_customer_purchase_order_router(composition: CustomerComposition) -> Ro
             return
 
         active_response = await composition.order_listing.handle(
-            __import__("app.runtime.telegram.customer_order_listing", fromlist=["TelegramCustomerOrderListingInput"]).TelegramCustomerOrderListingInput(
+            TelegramCustomerOrderListingInput(
                 authenticated_telegram_user_id=user_id, page=0, page_size=5
             )
         )
