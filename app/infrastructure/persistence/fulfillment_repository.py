@@ -55,7 +55,7 @@ class SupabaseFulfillmentRepository(FulfillmentRepository):
                 "p_actor_type": actor_type,
                 "p_idempotency_key": idempotency_key,
                 "p_session_id": str(session_id),
-                "p_manual_usdt_transfer_reference": manual_usdt_transfer_reference,
+                "p_transfer_reference": transfer_reference,
             },
             require_claimed=False,
         )
