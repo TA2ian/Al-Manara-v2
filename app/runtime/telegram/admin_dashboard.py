@@ -66,6 +66,15 @@ def _render_orders(
             f"  العميل: {item.user_telegram_id}\n"
             f"  الشبكة: {item.network_code}"
         )
+        if fulfillment_actions:
+            if item.requested_amount is not None:
+                lines.append(f"  المبلغ المطلوب: {item.requested_amount} USDT")
+            if item.fee_amount is not None:
+                lines.append(f"  رسوم الخدمة: {item.fee_amount} USDT")
+            if item.network_fee_amount is not None:
+                lines.append(f"  رسوم الشبكة: {item.network_fee_amount} USDT")
+            if item.net_usdt_amount is not None:
+                lines.append(f"  صافي التحويل: {item.net_usdt_amount} USDT")
         if review_actions:
             rows.append([InlineKeyboardButton(text="عرض الإيصال والتفاصيل", callback_data=receipt_callback_data(item.internal_order_id))])
             rows.extend(order_action_markup(item.internal_order_id, item.version).inline_keyboard)
