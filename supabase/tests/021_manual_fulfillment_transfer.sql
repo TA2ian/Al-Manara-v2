@@ -3,7 +3,7 @@ begin;
 select plan(9);
 
 select ok(
-  to_regprocedure('public.complete_order_fulfillment(uuid,bigint,bigint,admin_actor_type,text,text,uuid)') is not null,
+  to_regprocedure('public.complete_order_fulfillment(uuid,bigint,bigint,admin_actor_type,text,uuid,text)') is not null,
   'manual-reference completion RPC exists'
 );
 
@@ -88,8 +88,8 @@ select lives_ok(
     21001001,
     'primary',
     'complete-2101',
-    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-    '00000000-0000-0000-0000-000000002131'
+    '00000000-0000-0000-0000-000000002131',
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   )
   $$,
   'completion records manual transfer reference'
