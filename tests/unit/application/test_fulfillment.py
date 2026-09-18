@@ -40,7 +40,7 @@ async def test_complete_delegates_to_atomic_repository_with_session() -> None:
     service = FulfillmentService(repository)
     session_id = uuid4()
 
-    result = await service.complete(uuid4(), 3, 100, "backup", "complete-1", session_id, "0xabc123")
+    result = await service.complete(uuid4(), 3, 100, "backup", "complete-1", session_id, "a"*64)
 
     assert result.status == "COMPLETED"
     assert repository.calls[0][0] == "complete"
