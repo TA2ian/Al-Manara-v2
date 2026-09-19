@@ -17,6 +17,8 @@ SOL_ADDRESS = "11111111111111111111111111111111"
 def test_normalize_qr_address_removes_known_prefixes() -> None:
     assert normalize_qr_address("ethereum:0xabc") == "0xabc"
     assert normalize_qr_address("TRON:T123") == "T123"
+    assert normalize_qr_address("ethereum:0xabc@1?value=10") == "0xabc"
+    assert normalize_qr_address("solana:11111111111111111111111111111111?amount=1") == "11111111111111111111111111111111"
     assert normalize_qr_address("  T 123  ") == "T 123"
 
 
