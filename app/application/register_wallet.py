@@ -40,9 +40,9 @@ class RegisterWalletService:
             qr_image_file_id=command.qr_image_file_id,
             label=command.label,
         )
-        existing = await self._wallets.find_verified_by_address(registration.address)
+        existing = await self._wallets.find_verified_by_address(registration.address, registration.network)
         if existing is not None:
-            raise ValueError("wallet address is already verified")
+            raise ValueError("wallet address is already verified on this network")
 
         wallet = await self._wallets.create_pending(
             user_id=command.user_id,
