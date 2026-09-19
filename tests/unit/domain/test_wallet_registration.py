@@ -78,16 +78,13 @@ def test_wallet_registration_requires_valid_qr_match_and_file_id() -> None:
 def test_wallet_registration_supports_all_six_networks() -> None:
     cases = (
         ("BEP20", EVM_ADDRESS, EVM_ADDRESS),
-        ("TRC20", "TQf9P1g2Yqv6QvX6h7J9kL2wM8nN4pR6sT", "TRON:TQf9P1g2Yqv6QvX6h7J9kL2wM8nN4pR6sT"),
+        ("TRC20", "TA4Y62o6YC2Zsck9rZVGTvqW1AQ7X9zTnj", "TRON:TA4Y62o6YC2Zsck9rZVGTvqW1AQ7X9zTnj"),
         ("ARB", EVM_ADDRESS, EVM_ADDRESS),
         ("ETH", EVM_ADDRESS, EVM_ADDRESS),
         ("SOL", SOL_ADDRESS, f"solana:{SOL_ADDRESS}"),
         ("POLYGON", EVM_ADDRESS, EVM_ADDRESS),
     )
     for network, address, qr in cases:
-        if network == "TRC20":
-            with pytest.raises(ValueError, match="invalid TRC20"):
-                WalletRegistration(address, network, qr, "file", "Main")
         registration = WalletRegistration(address, network, qr, "file", "Main")
         assert registration.network == network
 
