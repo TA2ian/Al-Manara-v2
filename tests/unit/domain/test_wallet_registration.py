@@ -106,4 +106,4 @@ def test_wallet_registration_rejects_unsupported_network_and_empty_label() -> No
     with pytest.raises(ValueError, match="unsupported"):
         WalletRegistration("addr", "TON", "addr", "file", "Main")
     with pytest.raises(ValueError, match="label"):
-        WalletRegistration(EVM_ADDRESS, "BEP20", EVM_ADDRESS, "file", "Main")
+        WalletRegistration(EVM_ADDRESS, "BEP20", EVM_ADDRESS, "file", "")
