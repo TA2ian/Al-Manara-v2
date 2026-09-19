@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import re
-from urllib.parse import urlsplit
 from dataclasses import dataclass
 
 
@@ -24,18 +23,24 @@ class WalletRegistration:
     label: str
 
     def __post_init__(self) -> None:
-        address = normalize_wallet_address(self.address)
         network = self.network.strip().upper()
         qr_address = normalize_qr_address(self.qr_address)
+        address = normalize_wallet_address(self.address)
         file_id = self.qr_image_file_id.strip()
         label = self.label.strip()
 
         if network not in SUPPORTED_WALLET_NETWORKS:
             raise ValueError("unsupported wallet network")
-        address = validate_wallet_address(address, network)
+
+        # QR is authoritative when the text address is omitted.
         qr_address = validate_wallet_address(qr_address, network)
-        if not _addresses_match(address, qr_address, network):
-            raise ValueError("qr address does not match wallet address")
+        if address:
+            address = validate_wallet_address(address, network)
+            if not _addresses_match(address, qr_address, network):
+                raise ValueError("qr address does not match wallet address")
+        else:
+            address = qr_address
+
         if not file_id:
             raise ValueError("qr image file id is required")
         if not label or len(label) > MAX_LABEL_LENGTH:
@@ -115,7 +120,7 @@ def _base58_decode(value: str) -> bytes | None:
 
     decoded = number.to_bytes((number.bit_length() + 7) // 8, "big") if number else b""
     leading_zeroes = len(value) - len(value.lstrip("1"))
-    return b"\\x00" * leading_zeroes + decoded
+    return b"\x00" * leading_zeroes + decoded
 
 
 def _is_tron_base58check_address(address: str) -> bool:
