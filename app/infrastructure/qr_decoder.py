@@ -39,25 +39,26 @@ def decode_qr_payload(content: bytes) -> str:
     try:
         with Image.open(BytesIO(content)) as image:
             rgb = image.convert("RGB")
-            variants = [
+            variants = (
                 rgb,
                 ImageOps.expand(rgb, border=_QR_BORDER, fill="white"),
-            ]
-            frames = []
+            )
+            detector = cv2.QRCodeDetector()
             for variant in variants:
                 frame = cv2.cvtColor(np.asarray(variant), cv2.COLOR_RGB2BGR)
-                frames.append(frame)
-                if max(frame.shape[:2]) < 4000:
-                    frames.append(
-                        cv2.resize(frame, None, fx=2, fy=2, interpolation=cv2.INTER_NEAREST)
+                candidates = (frame,)
+                height, width = frame.shape[:2]
+                if max(height, width) < 4000 and height * 4 <= MAX_IMAGE_PIXELS and width * 4 <= MAX_IMAGE_PIXELS:
+                    candidates = (
+                        frame,
+                        cv2.resize(frame, None, fx=2, fy=2, interpolation=cv2.INTER_NEAREST),
                     )
-            detector = cv2.QRCodeDetector()
-            for frame in frames:
-                payload = _decode_with_detector(detector, frame)
-                if payload:
-                    if len(payload) > MAX_QR_PAYLOAD_LENGTH:
-                        raise QRDecodeError("QR payload is too large")
-                    return payload
+                for candidate in candidates:
+                    payload = _decode_with_detector(detector, candidate)
+                    if payload:
+                        if len(payload) > MAX_QR_PAYLOAD_LENGTH:
+                            raise QRDecodeError("QR payload is too large")
+                        return payload
     except (UnidentifiedImageError, OSError, ValueError) as exc:
         raise QRDecodeError("QR image could not be decoded") from exc
 
