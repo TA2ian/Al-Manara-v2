@@ -4,7 +4,7 @@
 create extension if not exists pgcrypto;
 
 create type currency_code as enum ('USD', 'NEW.SYP');
-create type network_code as enum ('BEP20', 'TRC20', 'TON', 'ARB', 'ETH', 'SOL');
+create type network_code as enum ('BEP20', 'TRC20', 'TON', 'ARB', 'ETH', 'SOL', 'POLYGON');
 create type order_status as enum ('DRAFT', 'PENDING_PAYMENT', 'PAYMENT_SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'COMPLETED', 'REJECTED', 'CANCELLED', 'EXPIRED', 'CLARIFICATION_REQUIRED');
 create type wallet_status as enum ('PENDING', 'VERIFIED', 'REJECTED', 'DISABLED');
 create type verification_status as enum ('PENDING', 'APPROVED', 'REJECTED');
