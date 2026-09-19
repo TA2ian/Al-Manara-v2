@@ -1,4 +1,7 @@
 -- Persistence boundary for wallet reads and lifecycle operations.
+-- Replace the legacy one-argument lookup contract from the wallet lifecycle migration.
+drop function if exists find_verified_wallet_by_address(text);
+
 -- Telegram IDs are application actor identities; users.id remains the internal UUID.
 
 create or replace function get_wallet_for_telegram_user(
