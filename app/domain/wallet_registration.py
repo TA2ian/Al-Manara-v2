@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from urllib.parse import urlsplit
 from dataclasses import dataclass
 
 
@@ -53,13 +54,20 @@ def normalize_wallet_address(value: str) -> str:
 
 
 def normalize_qr_address(value: str) -> str:
-    """Remove known payment/network URI prefixes before validation."""
+    """Extract only the wallet address from supported QR URI payloads."""
     normalized = normalize_wallet_address(value)
     lowered = normalized.casefold()
-    for prefix in ("ethereum:", "tron:", "trc20:", "bep20:", "arb:", "eth:", "solana:", "sol:", "polygon:", "usdt:"):
-        if lowered.startswith(prefix):
-            return normalized[len(prefix):].strip()
-    return normalized
+    prefixes = ("ethereum:", "tron:", "trc20:", "bep20:", "arb:", "eth:", "solana:", "sol:", "polygon:", "usdt:")
+    if not any(lowered.startswith(prefix) for prefix in prefixes):
+        return normalized.split("?", 1)[0].strip()
+
+    scheme, _, remainder = normalized.partition(":")
+    if not remainder:
+        return ""
+    address = remainder.split("?", 1)[0].strip()
+    if scheme.casefold() == "ethereum":
+        address = address.split("@", 1)[0].strip()
+    return address
 
 
 def validate_wallet_address(address: str, network: str) -> str:
