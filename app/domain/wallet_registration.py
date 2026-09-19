@@ -34,7 +34,7 @@ class WalletRegistration:
             raise ValueError("unsupported wallet network")
         address = validate_wallet_address(address, network)
         qr_address = validate_wallet_address(qr_address, network)
-        if address.casefold() != qr_address.casefold():
+        if not _addresses_match(address, qr_address, network):
             raise ValueError("qr address does not match wallet address")
         if not file_id:
             raise ValueError("qr image file id is required")
@@ -68,6 +68,12 @@ def normalize_qr_address(value: str) -> str:
     if scheme.casefold() == "ethereum":
         address = address.split("@", 1)[0].strip()
     return address
+
+
+def _addresses_match(address: str, qr_address: str, network: str) -> bool:
+    if network in {"BEP20", "ARB", "ETH", "POLYGON"}:
+        return address.casefold() == qr_address.casefold()
+    return address == qr_address
 
 
 def validate_wallet_address(address: str, network: str) -> str:
