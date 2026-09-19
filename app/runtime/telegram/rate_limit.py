@@ -68,9 +68,7 @@ def classify_update(event: Message | CallbackQuery) -> str:
 
     text = (event.text or "").strip()
     command = text.split(maxsplit=1)[0].lower() if text.startswith("/") else ""
-    if command in {"/buy", "/purchase"}:
-        return "financial"
-    if command in {"/wallet_add", "/wallets"}:
+    if command in {"/buy", "/purchase", "/wallet_add", "/wallets"}:
         return "financial"
     if len(text) == 64 and all(char in "0123456789abcdefABCDEF" for char in text):
         return "fulfillment"
@@ -92,16 +90,17 @@ class TelegramRateLimiter:
     def check(self, user_id: int, category: str) -> RateLimitDecision:
         if not isinstance(user_id, int) or user_id <= 0:
             return RateLimitDecision(False, 60.0)
-        policy = POLICIES.get(category)
-        if policy is None:
+
+        if category not in POLICIES:
             category = "general"
-            policy = POLICIES[category]
 
         now = self._clock()
         general = self._consume((user_id, "general"), POLICIES["general"], now)
         if not general.allowed:
             return general
-        return self._consume((user_id, category), policy, now)
+        if category == "general":
+            return general
+        return self._consume((user_id, category), POLICIES[category], now)
 
     def _consume(
         self,
@@ -126,7 +125,7 @@ class TelegramRateLimiter:
         )
 
         if now < bucket.locked_until:
-            return RateLimitDecision(True, bucket.locked_until - now) if False else RateLimitDecision(False, bucket.locked_until - now)
+            return RateLimitDecision(False, bucket.locked_until - now)
 
         if bucket.tokens >= 1.0:
             bucket.tokens -= 1.0
@@ -167,8 +166,7 @@ class TelegramRateLimitMiddleware(BaseMiddleware):
         if not isinstance(user_id, int) or user_id <= 0:
             return await handler(event, data)
 
-        category = classify_update(event)
-        decision = self._limiter.check(user_id, category)
+        decision = self._limiter.check(user_id, classify_update(event))
         if decision.allowed:
             return await handler(event, data)
 
