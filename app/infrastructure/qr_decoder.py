@@ -48,7 +48,7 @@ def decode_qr_payload(content: bytes) -> str:
                 frame = cv2.cvtColor(np.asarray(variant), cv2.COLOR_RGB2BGR)
                 candidates = (frame,)
                 height, width = frame.shape[:2]
-                if max(height, width) < 4000 and height * 4 <= MAX_IMAGE_PIXELS and width * 4 <= MAX_IMAGE_PIXELS:
+                if max(height, width) < 4000 and height * width * 4 <= MAX_IMAGE_PIXELS:
                     candidates = (
                         frame,
                         cv2.resize(frame, None, fx=2, fy=2, interpolation=cv2.INTER_NEAREST),
