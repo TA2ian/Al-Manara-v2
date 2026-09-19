@@ -4,15 +4,22 @@ from io import BytesIO
 
 import cv2
 import numpy as np
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 MAX_IMAGE_PIXELS = 20_000_000
 MAX_IMAGE_DIMENSION = 10_000
+MAX_QR_PAYLOAD_LENGTH = 2048
+_QR_BORDER = 32
 
 
 class QRDecodeError(ValueError):
     """Raised when an uploaded image cannot be safely decoded as a QR payload."""
+
+
+def _decode_with_detector(detector: cv2.QRCodeDetector, frame: np.ndarray) -> str:
+    payload, _, _ = detector.detectAndDecode(frame)
+    return (payload or "").strip()
 
 
 def decode_qr_payload(content: bytes) -> str:
@@ -32,15 +39,26 @@ def decode_qr_payload(content: bytes) -> str:
     try:
         with Image.open(BytesIO(content)) as image:
             rgb = image.convert("RGB")
-            frame = cv2.cvtColor(np.asarray(rgb), cv2.COLOR_RGB2BGR)
+            variants = [
+                rgb,
+                ImageOps.expand(rgb, border=_QR_BORDER, fill="white"),
+            ]
+            frames = []
+            for variant in variants:
+                frame = cv2.cvtColor(np.asarray(variant), cv2.COLOR_RGB2BGR)
+                frames.append(frame)
+                if max(frame.shape[:2]) < 4000:
+                    frames.append(
+                        cv2.resize(frame, None, fx=2, fy=2, interpolation=cv2.INTER_NEAREST)
+                    )
+            detector = cv2.QRCodeDetector()
+            for frame in frames:
+                payload = _decode_with_detector(detector, frame)
+                if payload:
+                    if len(payload) > MAX_QR_PAYLOAD_LENGTH:
+                        raise QRDecodeError("QR payload is too large")
+                    return payload
     except (UnidentifiedImageError, OSError, ValueError) as exc:
         raise QRDecodeError("QR image could not be decoded") from exc
 
-    detector = cv2.QRCodeDetector()
-    payload, _, _ = detector.detectAndDecode(frame)
-    payload = (payload or "").strip()
-    if not payload:
-        raise QRDecodeError("QR code was not detected")
-    if len(payload) > 2048:
-        raise QRDecodeError("QR payload is too large")
-    return payload
+    raise QRDecodeError("QR code was not detected")
