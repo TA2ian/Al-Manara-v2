@@ -185,10 +185,20 @@ def build_admin_dashboard_router(
             await query.answer(authorization.message or "غير مصرح لك.", show_alert=True)
             return
         await query.answer()
+        resolver = getattr(order_listing, "_actor_type_resolver", None)
+        actor_type = None
+        if resolver is not None:
+            try:
+                actor_type = await resolver.resolve_actor_type(user_id)
+            except Exception:
+                actor_type = None
+        if actor_type not in {"primary", "backup"}:
+            await query.message.answer("تعذر التحقق من صلاحيات المدير.")
+            return
         response = await order_listing.handle(
             TelegramAdminOrderListingInput(
                 admin_user_id=user_id,
-                actor_type="primary",
+                actor_type=actor_type,
                 list_type=list_type,
                 page=0,
                 page_size=ADMIN_ORDER_PAGE_SIZE,
