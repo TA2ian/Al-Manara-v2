@@ -15,7 +15,9 @@ class Wallets:
 
     async def find_verified_by_address(self, address, network):
         self.lookup = (address, network)
-        return self.existing
+        if self.existing is None:
+            return None
+        return self.existing if self.existing.network.value == network else None
 
     async def create_pending(self, **kwargs):
         self.created = kwargs
@@ -54,7 +56,9 @@ async def test_registers_wallet_as_pending():
 @pytest.mark.asyncio
 async def test_rejects_qr_address_mismatch():
     with pytest.raises(ValueError, match="qr address"):
-        await RegisterWalletService(Wallets()).execute(command(qr_address="tron:T123"))
+        await RegisterWalletService(Wallets()).execute(
+            command(qr_address="0x9999999999999999999999999999999999999999")
+        )
 
 
 @pytest.mark.asyncio
