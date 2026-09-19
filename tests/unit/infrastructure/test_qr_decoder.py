@@ -8,7 +8,9 @@ from app.infrastructure.qr_decoder import QRDecodeError, decode_qr_payload
 def test_decode_qr_payload_reads_real_qr_bytes() -> None:
     encoder = cv2.QRCodeEncoder_create()
     image = encoder.encode("ethereum:0x1234567890123456789012345678901234567890")
-    ok, encoded = cv2.imencode(".png", image)
+    bordered = cv2.copyMakeBorder(image, 40, 40, 40, 40, cv2.BORDER_CONSTANT, value=255)
+    enlarged = cv2.resize(bordered, None, fx=4, fy=4, interpolation=cv2.INTER_NEAREST)
+    ok, encoded = cv2.imencode(".png", enlarged)
     assert ok
     assert decode_qr_payload(encoded.tobytes()) == "ethereum:0x1234567890123456789012345678901234567890"
 
