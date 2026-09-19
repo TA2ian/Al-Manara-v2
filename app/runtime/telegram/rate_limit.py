@@ -21,6 +21,7 @@ FULFILLMENT_BURST = 1
 VIOLATION_WINDOW_SECONDS = 60.0
 FIRST_ESCALATION_COOLDOWN_SECONDS = 30.0
 SECOND_ESCALATION_COOLDOWN_SECONDS = 120.0
+MAX_TRACKED_BUCKETS = 10000
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +96,7 @@ class TelegramRateLimiter:
             category = "general"
 
         now = self._clock()
+        self._prune(now)
         general = self._consume((user_id, "general"), POLICIES["general"], now)
         if not general.allowed:
             return general
@@ -144,6 +146,20 @@ class TelegramRateLimiter:
 
         retry = max(60.0 / policy.rate_per_minute, bucket.locked_until - now)
         return RateLimitDecision(False, retry)
+
+    def _prune(self, now: float) -> None:
+        if len(self._buckets) < MAX_TRACKED_BUCKETS:
+            return
+        stale = [
+            key for key, bucket in self._buckets.items()
+            if bucket.updated_at < now - VIOLATION_WINDOW_SECONDS
+            and bucket.locked_until <= now
+        ]
+        for key in stale:
+            self._buckets.pop(key, None)
+        if len(self._buckets) >= MAX_TRACKED_BUCKETS:
+            oldest = min(self._buckets, key=lambda key: self._buckets[key].updated_at)
+            self._buckets.pop(oldest, None)
 
     def size(self) -> int:
         return len(self._buckets)
