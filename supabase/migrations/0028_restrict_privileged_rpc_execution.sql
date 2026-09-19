@@ -27,7 +27,7 @@ BEGIN
   EXECUTE 'REVOKE EXECUTE ON FUNCTION get_wallet_for_telegram_user(uuid, bigint) FROM public, anon, authenticated';
   EXECUTE 'GRANT EXECUTE ON FUNCTION get_wallet_for_telegram_user(uuid, bigint) TO service_role';
 
-  EXECUTE 'REVOKE EXECUTE ON FUNCTION find_verified_wallet_by_address(text) FROM public, anon, authenticated';
+  EXECUTE 'REVOKE EXECUTE ON FUNCTION find_verified_wallet_by_address(text, network_code) FROM public, anon, authenticated';
   EXECUTE 'GRANT EXECUTE ON FUNCTION find_verified_wallet_by_address(text) TO service_role';
 
   EXECUTE 'REVOKE EXECUTE ON FUNCTION list_verified_wallets_for_telegram_user(bigint) FROM public, anon, authenticated';
