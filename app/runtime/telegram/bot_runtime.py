@@ -25,6 +25,7 @@ from app.runtime.telegram.admin_order_review_details import build_admin_order_re
 from app.runtime.telegram.admin_order_closure import build_admin_order_closure_router
 from app.runtime.telegram.fulfillment import build_fulfillment_router
 from app.runtime.telegram.router import build_customer_router
+from app.runtime.telegram.rate_limit import TelegramRateLimitMiddleware
 
 POLLING_UPDATE_TYPES = ("message", "callback_query")
 LEASE_DURATION_SECONDS = 30
@@ -149,6 +150,9 @@ def build_telegram_runtime(settings: TelegramBotSettings) -> tuple[Bot, Dispatch
     client = create_client(settings.supabase_url, settings.supabase_service_role_key)
     admin = build_admin_composition(client)
     dispatcher = Dispatcher(storage=MemoryStorage())
+    rate_limit_middleware = TelegramRateLimitMiddleware()
+    dispatcher.message.middleware(rate_limit_middleware)
+    dispatcher.callback_query.middleware(rate_limit_middleware)
     dispatcher.include_router(build_admin_dashboard_router(admin.identity_review, admin.listing, admin.review_details, admin.session))
     dispatcher.include_router(build_identity_review_router(admin.identity_review))
     dispatcher.include_router(build_admin_order_actions_router(admin.review, admin.session, admin.actor_type))
