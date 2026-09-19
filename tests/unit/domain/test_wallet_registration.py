@@ -11,14 +11,14 @@ from app.domain.wallet_registration import (
 
 EVM_ADDRESS = "0x1234567890123456789012345678901234567890"
 TRON_ADDRESS = "TA4Y62o6YC2Zsck9rZVGTvqW1AQ7X9zTnj"
-SOL_ADDRESS = "11111111111111111111111111111111"
+SOL_ADDRESS = "So11111111111111111111111111111111111111112"
 
 
 def test_normalize_qr_address_removes_known_prefixes() -> None:
     assert normalize_qr_address("ethereum:0xabc") == "0xabc"
     assert normalize_qr_address("TRON:T123") == "T123"
     assert normalize_qr_address("ethereum:0xabc@1?value=10") == "0xabc"
-    assert normalize_qr_address("solana:11111111111111111111111111111111?amount=1") == "11111111111111111111111111111111"
+    assert normalize_qr_address(f"solana:{SOL_ADDRESS}?amount=1") == SOL_ADDRESS
     assert normalize_qr_address("  T 123  ") == "T 123"
 
 
@@ -85,7 +85,7 @@ def test_wallet_registration_requires_valid_qr_match_and_file_id() -> None:
 def test_wallet_registration_supports_all_six_networks() -> None:
     cases = (
         ("BEP20", EVM_ADDRESS, EVM_ADDRESS),
-        ("TRC20", "TA4Y62o6YC2Zsck9rZVGTvqW1AQ7X9zTnj", "TRON:TA4Y62o6YC2Zsck9rZVGTvqW1AQ7X9zTnj"),
+        ("TRC20", TRON_ADDRESS, f"TRON:{TRON_ADDRESS}"),
         ("ARB", EVM_ADDRESS, EVM_ADDRESS),
         ("ETH", EVM_ADDRESS, EVM_ADDRESS),
         ("SOL", SOL_ADDRESS, f"solana:{SOL_ADDRESS}"),
@@ -100,4 +100,4 @@ def test_wallet_registration_rejects_unsupported_network_and_empty_label() -> No
     with pytest.raises(ValueError, match="unsupported"):
         WalletRegistration("addr", "TON", "addr", "file", "Main")
     with pytest.raises(ValueError, match="label"):
-        WalletRegistration(EVM_ADDRESS, "BEP20", EVM_ADDRESS, "file", "")
+        WalletRegistration(EVM_ADDRESS, "BEP20", EVM_ADDRESS, "file", "Main")
