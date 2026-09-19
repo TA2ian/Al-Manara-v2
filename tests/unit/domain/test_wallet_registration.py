@@ -34,9 +34,14 @@ def test_validate_wallet_address_rejects_invalid_evm_and_cross_network_addresses
         validate_wallet_address(EVM_ADDRESS, "SOL")
 
 
+def test_validate_wallet_address_accepts_valid_tron_checksum() -> None:
+    assert validate_wallet_address(TRON_ADDRESS, "TRC20") == TRON_ADDRESS
+
+
 def test_validate_wallet_address_rejects_invalid_tron_checksum() -> None:
+    invalid = TRON_ADDRESS[:-1] + ("1" if TRON_ADDRESS[-1] != "1" else "2")
     with pytest.raises(ValueError, match="invalid TRC20"):
-        validate_wallet_address(TRON_ADDRESS, "TRC20")
+        validate_wallet_address(invalid, "TRC20")
 
 
 def test_validate_wallet_address_accepts_solana_public_key() -> None:
