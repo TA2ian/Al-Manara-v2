@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import re
+from io import BytesIO
 from uuid import UUID
 
 from aiogram import F, Router
@@ -8,6 +10,8 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+
+from app.infrastructure.qr_decoder import QRDecodeError, decode_qr_payload
 
 from app.composition_root import CustomerComposition
 from app.domain.wallet_registration import SUPPORTED_WALLET_NETWORKS
@@ -227,7 +231,7 @@ def build_customer_wallets_router(composition: CustomerComposition) -> Router:
         await state.update_data(label=message.text or "")
         await state.set_state(WalletRegistrationState.qr)
         await message.answer(
-            "أرسل صورة QR للمحفظة، وضع العنوان الذي يمثله QR في وصف الصورة (caption).",
+            "أرسل صورة QR للمحفظة. سيتم قراءة العنوان مباشرة من QR والتحقق منه؛ لا تعتمد الموافقة على النص المكتوب في وصف الصورة.",
             reply_markup=_cancel_keyboard(),
         )
 
@@ -247,12 +251,50 @@ def build_customer_wallets_router(composition: CustomerComposition) -> Router:
             await state.clear()
             await message.answer(WALLET_RETRY_MESSAGE)
             return
+        try:
+            telegram_file = await asyncio.wait_for(
+                message.bot.get_file(photo.file_id), timeout=15
+            )
+            if not telegram_file.file_path:
+                raise QRDecodeError("QR file path is unavailable")
+            downloaded = await asyncio.wait_for(
+                message.bot.download_file(
+                    telegram_file.file_path,
+                    destination=BytesIO(),
+                    timeout=15,
+                    chunk_size=65536,
+                    seek=True,
+                ),
+                timeout=17,
+            )
+            if downloaded is None:
+                raise QRDecodeError("QR download returned no data")
+            qr_payload = await asyncio.wait_for(
+                asyncio.to_thread(decode_qr_payload, downloaded.getvalue()), timeout=10
+            )
+        except (QRDecodeError, asyncio.TimeoutError, OSError, ValueError):
+            await state.clear()
+            await message.answer("تعذر قراءة QR. أرسل صورة QR واضحة وصالحة وحاول مرة أخرى.")
+            return
+        except Exception:
+            await state.clear()
+            await message.answer(WALLET_RETRY_MESSAGE)
+            return
+
+        caption = (message.caption or "").strip()
+        if caption:
+            from app.domain.wallet_registration import normalize_qr_address
+            if normalize_qr_address(caption).lower() != normalize_qr_address(qr_payload).lower():
+                await state.clear()
+                await message.answer("النص في وصف الصورة لا يطابق العنوان المستخرج من QR.")
+                return
+
         response = await composition.wallets.register(
             TelegramWalletRegistrationInput(
                 user_id=user_id,
                 address=str(values.get("address", "")),
                 network=str(values.get("network", "")),
-                qr_address=message.caption or "",
+                qr_address=qr_payload,
                 qr_image_file_id=photo.file_id,
                 label=str(values.get("label", "")),
             )
