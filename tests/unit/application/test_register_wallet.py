@@ -11,8 +11,10 @@ class Wallets:
     def __init__(self, existing=None):
         self.existing = existing
         self.created = None
+        self.lookup = None
 
-    async def find_verified_by_address(self, address):
+    async def find_verified_by_address(self, address, network):
+        self.lookup = (address, network)
         return self.existing
 
     async def create_pending(self, **kwargs):
@@ -46,6 +48,7 @@ async def test_registers_wallet_as_pending():
     assert result.wallet_id == UUID("22222222-2222-2222-2222-222222222222")
     assert result.status == "pending"
     assert repo.created["network"] == "BEP20"
+    assert repo.lookup == (command().address, "BEP20")
 
 
 @pytest.mark.asyncio
@@ -55,7 +58,7 @@ async def test_rejects_qr_address_mismatch():
 
 
 @pytest.mark.asyncio
-async def test_rejects_verified_duplicate():
+async def test_rejects_verified_duplicate_on_same_network():
     duplicate = Wallet(
         wallet_id=UUID("33333333-3333-3333-3333-333333333333"),
         user_id=9,
@@ -63,5 +66,20 @@ async def test_rejects_verified_duplicate():
         address="0x1234567890123456789012345678901234567890",
         status=WalletStatus.VERIFIED,
     )
-    with pytest.raises(ValueError, match="already verified"):
+    with pytest.raises(ValueError, match="already verified on this network"):
         await RegisterWalletService(Wallets(duplicate)).execute(command())
+
+
+@pytest.mark.asyncio
+async def test_allows_same_evm_address_when_network_differs():
+    existing = Wallet(
+        wallet_id=UUID("44444444-4444-4444-4444-444444444444"),
+        user_id=9,
+        network=NetworkCode.ETH,
+        address="0x1234567890123456789012345678901234567890",
+        status=WalletStatus.VERIFIED,
+    )
+    repo = Wallets(existing)
+    result = await RegisterWalletService(repo).execute(command(network="BEP20"))
+    assert result.status == "pending"
+    assert repo.lookup == (command().address, "BEP20")
