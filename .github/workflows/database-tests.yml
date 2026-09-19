@@ -1,0 +1,29 @@
+name: database-tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  database:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.117.0
+
+      - name: Start local Supabase
+        run: supabase db start
+
+      - name: Rebuild database from migrations
+        run: supabase db reset
+
+      - name: Lint database
+        run: supabase db lint
+
+      - name: Run database contract tests
+        run: supabase db test
