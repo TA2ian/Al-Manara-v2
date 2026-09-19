@@ -78,6 +78,9 @@ def test_wallet_registration_requires_valid_qr_match_and_file_id() -> None:
     qr_only = WalletRegistration("", "ETH", f"ethereum:{EVM_ADDRESS}", "telegram-file", "Main")
     assert qr_only.address == EVM_ADDRESS
 
+    qr_only = WalletRegistration("", "ETH", f"ethereum:{EVM_ADDRESS}", "telegram-file", "Main")
+    assert qr_only.address == EVM_ADDRESS
+
     with pytest.raises(ValueError, match="does not match"):
         WalletRegistration(EVM_ADDRESS, "ETH", "0x9999999999999999999999999999999999999999", "telegram-file", "Main")
 
