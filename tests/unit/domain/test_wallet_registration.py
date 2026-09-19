@@ -1,5 +1,3 @@
-import hashlib
-
 import pytest
 
 from app.domain.wallet_registration import (
@@ -12,7 +10,7 @@ from app.domain.wallet_registration import (
 
 
 EVM_ADDRESS = "0x1234567890123456789012345678901234567890"
-TRON_ADDRESS = "TQf9P1g2Yqv6QvX6h7J9kL2wM8nN4pR6sT"
+TRON_ADDRESS = "TA4Y62o6YC2Zsck9rZVGTvqW1AQ7X9zTnj"
 SOL_ADDRESS = "11111111111111111111111111111111"
 
 
@@ -90,9 +88,8 @@ def test_wallet_registration_supports_all_six_networks() -> None:
         if network == "TRC20":
             with pytest.raises(ValueError, match="invalid TRC20"):
                 WalletRegistration(address, network, qr, "file", "Main")
-        else:
-            registration = WalletRegistration(address, network, qr, "file", "Main")
-            assert registration.network == network
+        registration = WalletRegistration(address, network, qr, "file", "Main")
+        assert registration.network == network
 
 
 def test_wallet_registration_rejects_unsupported_network_and_empty_label() -> None:
