@@ -23,7 +23,10 @@ as $$
        and u.telegram_user_id = p_telegram_user_id;
 $$;
 
-create or replace function find_verified_wallet_by_address(p_address text)
+create or replace function find_verified_wallet_by_address(
+    p_address text,
+    p_network_code network_code
+)
 returns table (
     wallet_id uuid,
     telegram_user_id bigint,
@@ -39,7 +42,12 @@ as $$
       from wallets w
       join users u on u.id = w.user_id
      where w.status = 'VERIFIED'
-       and lower(btrim(w.address)) = lower(btrim(p_address));
+       and w.network_code = p_network_code
+       and case
+               when p_network_code in ('BEP20', 'ARB', 'ETH', 'POLYGON')
+                   then lower(btrim(w.address)) = lower(btrim(p_address))
+               else btrim(w.address) = btrim(p_address)
+           end;
 $$;
 
 create or replace function disable_wallet_for_telegram_user(
