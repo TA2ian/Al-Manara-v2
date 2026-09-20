@@ -72,6 +72,7 @@ class DisableWalletService:
             "wallet_disabled",
             actor_user_id=command.user_id,
             target_id=command.wallet_id,
+            actor_kind="customer",
             metadata={"wallet_status": WalletStatus.DISABLED.value},
         )
         return DisableWalletResult(True, False, "wallet disabled")
