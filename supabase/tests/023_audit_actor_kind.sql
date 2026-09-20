@@ -1,6 +1,6 @@
 begin;
 
-select plan(6);
+select plan(5);
 
 select lives_ok($$insert into audit_logs (
   actor_telegram_user_id, actor_kind, actor_type, action, target_type, target_id
