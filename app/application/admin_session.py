@@ -18,8 +18,9 @@ class AdminSessionRepository(Protocol):
 
 
 class AdminSessionService:
-    def __init__(self, repository: AdminSessionRepository) -> None:
+    def __init__(self, repository: AdminSessionRepository, *, emergency_mode: bool = False) -> None:
         self._repository = repository
+        self._emergency_mode = emergency_mode
 
     @staticmethod
     def _validate_admin(admin_telegram_user_id: int, actor_type: str) -> str:
@@ -33,10 +34,15 @@ class AdminSessionService:
         return normalized
 
     async def create(self, admin_telegram_user_id: int, actor_type: str) -> AdminSession:
-        return await self._repository.create(admin_telegram_user_id, self._validate_admin(admin_telegram_user_id, actor_type))
+        normalized_actor = self._validate_admin(admin_telegram_user_id, actor_type)
+        if normalized_actor == "backup" and not self._emergency_mode:
+            raise PermissionError("backup administrator requires emergency mode")
+        return await self._repository.create(admin_telegram_user_id, normalized_actor)
 
     async def revoke(self, admin_telegram_user_id: int, actor_type: str, session_id: UUID) -> bool:
         normalized_actor = self._validate_admin(admin_telegram_user_id, actor_type)
+        if normalized_actor == "backup" and not self._emergency_mode:
+            raise PermissionError("backup administrator requires emergency mode")
         if not isinstance(session_id, UUID):
             raise ValueError("session identity is required")
         return await self._repository.revoke(admin_telegram_user_id, normalized_actor, session_id)
