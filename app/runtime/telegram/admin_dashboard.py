@@ -17,11 +17,13 @@ ADMIN_IDENTITY_CALLBACK = "admin:identity_pending"
 ADMIN_ORDERS_CALLBACK = "admin:orders"
 ADMIN_REVIEW_ORDERS_CALLBACK = "admin:review_orders"
 ADMIN_FULFILLMENT_CALLBACK = "admin:fulfillment"
+ADMIN_PAYMENT_ACCOUNTS_CALLBACK = "admin:payment_accounts"
 ADMIN_ORDER_PAGE_SIZE = 5
 
 
 def admin_dashboard_markup(*, include_orders: bool = False) -> InlineKeyboardMarkup:
     rows = [[InlineKeyboardButton(text="👥 التحقق من المستخدمين", callback_data=ADMIN_IDENTITY_CALLBACK)]]
+    rows.append([InlineKeyboardButton(text="💳 حسابات ShamCash", callback_data=ADMIN_PAYMENT_ACCOUNTS_CALLBACK)])
     if include_orders:
         rows.append([InlineKeyboardButton(text="📦 الطلبات النشطة", callback_data=ADMIN_ORDERS_CALLBACK)])
         rows.append([InlineKeyboardButton(text="🔎 المدفوعات قيد المراجعة", callback_data=ADMIN_REVIEW_ORDERS_CALLBACK)])
@@ -107,6 +109,7 @@ def build_admin_dashboard_router(
     order_listing: TelegramAdminOrderListingHandler | None = None,
     review_details: AdminOrderReviewDetailsService | None = None,
     session_handler: TelegramAdminSessionHandler | None = None,
+    payment_accounts=None,
 ):
     router = Router(name="admin-dashboard")
 
@@ -171,6 +174,25 @@ def build_admin_dashboard_router(
             await query.message.answer("لا توجد طلبات تحقق معلقة.")
             return
         await query.message.answer("للمراجعة التفصيلية أرسل /identity_pending.")
+
+
+    if payment_accounts is not None:
+        @router.callback_query(F.data == ADMIN_PAYMENT_ACCOUNTS_CALLBACK)
+        async def payment_accounts_callback(query: CallbackQuery) -> None:
+            if query.message is None or not is_private_message(query.message):
+                await query.answer("إدارة حسابات الدفع متاحة في المحادثة الخاصة فقط.", show_alert=True)
+                return
+            user_id = authenticated_telegram_user_id(query)
+            if user_id is None:
+                await query.answer("تعذر التحقق من هوية المدير.", show_alert=True)
+                return
+            authorization = await authorize(user_id)
+            if not authorization.ok:
+                await query.answer(authorization.message or "غير مصرح لك.", show_alert=True)
+                return
+            await query.answer()
+            from app.runtime.telegram.admin_payment_account_router import payment_account_menu_markup
+            await query.message.answer("إدارة حسابات ShamCash:", reply_markup=payment_account_menu_markup())
 
     async def load_order_list(query: CallbackQuery, list_type: str) -> None:
         if query.message is None or not is_private_message(query.message):
