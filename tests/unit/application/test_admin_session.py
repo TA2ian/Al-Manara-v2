@@ -34,3 +34,20 @@ async def test_session_service_rejects_invalid_admin():
     with pytest.raises(ValueError, match="administrator identity"):
         await service.create(0, "primary")
     assert repo.calls == []
+
+
+@pytest.mark.asyncio
+async def test_backup_session_requires_emergency_mode():
+    repo = FakeRepository()
+    service = AdminSessionService(repo, emergency_mode=False)
+    with pytest.raises(PermissionError, match="emergency mode"):
+        await service.create(100, "backup")
+    assert repo.calls == []
+
+
+@pytest.mark.asyncio
+async def test_backup_session_is_allowed_in_emergency_mode():
+    repo = FakeRepository()
+    service = AdminSessionService(repo, emergency_mode=True)
+    await service.create(100, "backup")
+    assert repo.calls == [("create", 100, "backup")]
