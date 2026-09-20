@@ -41,7 +41,7 @@ class TelegramBotSettings:
     token: str
     supabase_url: str
     supabase_service_role_key: str
-    emergency_mode: bool
+    emergency_mode: bool = False
 
     @classmethod
     def from_environment(cls, environment: Mapping[str, str] | None = None) -> "TelegramBotSettings":
