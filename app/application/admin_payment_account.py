@@ -23,43 +23,10 @@ class AdminPaymentAccount:
 
 
 class AdminPaymentAccountRepository(Protocol):
-    async def create_confirmation(
-        self,
-        admin_telegram_user_id: int,
-        actor_type: str,
-        session_id: UUID,
-        operation: str,
-        request_fingerprint: str,
-    ) -> UUID: ...
-
-    async def list(
-        self,
-        admin_telegram_user_id: int,
-        actor_type: str,
-        session_id: UUID,
-    ) -> list[AdminPaymentAccount]: ...
-
-    async def upsert(
-        self,
-        admin_telegram_user_id: int,
-        actor_type: str,
-        currency: CurrencyCode,
-        setup: PaymentMethodSetup,
-        session_id: UUID,
-        confirmation_id: UUID,
-        request_fingerprint: str,
-    ) -> AdminPaymentAccount: ...
-
-    async def set_active(
-        self,
-        admin_telegram_user_id: int,
-        actor_type: str,
-        currency: CurrencyCode,
-        is_active: bool,
-        session_id: UUID,
-        confirmation_id: UUID,
-        request_fingerprint: str,
-    ) -> AdminPaymentAccount: ...
+    async def create_confirmation(self, admin_telegram_user_id: int, actor_type: str, session_id: UUID, operation: str, request_fingerprint: str) -> UUID: ...
+    async def list(self, admin_telegram_user_id: int, actor_type: str, session_id: UUID) -> list[AdminPaymentAccount]: ...
+    async def upsert(self, admin_telegram_user_id: int, actor_type: str, currency: CurrencyCode, setup: PaymentMethodSetup, session_id: UUID, confirmation_id: UUID, request_fingerprint: str) -> AdminPaymentAccount: ...
+    async def set_active(self, admin_telegram_user_id: int, actor_type: str, currency: CurrencyCode, is_active: bool, session_id: UUID, confirmation_id: UUID, request_fingerprint: str) -> AdminPaymentAccount: ...
 
 
 class AdminPaymentAccountService:
@@ -68,8 +35,17 @@ class AdminPaymentAccountService:
     UPSERT_OPERATION = "admin_payment_account.upsert"
     STATUS_OPERATION = "admin_payment_account.status"
 
-    def __init__(self, repository: AdminPaymentAccountRepository) -> None:
+    def __init__(self, repository: AdminPaymentAccountRepository, *, emergency_mode: bool = False) -> None:
         self._repository = repository
+        self._emergency_mode = emergency_mode
+
+    def _ensure_allowed(self, actor_type: str) -> str:
+        normalized = actor_type.strip().lower() if isinstance(actor_type, str) else ""
+        if normalized not in {"primary", "backup"}:
+            raise ValueError("invalid administrator actor type")
+        if normalized == "backup" and not self._emergency_mode:
+            raise PermissionError("backup administrator requires emergency mode")
+        return normalized
 
     @staticmethod
     def _validate_admin(admin_telegram_user_id: int, actor_type: str) -> str:
@@ -89,148 +65,47 @@ class AdminPaymentAccountService:
 
     @staticmethod
     def _fingerprint(operation: str, payload: dict[str, object]) -> str:
-        canonical = json.dumps(
-            {"operation": operation, "payload": payload},
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=False,
-        ).encode("utf-8")
+        canonical = json.dumps({"operation": operation, "payload": payload}, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
         return hashlib.sha256(canonical).hexdigest()
 
-    async def request_upsert_confirmation(
-        self,
-        admin_telegram_user_id: int,
-        actor_type: str,
-        currency: CurrencyCode,
-        setup: PaymentMethodSetup,
-        session_id: UUID,
-    ) -> UUID:
-        normalized_actor = self._validate_admin(admin_telegram_user_id, actor_type)
+    async def request_upsert_confirmation(self, admin_telegram_user_id: int, actor_type: str, currency: CurrencyCode, setup: PaymentMethodSetup, session_id: UUID) -> UUID:
+        normalized_actor = self._ensure_allowed(actor_type)
+        self._validate_admin(admin_telegram_user_id, normalized_actor)
         self._validate_session(session_id)
-        if not isinstance(currency, CurrencyCode):
-            raise ValueError("payment currency is required")
-        if not isinstance(setup, PaymentMethodSetup):
-            raise ValueError("payment method setup is required")
-        fingerprint = self._fingerprint(
-            self.UPSERT_OPERATION,
-            {
-                "currency": currency.value,
-                "account_name": setup.recipient_name,
-                "account_number": setup.receiving_address,
-                "qr_image_file_id": setup.qr_image_file_id,
-            },
-        )
-        return await self._repository.create_confirmation(
-            admin_telegram_user_id,
-            normalized_actor,
-            session_id,
-            self.UPSERT_OPERATION,
-            fingerprint,
-        )
+        if not isinstance(currency, CurrencyCode) or not isinstance(setup, PaymentMethodSetup):
+            raise ValueError("valid payment setup is required")
+        fingerprint = self._fingerprint(self.UPSERT_OPERATION, {"currency": currency.value, "account_name": setup.recipient_name, "account_number": setup.receiving_address, "qr_image_file_id": setup.qr_image_file_id})
+        return await self._repository.create_confirmation(admin_telegram_user_id, normalized_actor, session_id, self.UPSERT_OPERATION, fingerprint)
 
-    async def request_set_active_confirmation(
-        self,
-        admin_telegram_user_id: int,
-        actor_type: str,
-        currency: CurrencyCode,
-        is_active: bool,
-        session_id: UUID,
-    ) -> UUID:
-        normalized_actor = self._validate_admin(admin_telegram_user_id, actor_type)
+    async def request_set_active_confirmation(self, admin_telegram_user_id: int, actor_type: str, currency: CurrencyCode, is_active: bool, session_id: UUID) -> UUID:
+        normalized_actor = self._ensure_allowed(actor_type)
+        self._validate_admin(admin_telegram_user_id, normalized_actor)
         self._validate_session(session_id)
-        if not isinstance(currency, CurrencyCode):
-            raise ValueError("payment currency is required")
-        if not isinstance(is_active, bool):
-            raise ValueError("active state must be boolean")
-        fingerprint = self._fingerprint(
-            self.STATUS_OPERATION,
-            {"currency": currency.value, "is_active": is_active},
-        )
-        return await self._repository.create_confirmation(
-            admin_telegram_user_id,
-            normalized_actor,
-            session_id,
-            self.STATUS_OPERATION,
-            fingerprint,
-        )
+        if not isinstance(currency, CurrencyCode) or not isinstance(is_active, bool):
+            raise ValueError("valid payment status is required")
+        fingerprint = self._fingerprint(self.STATUS_OPERATION, {"currency": currency.value, "is_active": is_active})
+        return await self._repository.create_confirmation(admin_telegram_user_id, normalized_actor, session_id, self.STATUS_OPERATION, fingerprint)
 
-    async def list(
-        self,
-        admin_telegram_user_id: int,
-        actor_type: str,
-        session_id: UUID,
-    ) -> list[AdminPaymentAccount]:
-        normalized_actor = self._validate_admin(admin_telegram_user_id, actor_type)
+    async def list(self, admin_telegram_user_id: int, actor_type: str, session_id: UUID) -> list[AdminPaymentAccount]:
+        normalized_actor = self._ensure_allowed(actor_type)
+        self._validate_admin(admin_telegram_user_id, normalized_actor)
         self._validate_session(session_id)
-        return await self._repository.list(
-            admin_telegram_user_id,
-            normalized_actor,
-            session_id,
-        )
+        return await self._repository.list(admin_telegram_user_id, normalized_actor, session_id)
 
-    async def upsert(
-        self,
-        admin_telegram_user_id: int,
-        actor_type: str,
-        currency: CurrencyCode,
-        setup: PaymentMethodSetup,
-        session_id: UUID,
-        confirmation_id: UUID,
-    ) -> AdminPaymentAccount:
-        normalized_actor = self._validate_admin(admin_telegram_user_id, actor_type)
+    async def upsert(self, admin_telegram_user_id: int, actor_type: str, currency: CurrencyCode, setup: PaymentMethodSetup, session_id: UUID, confirmation_id: UUID) -> AdminPaymentAccount:
+        normalized_actor = self._ensure_allowed(actor_type)
+        self._validate_admin(admin_telegram_user_id, normalized_actor)
         self._validate_session(session_id)
-        if not isinstance(currency, CurrencyCode):
-            raise ValueError("payment currency is required")
-        if not isinstance(setup, PaymentMethodSetup):
-            raise ValueError("payment method setup is required")
-        if not isinstance(confirmation_id, UUID):
-            raise ValueError("payment account confirmation is required")
-        fingerprint = self._fingerprint(
-            self.UPSERT_OPERATION,
-            {
-                "currency": currency.value,
-                "account_name": setup.recipient_name,
-                "account_number": setup.receiving_address,
-                "qr_image_file_id": setup.qr_image_file_id,
-            },
-        )
-        return await self._repository.upsert(
-            admin_telegram_user_id,
-            normalized_actor,
-            currency,
-            setup,
-            session_id,
-            confirmation_id,
-            fingerprint,
-        )
+        if not isinstance(currency, CurrencyCode) or not isinstance(setup, PaymentMethodSetup) or not isinstance(confirmation_id, UUID):
+            raise ValueError("valid payment mutation input is required")
+        fingerprint = self._fingerprint(self.UPSERT_OPERATION, {"currency": currency.value, "account_name": setup.recipient_name, "account_number": setup.receiving_address, "qr_image_file_id": setup.qr_image_file_id})
+        return await self._repository.upsert(admin_telegram_user_id, normalized_actor, currency, setup, session_id, confirmation_id, fingerprint)
 
-    async def set_active(
-        self,
-        admin_telegram_user_id: int,
-        actor_type: str,
-        currency: CurrencyCode,
-        is_active: bool,
-        session_id: UUID,
-        confirmation_id: UUID,
-    ) -> AdminPaymentAccount:
-        normalized_actor = self._validate_admin(admin_telegram_user_id, actor_type)
+    async def set_active(self, admin_telegram_user_id: int, actor_type: str, currency: CurrencyCode, is_active: bool, session_id: UUID, confirmation_id: UUID) -> AdminPaymentAccount:
+        normalized_actor = self._ensure_allowed(actor_type)
+        self._validate_admin(admin_telegram_user_id, normalized_actor)
         self._validate_session(session_id)
-        if not isinstance(currency, CurrencyCode):
-            raise ValueError("payment currency is required")
-        if not isinstance(is_active, bool):
-            raise ValueError("active state must be boolean")
-        if not isinstance(confirmation_id, UUID):
-            raise ValueError("payment account confirmation is required")
-        fingerprint = self._fingerprint(
-            self.STATUS_OPERATION,
-            {"currency": currency.value, "is_active": is_active},
-        )
-        return await self._repository.set_active(
-            admin_telegram_user_id,
-            normalized_actor,
-            currency,
-            is_active,
-            session_id,
-            confirmation_id,
-            fingerprint,
-        )
+        if not isinstance(currency, CurrencyCode) or not isinstance(is_active, bool) or not isinstance(confirmation_id, UUID):
+            raise ValueError("valid payment status mutation input is required")
+        fingerprint = self._fingerprint(self.STATUS_OPERATION, {"currency": currency.value, "is_active": is_active})
+        return await self._repository.set_active(admin_telegram_user_id, normalized_actor, currency, is_active, session_id, confirmation_id, fingerprint)
