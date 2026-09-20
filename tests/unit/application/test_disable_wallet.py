@@ -49,8 +49,8 @@ class FakeAudit:
     def __init__(self) -> None:
         self.events = []
 
-    async def record(self, event, *, actor_user_id, target_id, metadata):
-        self.events.append((event, actor_user_id, target_id, dict(metadata)))
+    async def record(self, event, *, actor_user_id, actor_kind, target_id, metadata, actor_type=None, target_type="wallet"):
+        self.events.append((event, actor_user_id, actor_kind, target_id, dict(metadata)))
 
 
 def make_wallet(status=WalletStatus.VERIFIED):
@@ -108,6 +108,7 @@ async def test_confirmed_disable_updates_once_and_audits():
         (
             "wallet_disabled",
             10,
+            "customer",
             wallet.wallet_id,
             {"wallet_status": "disabled"},
         )
