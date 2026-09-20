@@ -18,6 +18,7 @@ from aiogram.types import BotCommand, ErrorEvent
 from supabase import create_client
 
 from app.composition_root import build_admin_composition, build_customer_composition
+from app.infrastructure.emergency_mode import EmergencyModeConfig
 from app.runtime.telegram.admin_dashboard import build_admin_dashboard_router
 from app.runtime.telegram.admin_identity_review import build_identity_review_router
 from app.runtime.telegram.admin_order_actions import build_admin_order_actions_router
@@ -39,6 +40,7 @@ class TelegramBotSettings:
     token: str
     supabase_url: str
     supabase_service_role_key: str
+    emergency_mode: bool
 
     @classmethod
     def from_environment(cls, environment: Mapping[str, str] | None = None) -> "TelegramBotSettings":
@@ -55,6 +57,7 @@ class TelegramBotSettings:
             token=required["TELEGRAM_BOT_TOKEN"],
             supabase_url=required["SUPABASE_URL"],
             supabase_service_role_key=required["SUPABASE_SERVICE_ROLE_KEY"],
+            emergency_mode=EmergencyModeConfig.from_environment(values).enabled,
         )
 
 
@@ -148,7 +151,7 @@ async def log_telegram_error(event: ErrorEvent) -> bool:
 
 def build_telegram_runtime(settings: TelegramBotSettings) -> tuple[Bot, Dispatcher]:
     client = create_client(settings.supabase_url, settings.supabase_service_role_key)
-    admin = build_admin_composition(client)
+    admin = build_admin_composition(client, emergency_mode=settings.emergency_mode)
     dispatcher = Dispatcher(storage=MemoryStorage())
     rate_limit_middleware = TelegramRateLimitMiddleware()
     dispatcher.message.middleware(rate_limit_middleware)
