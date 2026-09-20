@@ -22,6 +22,7 @@ from app.infrastructure.emergency_mode import EmergencyModeConfig
 from app.runtime.telegram.admin_dashboard import build_admin_dashboard_router
 from app.runtime.telegram.admin_identity_review import build_identity_review_router
 from app.runtime.telegram.admin_order_actions import build_admin_order_actions_router
+from app.runtime.telegram.admin_payment_account_router import build_admin_payment_account_router
 from app.runtime.telegram.admin_order_review_details import build_admin_order_review_details_router
 from app.runtime.telegram.admin_order_closure import build_admin_order_closure_router
 from app.runtime.telegram.fulfillment import build_fulfillment_router
@@ -156,7 +157,8 @@ def build_telegram_runtime(settings: TelegramBotSettings) -> tuple[Bot, Dispatch
     rate_limit_middleware = TelegramRateLimitMiddleware()
     dispatcher.message.middleware(rate_limit_middleware)
     dispatcher.callback_query.middleware(rate_limit_middleware)
-    dispatcher.include_router(build_admin_dashboard_router(admin.identity_review, admin.listing, admin.review_details, admin.session))
+    dispatcher.include_router(build_admin_dashboard_router(admin.identity_review, admin.listing, admin.review_details, admin.session, admin.payment_accounts))
+    dispatcher.include_router(build_admin_payment_account_router(admin.payment_accounts, admin.session, admin.actor_type))
     dispatcher.include_router(build_identity_review_router(admin.identity_review))
     dispatcher.include_router(build_admin_order_actions_router(admin.review, admin.session, admin.actor_type))
     dispatcher.include_router(build_admin_order_review_details_router(admin.review_details, admin.actor_type, admin.session))
