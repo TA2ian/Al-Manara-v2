@@ -304,7 +304,7 @@ def build_admin_payment_account_router(
                 user_id,
                 actor_type,
                 currency,
-                bool(values.get("is_active")),
+                values.get("is_active") is True,
                 session_id,
                 confirmation_id,
             )
