@@ -51,10 +51,10 @@ def test_admin_dashboard_only_exposes_orders_when_wired():
         for button in row
     ] == [
         ADMIN_IDENTITY_CALLBACK,
+        ADMIN_PAYMENT_ACCOUNTS_CALLBACK,
         ADMIN_ORDERS_CALLBACK,
         ADMIN_REVIEW_ORDERS_CALLBACK,
         ADMIN_FULFILLMENT_CALLBACK,
-        ADMIN_PAYMENT_ACCOUNTS_CALLBACK,
     ]
     assert "لوحة تحكم الإدارة" in render_admin_dashboard()
 
