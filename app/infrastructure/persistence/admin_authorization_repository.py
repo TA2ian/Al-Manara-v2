@@ -20,17 +20,26 @@ class AdminAuthorizationPersistenceError(RuntimeError):
 
 
 class SupabaseAdminAuthorizationRepository(AdminAuthorizationPort):
-    def __init__(self, client: SupabaseRpcClient) -> None:
+    def __init__(self, client: SupabaseRpcClient, *, emergency_mode: bool = False) -> None:
         self._client = client
+        self._emergency_mode = emergency_mode
+
+    def _backup_allowed(self, actor_type: str) -> bool:
+        return actor_type != "backup" or self._emergency_mode
 
     async def authorize(self, telegram_user_id: int, actor_type: str) -> bool:
+        normalized_actor = actor_type.strip().lower()
+        if normalized_actor not in {"primary", "backup"}:
+            return False
+        if not self._backup_allowed(normalized_actor):
+            return False
         try:
             response = await asyncio.to_thread(
                 self._client.rpc(
                     "authorize_admin_order_review",
                     {
                         "p_telegram_user_id": telegram_user_id,
-                        "p_actor_type": actor_type.strip().lower(),
+                        "p_actor_type": normalized_actor,
                     },
                 ).execute
             )
@@ -48,7 +57,6 @@ class SupabaseAdminAuthorizationRepository(AdminAuthorizationPort):
         return value
 
     async def resolve_actor_type(self, telegram_user_id: int) -> str | None:
-        """Resolve the actor type from the DB; never trust Telegram/user input for it."""
         if not isinstance(telegram_user_id, int) or telegram_user_id <= 0:
             raise ValueError("administrator identity must be positive")
         try:
@@ -77,8 +85,11 @@ class SupabaseAdminAuthorizationRepository(AdminAuthorizationPort):
     async def validate_session(self, telegram_user_id: int, actor_type: str, session_id: UUID) -> bool:
         if not isinstance(telegram_user_id, int) or telegram_user_id <= 0:
             raise ValueError("administrator identity must be positive")
-        if actor_type not in {"primary", "backup"}:
+        normalized_actor = actor_type.strip().lower()
+        if normalized_actor not in {"primary", "backup"}:
             raise ValueError("invalid administrator actor type")
+        if normalized_actor == "backup" and not self._emergency_mode:
+            return False
         if not isinstance(session_id, UUID):
             raise ValueError("session identity is required")
         try:
@@ -87,7 +98,7 @@ class SupabaseAdminAuthorizationRepository(AdminAuthorizationPort):
                     "validate_admin_session",
                     {
                         "p_admin_telegram_user_id": telegram_user_id,
-                        "p_actor_type": actor_type,
+                        "p_actor_type": normalized_actor,
                         "p_session_id": str(session_id),
                     },
                 ).execute
