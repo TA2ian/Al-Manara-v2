@@ -88,8 +88,8 @@ class CustomerComposition:
     identity: TelegramCustomerIdentityHandler
 
 
-def build_admin_composition(client: Any, order_uow: UnitOfWork | None = None) -> AdminComposition:
-    authorization = SupabaseAdminAuthorizationRepository(client)
+def build_admin_composition(client: Any, order_uow: UnitOfWork | None = None, *, emergency_mode: bool = False) -> AdminComposition:
+    authorization = SupabaseAdminAuthorizationRepository(client, emergency_mode=emergency_mode)
     review_repository = SupabaseAdminOrderReviewRepository(client)
     review_service = AdminOrderReviewService(review_repository, authorization)
     review_details_service = AdminOrderReviewDetailsService(
@@ -97,10 +97,11 @@ def build_admin_composition(client: Any, order_uow: UnitOfWork | None = None) ->
     )
     listing_service = AdminOrderListingService(SupabaseAdminOrderListingRepository(client))
     closure_service = AdminOrderClosureService(SupabaseAdminOrderClosureRepository(client))
-    session_service = AdminSessionService(SupabaseAdminSessionRepository(client))
+    session_service = AdminSessionService(SupabaseAdminSessionRepository(client), emergency_mode=emergency_mode)
     fulfillment_service = FulfillmentService(SupabaseFulfillmentRepository(client))
     payment_account_service = AdminPaymentAccountService(
-        SupabaseAdminPaymentAccountRepository(client)
+        SupabaseAdminPaymentAccountRepository(client),
+        emergency_mode=emergency_mode,
     )
     identity_review = TelegramAdminCustomerIdentityHandler(
         CustomerIdentityService(SupabaseCustomerIdentityRepository(client)),
