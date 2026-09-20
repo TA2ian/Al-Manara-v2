@@ -29,22 +29,35 @@ class SupabaseAuditLogger:
         event: str,
         *,
         actor_user_id: int,
+        actor_kind: str,
         target_id: UUID,
         metadata: Mapping[str, object],
+        actor_type: str | None = None,
+        target_type: str = "wallet",
     ) -> None:
         if not isinstance(event, str) or not event.strip():
             raise ValueError("audit event must be non-empty")
         if not isinstance(actor_user_id, int) or isinstance(actor_user_id, bool) or actor_user_id <= 0:
             raise ValueError("audit actor must be a positive integer")
+        if actor_kind not in {"customer", "admin"}:
+            raise ValueError("invalid audit actor kind")
+        if actor_kind == "admin" and actor_type not in {"primary", "backup"}:
+            raise ValueError("admin audit actor type is required")
+        if actor_kind == "customer" and actor_type is not None:
+            raise ValueError("customer audit actor type must be omitted")
         if not isinstance(target_id, UUID):
             raise ValueError("audit target must be a UUID")
+        if not isinstance(target_type, str) or not target_type.strip():
+            raise ValueError("audit target type must be non-empty")
         if not isinstance(metadata, Mapping):
             raise ValueError("audit metadata must be a mapping")
 
         payload = {
             "actor_telegram_user_id": actor_user_id,
+            "actor_kind": actor_kind,
+            "actor_type": actor_type,
             "action": event.strip(),
-            "target_type": "wallet",
+            "target_type": target_type.strip(),
             "target_id": str(target_id),
             "metadata": dict(metadata),
         }
