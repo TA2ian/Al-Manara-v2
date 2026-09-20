@@ -45,12 +45,15 @@ async def test_audit_logger_appends_to_canonical_audit_table() -> None:
         "wallet_disabled",
         actor_user_id=123,
         target_id=target,
+        actor_kind="customer",
         metadata={"wallet_status": "DISABLED"},
     )
 
     assert client.table_name == "audit_logs"
     assert client.query.inserted == {
         "actor_telegram_user_id": 123,
+        "actor_kind": "customer",
+        "actor_type": None,
         "action": "wallet_disabled",
         "target_type": "wallet",
         "target_id": str(target),
@@ -64,6 +67,7 @@ async def test_audit_logger_rejects_invalid_actor() -> None:
         await SupabaseAuditLogger(Client(Response())).record(
             "wallet_disabled",
             actor_user_id=0,
+            actor_kind="customer",
             target_id=uuid4(),
             metadata={},
         )
@@ -77,6 +81,31 @@ async def test_audit_logger_wraps_persistence_errors() -> None:
         await SupabaseAuditLogger(client).record(
             "wallet_disabled",
             actor_user_id=123,
+            actor_kind="customer",
+            target_id=uuid4(),
+            metadata={},
+        )
+
+
+@pytest.mark.asyncio
+async def test_audit_logger_rejects_mismatched_actor_type() -> None:
+    logger = SupabaseAuditLogger(Client(Response()))
+
+    with pytest.raises(ValueError):
+        await logger.record(
+            "wallet_disabled",
+            actor_user_id=123,
+            actor_kind="customer",
+            actor_type="backup",
+            target_id=uuid4(),
+            metadata={},
+        )
+
+    with pytest.raises(ValueError):
+        await logger.record(
+            "admin_action",
+            actor_user_id=123,
+            actor_kind="admin",
             target_id=uuid4(),
             metadata={},
         )
