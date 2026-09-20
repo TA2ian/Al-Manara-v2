@@ -1,54 +1,37 @@
--- Audit actor contract: admin and customer identities are represented distinctly.
-do $$
-declare
-  admin_id bigint := 910000001;
-  customer_id bigint := 910000002;
-begin
-  insert into audit_logs (
-    actor_telegram_user_id, actor_kind, actor_type, action, target_type, target_id
-  ) values (
-    admin_id, 'admin', 'primary', 'test_admin_actor', 'test', 'admin'
-  );
+begin;
 
-  insert into audit_logs (
-    actor_telegram_user_id, actor_kind, actor_type, action, target_type, target_id
-  ) values (
-    customer_id, 'customer', null, 'test_customer_actor', 'test', 'customer'
-  );
+select plan(6);
 
-  if not exists (
-    select 1 from audit_logs
-    where actor_telegram_user_id=admin_id
-      and actor_kind='admin'
-      and actor_type='primary'
-  ) then
-    raise exception 'admin audit actor contract failed';
-  end if;
+select lives_ok($$insert into audit_logs (
+  actor_telegram_user_id, actor_kind, actor_type, action, target_type, target_id
+) values (910000001, 'admin', 'primary', 'test_admin_actor', 'test', 'admin')$$,
+'admin audit actor is accepted');
 
-  if not exists (
-    select 1 from audit_logs
-    where actor_telegram_user_id=customer_id
-      and actor_kind='customer'
-      and actor_type is null
-  ) then
-    raise exception 'customer audit actor contract failed';
-  end if;
+select lives_ok($$insert into audit_logs (
+  actor_telegram_user_id, actor_kind, actor_type, action, target_type, target_id
+) values (910000002, 'customer', null, 'test_customer_actor', 'test', 'customer')$$,
+'customer audit actor is accepted');
 
-  begin
-    insert into audit_logs (
-      actor_telegram_user_id, actor_kind, actor_type, action, target_type
-    ) values (customer_id + 1, 'customer', 'backup', 'invalid_customer_actor', 'test');
-    raise exception 'customer actor accepted admin actor_type';
-  exception
-    when check_violation then null;
-  end;
+select throws_ok($$insert into audit_logs (
+  actor_telegram_user_id, actor_kind, actor_type, action, target_type
+) values (910000003, 'customer', 'backup', 'invalid_customer_actor', 'test')$$,
+'23514',
+'new row for relation "audit_logs" violates check constraint "audit_actor_contract"',
+'customer actor cannot have admin actor type');
 
-  begin
-    insert into audit_logs (
-      actor_telegram_user_id, actor_kind, actor_type, action, target_type
-    ) values (admin_id + 1, 'admin', null, 'invalid_admin_actor', 'test');
-    raise exception 'admin actor accepted null actor_type';
-  exception
-    when check_violation then null;
-  end;
-end $$;
+select throws_ok($$insert into audit_logs (
+  actor_telegram_user_id, actor_kind, actor_type, action, target_type
+) values (910000004, 'admin', null, 'invalid_admin_actor', 'test')$$,
+'23514',
+'new row for relation "audit_logs" violates check constraint "audit_actor_contract"',
+'admin actor requires actor type');
+
+select is(
+  (select count(*)::integer from audit_logs
+   where actor_telegram_user_id in (910000001,910000002)
+     and action in ('test_admin_actor','test_customer_actor')),
+  2,
+  'valid audit actor records persisted');
+
+select * from finish();
+rollback;
