@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import re
 from uuid import UUID
 
@@ -72,13 +73,13 @@ async def _download_photo_bytes(message: Message) -> bytes:
     if photo.file_size is not None and photo.file_size > 5 * 1024 * 1024:
         raise ValueError("QR image exceeds size limit")
     bot = message.bot
-    file = await bot.get_file(photo.file_id)
+    file = await asyncio.wait_for(bot.get_file(photo.file_id), timeout=10)
     if file.file_path is None:
         raise ValueError("QR file path unavailable")
     from io import BytesIO
 
     target = BytesIO()
-    await bot.download_file(file.file_path, destination=target)
+    await asyncio.wait_for(bot.download_file(file.file_path, destination=target), timeout=15)
     content = target.getvalue()
     if not content or len(content) > 5 * 1024 * 1024:
         raise ValueError("QR image exceeds size limit")
@@ -203,7 +204,7 @@ def build_admin_payment_account_router(
             return
         try:
             content = await _download_photo_bytes(message)
-            qr_payload = decode_qr_payload(content)
+            qr_payload = await asyncio.wait_for(asyncio.to_thread(decode_qr_payload, content), timeout=10)
         except (QRDecodeError, ValueError, OSError):
             await message.answer("تعذر التحقق من QR. أرسل صورة واضحة وصالحة ضمن الحجم المسموح.")
             return
@@ -290,12 +291,6 @@ def build_admin_payment_account_router(
         try:
             session_id = UUID(str(values["session_id"]))
             confirmation_id = UUID(str(values["confirmation_id"]))
-            setup = PaymentMethodSetup(
-                recipient_name=str(values["recipient_name"]),
-                receiving_address=str(values["receiving_address"]),
-                qr_address=str(values["qr_address"]),
-                qr_image_file_id=str(values["qr_image_file_id"]),
-            )
         except (KeyError, TypeError, ValueError):
             await state.clear()
             await query.answer("بيانات التأكيد غير صالحة. ابدأ من جديد.", show_alert=True)
@@ -304,9 +299,30 @@ def build_admin_payment_account_router(
             await state.clear()
             await query.answer("بيانات التأكيد غير صالحة.", show_alert=True)
             return
-        response = await handler.confirm_upsert(
-            user_id, actor_type, currency, setup, session_id, confirmation_id
-        )
+        if values.get("operation") == "status":
+            response = await handler.confirm_set_active(
+                user_id,
+                actor_type,
+                currency,
+                bool(values.get("is_active")),
+                session_id,
+                confirmation_id,
+            )
+        else:
+            try:
+                setup = PaymentMethodSetup(
+                    recipient_name=str(values["recipient_name"]),
+                    receiving_address=str(values["receiving_address"]),
+                    qr_address=str(values["qr_address"]),
+                    qr_image_file_id=str(values["qr_image_file_id"]),
+                )
+            except (KeyError, TypeError, ValueError):
+                await state.clear()
+                await query.answer("بيانات التأكيد غير صالحة. ابدأ من جديد.", show_alert=True)
+                return
+            response = await handler.confirm_upsert(
+                user_id, actor_type, currency, setup, session_id, confirmation_id
+            )
         await state.clear()
         await query.answer(response.message or "تعذر حفظ الحساب.", show_alert=not response.ok)
         if response.ok:
@@ -373,6 +389,7 @@ def build_admin_payment_account_router(
             actor_type=actor_type,
             currency=currency.value,
             is_active=is_active,
+            operation="status",
             session_id=str(session.session.session_id),
             confirmation_id=str(response.confirmation_id),
         )
