@@ -173,7 +173,7 @@ def build_admin_payment_account_router(
             await message.answer("إعداد حساب الدفع متاح في المحادثة الخاصة فقط.")
             return
         try:
-            recipient_name = _normalize_single_line(message.text or "", maximum=MAX_ACCOUNT_NAME_LENGTH)
+            recipient_name = _normalize_single_line(message.text or "", minimum=2, maximum=MAX_ACCOUNT_NAME_LENGTH)
         except ValueError:
             await message.answer(f"الاسم يجب أن يكون بين 2 و{MAX_ACCOUNT_NAME_LENGTH} حرفًا.")
             return
@@ -188,7 +188,7 @@ def build_admin_payment_account_router(
             await message.answer("إعداد حساب الدفع متاح في المحادثة الخاصة فقط.")
             return
         try:
-            receiving_address = _normalize_single_line(message.text or "", maximum=MAX_ACCOUNT_NUMBER_LENGTH)
+            receiving_address = _normalize_single_line(message.text or "", minimum=5, maximum=MAX_ACCOUNT_NUMBER_LENGTH)
         except ValueError:
             await message.answer(f"المعرّف يجب أن يكون بين 5 و{MAX_ACCOUNT_NUMBER_LENGTH} حرفًا.")
             return
