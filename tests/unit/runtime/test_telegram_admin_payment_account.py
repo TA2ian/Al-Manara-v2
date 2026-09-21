@@ -77,3 +77,15 @@ async def test_request_upsert_confirmation_creates_server_bound_confirmation():
     )
     assert isinstance(repository.confirmation_args[4], str)
     assert len(repository.confirmation_args[4]) == 64
+
+
+from app.runtime.telegram.admin_payment_account_router import _normalize_single_line
+
+
+def test_payment_account_text_validation_enforces_documented_minimums():
+    with pytest.raises(ValueError):
+        _normalize_single_line("A", minimum=2, maximum=100)
+    with pytest.raises(ValueError):
+        _normalize_single_line("1234", minimum=5, maximum=150)
+    assert _normalize_single_line("  Al   Manara  ", minimum=2, maximum=100) == "Al Manara"
+    assert _normalize_single_line(" 12345 ", minimum=5, maximum=150) == "12345"
