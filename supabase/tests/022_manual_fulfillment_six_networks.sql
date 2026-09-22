@@ -104,18 +104,18 @@ cross join lateral create_admin_action_confirmation(
 ) c;
 
 select throws_ok(
-  $select * from complete_order_fulfillment(
+  $$select * from complete_order_fulfillment(
     '00000000-0000-0000-0000-000000002221', 1, 22001001, 'primary',
     'complete-2201', '00000000-0000-0000-0000-000000002231', repeat('a',64),
     (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2201'),
     repeat('0',64)
-  )$,
+  ))$$,
   'P0001',
   'admin action confirmation is invalid, expired, or already consumed',
   'mismatched fulfillment fingerprint is rejected');
 
 select throws_ok(
-  $select * from complete_order_fulfillment(
+  $$select * from complete_order_fulfillment(
     '00000000-0000-0000-0000-000000002221', 1, 22001001, 'primary',
     'complete-no-confirmation', '00000000-0000-0000-0000-000000002231', repeat('1',64),
     null, repeat('1',64)
@@ -124,12 +124,12 @@ select throws_ok(
   'fulfillment confirmation is required',
   'completion without confirmation is rejected');
 
-select lives_ok($select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002221', 1, 22001001, 'primary', 'complete-2201', '00000000-0000-0000-0000-000000002231', repeat('a',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2201'), repeat('a',64))$, 'BEP20 completion succeeds');
-select lives_ok($select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002222', 1, 22001001, 'primary', 'complete-2202', '00000000-0000-0000-0000-000000002231', repeat('b',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2202'), repeat('b',64))$, 'TRC20 completion succeeds');
-select lives_ok($select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002223', 1, 22001001, 'primary', 'complete-2203', '00000000-0000-0000-0000-000000002231', repeat('c',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2203'), repeat('c',64))$, 'ARB completion succeeds');
-select lives_ok($select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002224', 1, 22001001, 'primary', 'complete-2204', '00000000-0000-0000-0000-000000002231', repeat('d',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2204'), repeat('d',64))$, 'ETH completion succeeds');
-select lives_ok($select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002225', 1, 22001001, 'primary', 'complete-2205', '00000000-0000-0000-0000-000000002231', repeat('e',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2205'), repeat('e',64))$, 'SOL completion succeeds');
-select lives_ok($select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002226', 1, 22001001, 'primary', 'complete-2206', '00000000-0000-0000-0000-000000002231', repeat('f',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2206'), repeat('f',64))$, 'POLYGON completion succeeds');
+select lives_ok($$select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002221', 1, 22001001, 'primary', 'complete-2201', '00000000-0000-0000-0000-000000002231', repeat('a',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2201'), repeat('a',64))$, 'BEP20 completion succeeds');
+select lives_ok($$select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002222', 1, 22001001, 'primary', 'complete-2202', '00000000-0000-0000-0000-000000002231', repeat('b',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2202'), repeat('b',64))$, 'TRC20 completion succeeds');
+select lives_ok($$select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002223', 1, 22001001, 'primary', 'complete-2203', '00000000-0000-0000-0000-000000002231', repeat('c',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2203'), repeat('c',64))$, 'ARB completion succeeds');
+select lives_ok($$select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002224', 1, 22001001, 'primary', 'complete-2204', '00000000-0000-0000-0000-000000002231', repeat('d',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2204'), repeat('d',64))$, 'ETH completion succeeds');
+select lives_ok($$select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002225', 1, 22001001, 'primary', 'complete-2205', '00000000-0000-0000-0000-000000002231', repeat('e',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2205'), repeat('e',64))$, 'SOL completion succeeds');
+select lives_ok($$select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002226', 1, 22001001, 'primary', 'complete-2206', '00000000-0000-0000-0000-000000002231', repeat('f',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2206'), repeat('f',64))$, 'POLYGON completion succeeds');
 
 select is((select count(*)::integer from orders where public_order_code like 'ORD-220%' and status='COMPLETED'), 6, 'all six manual fulfillment orders complete');
 select is((select count(*)::integer from orders where public_order_code like 'ORD-220%' and manual_usdt_transfer_reference is not null), 6, 'all six completion TXIDs are persisted');
@@ -142,7 +142,7 @@ select is((select net_usdt_amount from order_financial_snapshots where internal_
 select is((select net_usdt_amount from order_financial_snapshots where internal_order_id='00000000-0000-0000-0000-000000002225'), 89.000000000::numeric, 'SOL net amount is requested less service and network fees');
 select is((select net_usdt_amount from order_financial_snapshots where internal_order_id='00000000-0000-0000-0000-000000002226'), 89.800000000::numeric, 'POLYGON net amount is requested less service and network fees');
 
-select throws_ok($select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002226', 1, 22001001, 'primary', 'complete-2207', '00000000-0000-0000-0000-000000002231', repeat('f',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2206'), repeat('f',64))$, 'P0001', 'stale order version', 'completed order rejects stale completion');
+select throws_ok($$select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002226', 1, 22001001, 'primary', 'complete-2207', '00000000-0000-0000-0000-000000002231', repeat('f',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2206'), repeat('f',64))$, 'P0001', 'stale order version', 'completed order rejects stale completion');
 
 select * from finish();
 rollback;
