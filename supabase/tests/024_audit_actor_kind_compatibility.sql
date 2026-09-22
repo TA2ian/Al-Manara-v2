@@ -4,7 +4,7 @@ select plan(6);
 
 select lives_ok($$insert into audit_logs (
   actor_telegram_user_id, actor_type, action, target_type, target_id
-) values (910000011, 'primary', 'test_derived_admin_actor', 'test', 'derived-admin')$$,
+) values (910000011, 'primary', 'test_derived_admin_actor', 'test', '00000000-0000-0000-0000-000000000011')$$,
 'legacy admin audit shape derives actor_kind');
 
 select is(
@@ -17,7 +17,7 @@ select is(
 
 select lives_ok($$insert into audit_logs (
   actor_telegram_user_id, action, target_type, target_id
-) values (910000012, 'test_derived_customer_actor', 'test', 'derived-customer')$$,
+) values (910000012, 'test_derived_customer_actor', 'test', '00000000-0000-0000-0000-000000000012')$$,
 'legacy customer audit shape derives actor_kind');
 
 select is(
@@ -29,18 +29,20 @@ select is(
 );
 
 select throws_ok($$insert into audit_logs (
-  actor_telegram_user_id, actor_kind, actor_type, action, target_type
-) values (910000013, 'customer', 'primary', 'test_mismatched_actor', 'test')$$,
+  actor_telegram_user_id, actor_kind, actor_type, action, target_type, target_id
+) values (910000013, 'customer', 'primary', 'test_mismatched_actor', 'test',
+          '00000000-0000-0000-0000-000000000013')$$,
 'P0001',
 'audit actor kind does not match actor fields',
 'contradictory explicit actor kind is rejected');
 
 select throws_ok($$insert into audit_logs (
-  actor_telegram_user_id, actor_kind, action, target_type
-) values (910000014, 'admin', 'test_invalid_system_actor', 'test')$$,
+  actor_telegram_user_id, actor_kind, action, target_type, target_id
+) values (910000014, 'admin', 'test_invalid_actor_kind', 'test',
+          '00000000-0000-0000-0000-000000000014')$$,
 'P0001',
 'audit actor kind does not match actor fields',
-'actor kind cannot be supplied without actor type for a non-null actor id');
+'actor kind cannot be supplied without actor type');
 
 select * from finish();
 rollback;
