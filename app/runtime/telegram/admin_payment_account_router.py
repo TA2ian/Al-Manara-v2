@@ -59,9 +59,9 @@ def _currency(value: str) -> CurrencyCode | None:
         return None
 
 
-def _normalize_single_line(value: str, *, maximum: int) -> str:
+def _normalize_single_line(value: str, *, minimum: int, maximum: int) -> str:
     normalized = " ".join((value or "").split())
-    if not normalized or len(normalized) > maximum:
+    if len(normalized) < minimum or len(normalized) > maximum:
         raise ValueError("invalid text")
     return normalized
 
