@@ -41,10 +41,31 @@ class SupabaseFulfillmentRepository(FulfillmentRepository):
             require_claimed=True,
         )
 
+    async def create_confirmation(
+        self, admin_telegram_user_id: int, actor_type: str, session_id: UUID,
+        operation: str, request_fingerprint: str
+    ) -> UUID:
+        rows = await self._execute_confirmation(
+            "create_admin_action_confirmation",
+            {
+                "p_admin_telegram_user_id": admin_telegram_user_id,
+                "p_actor_type": actor_type,
+                "p_session_id": str(session_id),
+                "p_operation": operation,
+                "p_request_fingerprint": request_fingerprint,
+            },
+        )
+        if len(rows) != 1:
+            raise FulfillmentPersistenceError("admin action confirmation returned invalid row count")
+        try:
+            return UUID(str(rows[0]["confirmation_id"]))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise FulfillmentPersistenceError("admin action confirmation returned invalid id") from exc
+
     async def complete(
         self, internal_order_id: UUID, expected_version: int, admin_telegram_user_id: int,
         actor_type: str, idempotency_key: str, session_id: UUID,
-        manual_usdt_transfer_reference: str
+        manual_usdt_transfer_reference: str, confirmation_id: UUID, request_fingerprint: str
     ) -> FulfillmentResult:
         return await self._execute(
             "complete_order_fulfillment",
@@ -56,9 +77,26 @@ class SupabaseFulfillmentRepository(FulfillmentRepository):
                 "p_idempotency_key": idempotency_key,
                 "p_session_id": str(session_id),
                 "p_transfer_reference": manual_usdt_transfer_reference,
+                "p_confirmation_id": str(confirmation_id),
+                "p_request_fingerprint": request_fingerprint,
             },
             require_claimed=False,
         )
+
+    async def _execute_confirmation(self, function_name: str, params: dict[str, Any]) -> list[dict[str, Any]]:
+        try:
+            response = await asyncio.to_thread(self._client.rpc(function_name, params).execute)
+        except Exception as exc:
+            raise FulfillmentPersistenceError(
+                f"fulfillment confirmation RPC failed: {function_name}"
+            ) from exc
+        error = getattr(response, "error", None)
+        if error:
+            raise FulfillmentPersistenceError(self._error_message(function_name, error))
+        data = getattr(response, "data", None)
+        if not isinstance(data, list) or any(not isinstance(row, dict) for row in data):
+            raise FulfillmentPersistenceError(f"invalid fulfillment confirmation response: {function_name}")
+        return [dict(row) for row in data]
 
     async def _execute(self, function_name: str, params: dict[str, Any], require_claimed: bool) -> FulfillmentResult:
         try:
