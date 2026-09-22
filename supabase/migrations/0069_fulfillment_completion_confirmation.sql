@@ -5,6 +5,165 @@
 -- The RPC never submits a blockchain transaction; it only records the TXID/hash
 -- after the administrator has completed the transfer.
 
+-- Extend the existing shared confirmation contract without rewriting migration 0067.
+alter table admin_action_confirmations
+    drop constraint if exists admin_action_confirmation_operation;
+
+alter table admin_action_confirmations
+    add constraint admin_action_confirmation_operation check (
+        operation in (
+            'admin_payment_account.upsert',
+            'admin_payment_account.status',
+            'fulfillment.complete'
+        )
+    );
+
+create or replace function create_admin_action_confirmation(
+    p_admin_telegram_user_id bigint,
+    p_actor_type admin_actor_type,
+    p_session_id uuid,
+    p_operation text,
+    p_request_fingerprint text
+)
+returns table (confirmation_id uuid, expires_at timestamptz)
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+    v_confirmation_id uuid;
+    v_expires timestamptz;
+begin
+    if p_admin_telegram_user_id is null or p_admin_telegram_user_id <= 0 then
+        raise exception 'admin identity is required';
+    end if;
+    if p_actor_type is null or p_session_id is null then
+        raise exception 'admin session is required';
+    end if;
+    if p_operation not in ('admin_payment_account.upsert', 'admin_payment_account.status', 'fulfillment.complete') then
+        raise exception 'unsupported admin confirmation operation';
+    end if;
+    if p_request_fingerprint is null or p_request_fingerprint !~ '^[0-9a-f]{64}$' then
+        raise exception 'invalid admin confirmation fingerprint';
+    end if;
+
+    if not validate_admin_session(
+        p_admin_telegram_user_id,
+        p_actor_type,
+        p_session_id
+    ) then
+        raise exception 'admin session is invalid or expired';
+    end if;
+
+    v_expires := now() + interval '90 seconds';
+
+    insert into admin_action_confirmations(
+        admin_telegram_user_id,
+        actor_type,
+        session_id,
+        operation,
+        request_fingerprint,
+        expires_at
+    )
+    values (
+        p_admin_telegram_user_id,
+        p_actor_type,
+        p_session_id,
+        p_operation,
+        p_request_fingerprint,
+        v_expires
+    )
+    returning id, admin_action_confirmations.expires_at
+      into v_confirmation_id, v_expires;
+
+    insert into audit_logs(
+        actor_telegram_user_id,
+        actor_kind,
+        actor_type,
+        action,
+        target_type,
+        target_id,
+        confirmation_id,
+        metadata
+    )
+    values (
+        p_admin_telegram_user_id,
+        'admin',
+        p_actor_type,
+        'admin.action_confirmation.created',
+        'admin_action_confirmation',
+        v_confirmation_id::text,
+        v_confirmation_id,
+        jsonb_build_object(
+            'operation', p_operation,
+            'expires_at', v_expires
+        )
+    );
+
+    return query select v_confirmation_id, v_expires;
+end;
+$$;
+
+
+create or replace function consume_admin_action_confirmation(
+    p_admin_telegram_user_id bigint,
+    p_actor_type admin_actor_type,
+    p_session_id uuid,
+    p_confirmation_id uuid,
+    p_operation text,
+    p_request_fingerprint text
+)
+returns boolean
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+    v_changed boolean;
+begin
+    if p_admin_telegram_user_id is null or p_admin_telegram_user_id <= 0 then
+        raise exception 'admin identity is required';
+    end if;
+    if p_actor_type is null or p_session_id is null or p_confirmation_id is null then
+        raise exception 'admin confirmation is required';
+    end if;
+    if p_operation not in ('admin_payment_account.upsert', 'admin_payment_account.status', 'fulfillment.complete') then
+        raise exception 'unsupported admin confirmation operation';
+    end if;
+    if p_request_fingerprint is null or p_request_fingerprint !~ '^[0-9a-f]{64}$' then
+        raise exception 'invalid admin confirmation fingerprint';
+    end if;
+
+    if not validate_admin_session(
+        p_admin_telegram_user_id,
+        p_actor_type,
+        p_session_id
+    ) then
+        raise exception 'admin session is invalid or expired';
+    end if;
+
+    update admin_action_confirmations
+       set consumed_at = now()
+     where id = p_confirmation_id
+       and admin_telegram_user_id = p_admin_telegram_user_id
+       and actor_type = p_actor_type
+       and session_id = p_session_id
+       and operation = p_operation
+       and request_fingerprint = p_request_fingerprint
+       and consumed_at is null
+       and expires_at > now();
+
+    v_changed := found;
+
+    if not v_changed then
+        raise exception 'admin action confirmation is invalid, expired, or already consumed';
+    end if;
+
+    return true;
+end;
+$$;
+
+
 drop function if exists public.complete_order_fulfillment(uuid, bigint, bigint, admin_actor_type, text, uuid, text);
 
 create or replace function public.complete_order_fulfillment(
