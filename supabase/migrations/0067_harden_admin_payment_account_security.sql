@@ -64,7 +64,7 @@ begin
     if p_actor_type is null or p_session_id is null then
         raise exception 'admin session is required';
     end if;
-    if p_operation not in ('admin_payment_account.upsert', 'admin_payment_account.status', 'fulfillment.complete') then
+    if p_operation not in ('admin_payment_account.upsert', 'admin_payment_account.status') then
         raise exception 'unsupported admin confirmation operation';
     end if;
     if p_request_fingerprint is null or p_request_fingerprint !~ '^[0-9a-f]{64}$' then
