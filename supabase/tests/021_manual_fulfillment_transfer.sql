@@ -3,7 +3,7 @@ begin;
 select plan(12);
 
 select ok(
-  to_regprocedure('public.complete_order_fulfillment(uuid,bigint,bigint,admin_actor_type,text,uuid,text)') is not null,
+  to_regprocedure('public.complete_order_fulfillment(uuid,bigint,bigint,admin_actor_type,text,uuid,text,uuid,text)') is not null,
   'manual-reference completion RPC exists'
 );
 
@@ -67,6 +67,15 @@ values (
   now() + interval '10 minutes'
 );
 
+select * into temporary test_021_fulfillment_confirmation
+from create_admin_action_confirmation(
+  21001001,
+  'primary',
+  '00000000-0000-0000-0000-000000002131',
+  'fulfillment.complete',
+  repeat('a',64)
+);
+
 select lives_ok(
   $$
   select * from claim_order_fulfillment(
@@ -90,7 +99,9 @@ select lives_ok(
     'primary',
     'complete-2101',
     '00000000-0000-0000-0000-000000002131',
-    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    (select confirmation_id from test_021_fulfillment_confirmation),
+    repeat('a',64)
   )
   $$,
   'completion records manual transfer reference'
