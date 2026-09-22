@@ -20,6 +20,10 @@ class FakeFulfillmentService:
         self.claim_kwargs = kwargs
         return FulfillmentResult(kwargs["internal_order_id"], "ORD-1", "APPROVED", 3, 10, datetime.now(timezone.utc), False)
 
+    async def request_complete_confirmation(self, *args, **kwargs):
+        self.calls.append("request_complete_confirmation")
+        return uuid4()
+
     async def complete(self, **kwargs):
         self.calls.append("complete")
         self.complete_kwargs = kwargs
@@ -57,13 +61,14 @@ async def test_complete_accepts_valid_request() -> None:
     session_validator = FakeSessionValidator()
     handler = TelegramFulfillmentHandler(service, session_validator=session_validator)  # type: ignore[arg-type]
 
-    response = await handler.complete(TelegramFulfillmentInput(10, "primary", uuid4(), 3, "complete-1", uuid4(), "a"*64))
+    response = await handler.complete(TelegramFulfillmentInput(10, "primary", uuid4(), 3, "complete-1", uuid4(), "a"*64, uuid4()))
 
     assert response.ok is True
     assert response.status == "COMPLETED"
     assert service.calls == ["complete"]
     assert service.complete_kwargs["manual_usdt_transfer_reference"] == "a" * 64
     assert service.complete_kwargs["idempotency_key"] == "complete-1"
+    assert service.complete_kwargs["confirmation_id"]
 
 
 @pytest.mark.asyncio
@@ -127,7 +132,21 @@ async def test_complete_requires_transfer_reference() -> None:
     session_validator = FakeSessionValidator()
     handler = TelegramFulfillmentHandler(service, session_validator=session_validator)  # type: ignore[arg-type]
 
-    response = await handler.complete(TelegramFulfillmentInput(10, "primary", uuid4(), 3, "complete-1", uuid4()))
+    response = await handler.complete(TelegramFulfillmentInput(10, "primary", uuid4(), 3, "complete-1", uuid4(), "a"*64))
+
+    assert response.ok is False
+    assert service.calls == []
+
+
+@pytest.mark.asyncio
+async def test_complete_rejects_missing_confirmation() -> None:
+    service = FakeFulfillmentService()
+    session_validator = FakeSessionValidator()
+    handler = TelegramFulfillmentHandler(service, session_validator=session_validator)  # type: ignore[arg-type]
+
+    response = await handler.complete(
+        TelegramFulfillmentInput(10, "primary", uuid4(), 3, "complete-1", uuid4(), "a" * 64)
+    )
 
     assert response.ok is False
     assert service.calls == []
