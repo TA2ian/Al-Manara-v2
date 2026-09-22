@@ -109,7 +109,7 @@ select throws_ok(
     'complete-2201', '00000000-0000-0000-0000-000000002231', repeat('a',64),
     (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2201'),
     repeat('0',64)
-  ))$$,
+  ))$$$,
   'P0001',
   'admin action confirmation is invalid, expired, or already consumed',
   'mismatched fulfillment fingerprint is rejected');
@@ -142,7 +142,14 @@ select is((select net_usdt_amount from order_financial_snapshots where internal_
 select is((select net_usdt_amount from order_financial_snapshots where internal_order_id='00000000-0000-0000-0000-000000002225'), 89.000000000::numeric, 'SOL net amount is requested less service and network fees');
 select is((select net_usdt_amount from order_financial_snapshots where internal_order_id='00000000-0000-0000-0000-000000002226'), 89.800000000::numeric, 'POLYGON net amount is requested less service and network fees');
 
-select throws_ok($$select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002226', 1, 22001001, 'primary', 'complete-2207', '00000000-0000-0000-0000-000000002231', repeat('f',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2206'), repeat('f',64))$, 'P0001', 'stale order version', 'completed order rejects stale completion');
+insert into test_fulfillment_confirmations (public_order_code, confirmation_id, request_fingerprint)
+select 'ORD-2206-stale', c.confirmation_id, repeat('f',64)
+from create_admin_action_confirmation(
+  22001001, 'primary', '00000000-0000-0000-0000-000000002231',
+  'fulfillment.complete', repeat('f',64)
+) c;
+
+select throws_ok($$select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002226', 1, 22001001, 'primary', 'complete-2207', '00000000-0000-0000-0000-000000002231', repeat('f',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2206-stale'), repeat('f',64))$, 'P0001', 'stale order version', 'completed order rejects stale completion');
 
 select * from finish();
 rollback;
