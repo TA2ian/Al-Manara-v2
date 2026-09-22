@@ -19,8 +19,7 @@ create table if not exists admin_action_confirmations (
     constraint admin_action_confirmation_operation check (
         operation in (
             'admin_payment_account.upsert',
-            'admin_payment_account.status',
-            'fulfillment.complete'
+            'admin_payment_account.status'
         )
     ),
     constraint admin_action_confirmation_fingerprint check (
