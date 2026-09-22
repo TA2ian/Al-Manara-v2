@@ -13,7 +13,7 @@ select ok(
 );
 
 select ok(
-  to_regprocedure('public.complete_order_fulfillment(uuid,bigint,bigint,admin_actor_type,text,uuid,text)') is not null,
+  to_regprocedure('public.complete_order_fulfillment(uuid,bigint,bigint,admin_actor_type,text,uuid,text,uuid,text)') is not null,
   'session-bound completion RPC requires transfer reference'
 );
 
@@ -108,6 +108,24 @@ values
   ('00000000-0000-0000-0000-000000002031', 20001001, now() + interval '10 minutes'),
   ('00000000-0000-0000-0000-000000002032', 20001002, now() + interval '10 minutes');
 
+create temporary table test_020_fulfillment_confirmations (
+  name text primary key,
+  confirmation_id uuid not null,
+  request_fingerprint text not null
+) on commit drop;
+
+insert into test_020_fulfillment_confirmations (name, confirmation_id, request_fingerprint)
+select v.name, c.confirmation_id, v.fingerprint
+from (
+  values
+    ('stale', repeat('a',64), 20001001::bigint, 'primary'::admin_actor_type, '00000000-0000-0000-0000-000000002031'::uuid),
+    ('wrong-owner', repeat('b',64), 20001002::bigint, 'backup'::admin_actor_type, '00000000-0000-0000-0000-000000002032'::uuid),
+    ('success', repeat('c',64), 20001001::bigint, 'primary'::admin_actor_type, '00000000-0000-0000-0000-000000002031'::uuid)
+) as v(name, fingerprint, admin_id, actor, session_id)
+cross join lateral create_admin_action_confirmation(
+  v.admin_id, v.actor, v.session_id, 'fulfillment.complete', v.fingerprint
+) c;
+
 select lives_ok($$
   select * from claim_order_fulfillment(
     '00000000-0000-0000-0000-000000002021',
@@ -152,6 +170,8 @@ select throws_ok($$
     'primary',
     'fulfillment-stale-complete',
     '00000000-0000-0000-0000-000000002031',
+    repeat('a', 64),
+    (select confirmation_id from test_020_fulfillment_confirmations where name='stale'),
     repeat('a', 64)
   )
 $$, 'P0001', 'stale order version', 'a pre-claim completion callback is rejected as stale');
@@ -164,6 +184,8 @@ select throws_ok($$
     'backup',
     'fulfillment-wrong-owner',
     '00000000-0000-0000-0000-000000002032',
+    repeat('b', 64),
+    (select confirmation_id from test_020_fulfillment_confirmations where name='wrong-owner'),
     repeat('b', 64)
   )
 $$, 'P0001', 'fulfillment claim belongs to another admin', 'a non-owner cannot complete the order');
@@ -176,6 +198,8 @@ select lives_ok($$
     'primary',
     'fulfillment-complete-2001',
     '00000000-0000-0000-0000-000000002031',
+    repeat('c', 64),
+    (select confirmation_id from test_020_fulfillment_confirmations where name='success'),
     repeat('c', 64)
   )
 $$, 'the claim owner can complete with the current version and fresh session');
