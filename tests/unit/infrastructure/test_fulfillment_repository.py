@@ -79,7 +79,7 @@ async def test_complete_maps_rpc_result() -> None:
         }])
     })
 
-    result = await SupabaseFulfillmentRepository(client).complete(order_id, 4, 123, "primary", "complete-1", session_id, "a"*64)
+    result = await SupabaseFulfillmentRepository(client).complete(order_id, 4, 123, "primary", "complete-1", session_id, "a"*64, uuid4(), "b"*64)
 
     assert result.status == "COMPLETED"
     assert result.version == 5
@@ -98,8 +98,10 @@ async def test_complete_passes_transfer_reference() -> None:
         "internal_order_id": str(order_id), "public_order_code": "ORD-1",
         "status": "COMPLETED", "version": 5, "completed_at": completed_at.isoformat(), "replayed": False,
     }])})
-    await SupabaseFulfillmentRepository(client).complete(order_id, 4, 123, "primary", "complete-1", session_id, reference)
+    await SupabaseFulfillmentRepository(client).complete(order_id, 4, 123, "primary", "complete-1", session_id, reference, uuid4(), "b"*64)
     assert client.calls[0][1]["p_transfer_reference"] == reference
+    assert client.calls[0][1]["p_confirmation_id"]
+    assert client.calls[0][1]["p_request_fingerprint"] == "b"*64
 
 
 @pytest.mark.asyncio
@@ -109,3 +111,17 @@ async def test_invalid_rpc_response_is_rejected() -> None:
 
     with pytest.raises(FulfillmentPersistenceError):
         await SupabaseFulfillmentRepository(client).claim(order_id, 1, 123, "primary", "claim-1", uuid4())
+
+
+@pytest.mark.asyncio
+async def test_create_confirmation_uses_shared_rpc() -> None:
+    confirmation_id = uuid4()
+    client = FakeClient({"create_admin_action_confirmation": Response([{"confirmation_id": str(confirmation_id)}])})
+
+    result = await SupabaseFulfillmentRepository(client).create_confirmation(
+        123, "primary", uuid4(), "fulfillment.complete", "a" * 64
+    )
+
+    assert result == confirmation_id
+    assert client.calls[0][0] == "create_admin_action_confirmation"
+    assert client.calls[0][1]["p_operation"] == "fulfillment.complete"
