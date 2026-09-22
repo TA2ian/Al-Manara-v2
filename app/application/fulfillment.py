@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
@@ -29,6 +31,15 @@ class FulfillmentRepository(Protocol):
         session_id: UUID,
     ) -> FulfillmentResult: ...
 
+    async def create_confirmation(
+        self,
+        admin_telegram_user_id: int,
+        actor_type: str,
+        session_id: UUID,
+        operation: str,
+        request_fingerprint: str,
+    ) -> UUID: ...
+
     async def complete(
         self,
         internal_order_id: UUID,
@@ -38,14 +49,67 @@ class FulfillmentRepository(Protocol):
         idempotency_key: str,
         session_id: UUID,
         manual_usdt_transfer_reference: str,
+        confirmation_id: UUID,
+        request_fingerprint: str,
     ) -> FulfillmentResult: ...
 
 
 class FulfillmentService:
     """Application boundary for the operational fulfillment lifecycle."""
 
+    COMPLETE_OPERATION = "fulfillment.complete"
+
     def __init__(self, repository: FulfillmentRepository) -> None:
         self._repository = repository
+
+    @classmethod
+    def _completion_fingerprint(
+        cls,
+        internal_order_id: UUID,
+        expected_version: int,
+        admin_telegram_user_id: int,
+        actor_type: str,
+        idempotency_key: str,
+        manual_usdt_transfer_reference: str,
+    ) -> str:
+        canonical = json.dumps(
+            {
+                "operation": cls.COMPLETE_OPERATION,
+                "payload": {
+                    "order_id": str(internal_order_id),
+                    "expected_version": expected_version,
+                    "admin_telegram_user_id": admin_telegram_user_id,
+                    "actor_type": actor_type,
+                    "idempotency_key": idempotency_key,
+                    "transfer_reference": manual_usdt_transfer_reference,
+                },
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+        return hashlib.sha256(canonical).hexdigest()
+
+    async def request_complete_confirmation(
+        self,
+        internal_order_id: UUID,
+        expected_version: int,
+        admin_telegram_user_id: int,
+        actor_type: str,
+        idempotency_key: str,
+        session_id: UUID,
+        manual_usdt_transfer_reference: str,
+    ) -> UUID:
+        actor, key, session = self._validate(
+            internal_order_id, expected_version, admin_telegram_user_id, actor_type, idempotency_key, session_id
+        )
+        reference = self._validate_transfer_reference(manual_usdt_transfer_reference)
+        fingerprint = self._completion_fingerprint(
+            internal_order_id, expected_version, admin_telegram_user_id, actor, key, reference
+        )
+        return await self._repository.create_confirmation(
+            admin_telegram_user_id, actor, session, self.COMPLETE_OPERATION, fingerprint
+        )
 
     async def claim(
         self,
@@ -72,13 +136,20 @@ class FulfillmentService:
         idempotency_key: str,
         session_id: UUID,
         manual_usdt_transfer_reference: str,
+        confirmation_id: UUID,
     ) -> FulfillmentResult:
         actor, key, session = self._validate(
             internal_order_id, expected_version, admin_telegram_user_id, actor_type, idempotency_key, session_id
         )
         reference = self._validate_transfer_reference(manual_usdt_transfer_reference)
+        if not isinstance(confirmation_id, UUID):
+            raise ValueError("fulfillment confirmation is required")
+        fingerprint = self._completion_fingerprint(
+            internal_order_id, expected_version, admin_telegram_user_id, actor, key, reference
+        )
         return await self._repository.complete(
-            internal_order_id, expected_version, admin_telegram_user_id, actor, key, session, reference
+            internal_order_id, expected_version, admin_telegram_user_id, actor, key, session,
+            reference, confirmation_id, fingerprint
         )
 
     @staticmethod
