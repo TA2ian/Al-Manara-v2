@@ -2,7 +2,7 @@
 -- The function exposes a RETURNS TABLE column named "currency"; PostgreSQL's
 -- default variable conflict mode otherwise treats the ON CONFLICT target as
 -- ambiguous. Keep the existing API and mutation semantics unchanged.
-create function upsert_admin_payment_account(
+create or replace function upsert_admin_payment_account(
     p_telegram_user_id bigint,
     p_actor_type admin_actor_type,
     p_currency currency_code,
