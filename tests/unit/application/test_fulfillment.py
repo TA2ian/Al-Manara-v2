@@ -49,7 +49,9 @@ async def test_complete_delegates_to_atomic_repository_with_session() -> None:
 
     assert result.status == "COMPLETED"
     assert repository.calls[0][0] == "complete"
-    assert repository.calls[0][1][-1] == "a"*64
+    assert repository.calls[0][1][6] == "a"*64
+    assert repository.calls[0][1][7] == confirmation_id
+    assert len(repository.calls[0][1][8]) == 64
 
 
 @pytest.mark.asyncio
@@ -87,7 +89,7 @@ async def test_complete_rejects_missing_transfer_reference_before_persistence() 
     repository = FakeFulfillmentRepository()
     service = FulfillmentService(repository)
     with pytest.raises(ValueError, match="manual USDT transfer reference"):
-        await service.complete(uuid4(), 3, 100, "primary", "complete-1", uuid4(), "")
+        await service.complete(uuid4(), 3, 100, "primary", "complete-1", uuid4(), "", uuid4())
     assert repository.calls == []
 
 
@@ -97,7 +99,7 @@ async def test_complete_rejects_invalid_transfer_reference_before_persistence() 
     service = FulfillmentService(repository)
 
     with pytest.raises(ValueError, match="transfer reference"):
-        await service.complete(uuid4(), 3, 100, "primary", "complete-1", uuid4(), "not-a-txid")
+        await service.complete(uuid4(), 3, 100, "primary", "complete-1", uuid4(), "not-a-txid", uuid4())
     assert repository.calls == []
 
 
