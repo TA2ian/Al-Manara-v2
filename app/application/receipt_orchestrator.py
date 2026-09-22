@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from uuid import UUID
+import logging
 
 from app.application.receipt_image import ReceiptImageInspectorImpl
 from app.application.receipt_image_normalizer import ReceiptImageNormalizer
@@ -10,6 +11,9 @@ from app.application.receipt_verification_service import ReceiptFinancialVerific
 from app.domain.receipt_attempt import ReceiptAttemptStatus
 from app.domain.receipt_ocr import OcrField, OcrPort
 from app.domain.receipt_verification import ExtractedReceiptData, VerificationDecision
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,10 +68,14 @@ class ReceiptSubmissionOrchestrator:
             status = ReceiptAttemptStatus.ESCALATED if decision is VerificationDecision.SUSPICIOUS and submission.attempt_id is not None and await self._is_third_attempt(submission.attempt_id) else ReceiptAttemptStatus.FAILED
             finalized = True
             return await self._finalizer.finalize(submission.attempt_id, status, reason)
-        except Exception as exc:
+        except Exception:
             if not finalized:
-                reason = str(exc).strip() or "receipt processing failed"
-                await self._finalizer.finalize(submission.attempt_id, ReceiptAttemptStatus.FAILED, reason)
+                logger.exception("receipt processing failed", extra={"receipt_attempt_id": str(submission.attempt_id)})
+                await self._finalizer.finalize(
+                    submission.attempt_id,
+                    ReceiptAttemptStatus.FAILED,
+                    "receipt processing failed",
+                )
             raise
 
     async def _is_third_attempt(self, attempt_id: UUID) -> bool:
