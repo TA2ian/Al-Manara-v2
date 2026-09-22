@@ -34,6 +34,7 @@ class TelegramFulfillmentInput:
     idempotency_key: str
     session_id: UUID | None = None
     manual_usdt_transfer_reference: str | None = None
+    confirmation_id: UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +49,7 @@ class TelegramFulfillmentResponse:
 class AdminFulfillmentActionState(StatesGroup):
     confirmation = State()
     transfer_reference = State()
+    completion_confirmation = State()
 
 
 def _confirmation_markup(order_id: UUID, expected_version: int) -> InlineKeyboardMarkup:
@@ -112,6 +114,8 @@ class TelegramFulfillmentHandler:
             return TelegramFulfillmentResponse(False, None, None, False, "invalid fulfillment request")
         if operation == "complete" and not isinstance(request.manual_usdt_transfer_reference, str):
             return TelegramFulfillmentResponse(False, None, None, False, "أدخل رقم معاملة البلوكتشين أولًا.")
+        if operation == "complete" and not isinstance(request.confirmation_id, UUID):
+            return TelegramFulfillmentResponse(False, None, None, False, "يجب تأكيد إتمام التحويل أولًا.")
         if self._session_validator is None:
             return TelegramFulfillmentResponse(False, None, None, False, FULFILLMENT_ERROR_MESSAGE)
         try:
@@ -131,7 +135,14 @@ class TelegramFulfillmentHandler:
                 actor_type=actor_type,
                 idempotency_key=idempotency_key,
                 session_id=request.session_id,
-                **({"manual_usdt_transfer_reference": request.manual_usdt_transfer_reference} if operation == "complete" else {}),
+                **(
+                    {
+                        "manual_usdt_transfer_reference": request.manual_usdt_transfer_reference,
+                        "confirmation_id": request.confirmation_id,
+                    }
+                    if operation == "complete"
+                    else {}
+                ),
             )
         except ValueError:
             return TelegramFulfillmentResponse(False, None, None, False, FULFILLMENT_ERROR_MESSAGE)
@@ -241,7 +252,41 @@ def build_fulfillment_router(
             await query.message.edit_reply_markup(reply_markup=None)
             return
 
-        if await state.get_state() != AdminFulfillmentActionState.confirmation.state:
+        current_state = await state.get_state()
+        if operation == "confirm" and current_state == AdminFulfillmentActionState.completion_confirmation.state:
+            try:
+                stored_order = UUID(str(data["order_id"]))
+                stored_version = int(data["expected_version"])
+                stored_actor_type = str(data["actor_type"])
+                stored_session = UUID(str(data["session_id"]))
+                confirmation_id = UUID(str(data["confirmation_id"]))
+                reference = str(data["manual_usdt_transfer_reference"])
+                idempotency_key = str(data["idempotency_key"])
+            except (KeyError, TypeError, ValueError):
+                await state.clear()
+                await query.answer("بيانات تأكيد الإتمام غير صالحة. افتح الطلب من جديد.", show_alert=True)
+                return
+            response = await handler.complete(
+                TelegramFulfillmentInput(
+                    admin_user_id=admin_user_id,
+                    actor_type=stored_actor_type,
+                    order_id=stored_order,
+                    expected_version=stored_version,
+                    idempotency_key=idempotency_key,
+                    session_id=stored_session,
+                    manual_usdt_transfer_reference=reference,
+                    confirmation_id=confirmation_id,
+                )
+            )
+            if response.ok:
+                await state.clear()
+                await query.answer(response.message)
+                await query.message.answer("تم تسجيل التحويل اليدوي وإغلاق الطلب كـ COMPLETED.")
+            else:
+                await query.answer(response.message, show_alert=True)
+            return
+
+        if current_state != AdminFulfillmentActionState.confirmation.state:
             await query.answer("يجب تجهيز العملية وتأكيدها أولًا.", show_alert=True)
             return
 
@@ -310,22 +355,44 @@ def build_fulfillment_router(
         if len(reference) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in reference):
             await message.answer("TXID غير صالح. أرسل hash من 64 حرفًا hexadecimal فقط.")
             return
-        response = await handler.complete(
-            TelegramFulfillmentInput(
-                admin_user_id=admin_user_id,
-                actor_type=actor_type,
-                order_id=order_id,
-                expected_version=expected_version,
-                idempotency_key=str(data["idempotency_key"]),
-                session_id=session_id,
-                manual_usdt_transfer_reference=reference,
+        try:
+            confirmation_id = await handler._service.request_complete_confirmation(
+                order_id,
+                expected_version,
+                admin_user_id,
+                actor_type,
+                str(data["idempotency_key"]),
+                session_id,
+                reference,
             )
+        except ValueError:
+            await message.answer("بيانات تأكيد الإتمام غير صالحة. افتح الطلب من جديد.")
+            return
+        except Exception:
+            await message.answer(FULFILLMENT_ERROR_MESSAGE)
+            return
+
+        await state.update_data(
+            manual_usdt_transfer_reference=reference,
+            confirmation_id=str(confirmation_id),
         )
-        if response.ok:
-            await state.clear()
-            await message.answer(response.message)
-            await message.answer("تم تسجيل التحويل اليدوي وإغلاق الطلب كـ COMPLETED.")
-        else:
-            await message.answer(response.message or "تعذر إتمام التسليم. قد يكون الطلب تغير أو الجلسة انتهت. أعد إرسال TXID بعد التحقق من الطلب.")
+        await state.set_state(AdminFulfillmentActionState.completion_confirmation)
+        await message.answer(
+            "راجع قبل الإتمام النهائي:\n"
+            f"TXID/Hash: {reference}\n"
+            "إذا كان التحويل قد تم يدويًا فعلًا، اضغط «تأكيد إتمام التحويل».",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[
+                    InlineKeyboardButton(
+                        text="تأكيد إتمام التحويل",
+                        callback_data=f"admin:fulfillment:confirm:{order_id}:{expected_version}",
+                    ),
+                    InlineKeyboardButton(
+                        text="إلغاء",
+                        callback_data=f"admin:fulfillment:cancel:{order_id}:{expected_version}",
+                    ),
+                ]]
+            ),
+        )
 
     return router
