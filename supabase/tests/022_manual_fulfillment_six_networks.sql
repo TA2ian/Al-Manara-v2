@@ -109,7 +109,7 @@ select throws_ok(
     'complete-2201', '00000000-0000-0000-0000-000000002231', repeat('a',64),
     (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2201'),
     repeat('0',64)
-  ))$$,
+  )$$,
   'P0001',
   'admin action confirmation is invalid, expired, or already consumed',
   'mismatched fulfillment fingerprint is rejected');
