@@ -1,6 +1,6 @@
 begin;
 
-select plan(25);
+select plan(26);
 
 select is(
   (select count(*)::integer from network_configs
@@ -125,6 +125,7 @@ select throws_ok(
   'completion without confirmation is rejected');
 
 select lives_ok($$select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002221', 1, 22001001, 'primary', 'complete-2201', '00000000-0000-0000-0000-000000002231', repeat('a',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2201'), repeat('a',64))$$, 'BEP20 completion succeeds');
+select throws_ok($$select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002221', 1, 22001001, 'primary', 'complete-2201-replay', '00000000-0000-0000-0000-000000002231', repeat('a',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2201'), repeat('a',64))$$, 'P0001', 'admin action confirmation is invalid, expired, or already consumed', 'consumed fulfillment confirmation cannot be replayed');
 select lives_ok($$select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002222', 1, 22001001, 'primary', 'complete-2202', '00000000-0000-0000-0000-000000002231', repeat('b',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2202'), repeat('b',64))$$, 'TRC20 completion succeeds');
 select lives_ok($$select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002223', 1, 22001001, 'primary', 'complete-2203', '00000000-0000-0000-0000-000000002231', repeat('c',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2203'), repeat('c',64))$$, 'ARB completion succeeds');
 select lives_ok($$select * from complete_order_fulfillment('00000000-0000-0000-0000-000000002224', 1, 22001001, 'primary', 'complete-2204', '00000000-0000-0000-0000-000000002231', repeat('d',64), (select confirmation_id from test_fulfillment_confirmations where public_order_code='ORD-2204'), repeat('d',64))$$, 'ETH completion succeeds');
