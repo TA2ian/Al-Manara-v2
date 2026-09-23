@@ -1,6 +1,6 @@
 begin;
 
-select plan(12);
+select plan(14);
 
 select ok(
   to_regprocedure('public.complete_order_fulfillment(uuid,bigint,bigint,admin_actor_type,text,uuid,text,uuid,text)') is not null,
@@ -129,12 +129,45 @@ select is(
 
 select is(
   (
+    select replayed
+    from complete_order_fulfillment(
+      '00000000-0000-0000-0000-000000002121',
+      2,
+      21001001,
+      'primary',
+      'complete-2101',
+      '00000000-0000-0000-0000-000000002131',
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      (select confirmation_id from test_021_fulfillment_confirmation),
+      repeat('a',64)
+    )
+  ),
+  true,
+  'repeating the same completion request replays without requiring a second confirmation'
+);
+
+select throws_ok($
+  select * from complete_order_fulfillment(
+    '00000000-0000-0000-0000-000000002121',
+    2,
+    21001001,
+    'primary',
+    'complete-2101',
+    '00000000-0000-0000-0000-000000002131',
+    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    (select confirmation_id from test_021_fulfillment_confirmation),
+    repeat('b',64)
+  )
+$, 'P0001', 'idempotency key belongs to another fulfillment operation', 'reusing a completion idempotency key with different transfer data is rejected');
+
+select is(
+  (
     select version
     from orders
     where internal_order_id = '00000000-0000-0000-0000-000000002121'
   ),
   3::bigint,
-  'completion increments version'
+  'completion increments version exactly once despite replay'
 );
 
 select is(
