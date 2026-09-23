@@ -1,0 +1,94 @@
+from datetime import datetime, timezone
+from uuid import uuid4
+
+import pytest
+
+from app.application.order_service import OrderTransitionService
+from app.application.ports import PersistedOrderTransition
+from app.domain.order import Order
+from app.domain.order_status import OrderStatus
+from app.domain.order_transition import OrderTransitionCommand
+
+
+class FakeOrderRepository:
+    def __init__(self, order: Order) -> None:
+        self.order = order
+        self.transition_calls = 0
+
+    async def get_for_update(self, internal_order_id):
+        return self.order if internal_order_id == self.order.internal_order_id else None
+
+    async def transition_if_version(self, internal_order_id, target_status, expected_version):
+        self.transition_calls += 1
+        if self.order.version != expected_version:
+            return None
+        updated = self.order.transition_to(target_status)
+        result = PersistedOrderTransition(
+            order=updated,
+            state_before=self.order.status,
+            state_after=updated.status,
+            transitioned_at=datetime.now(timezone.utc),
+        )
+        self.order = updated
+        return result
+
+
+class FakeIdempotencyRepository:
+    def __init__(self) -> None:
+        self.results = {}
+
+    async def get_result(self, key):
+        return self.results.get(key)
+
+    async def store_result(self, key, result):
+        self.results[key] = result
+
+
+@pytest.mark.asyncio
+async def test_repeated_approval_is_idempotent() -> None:
+    order = Order(uuid4(), "ORD-TEST01", OrderStatus.UNDER_REVIEW, 1)
+    orders = FakeOrderRepository(order)
+    idem = FakeIdempotencyRepository()
+    service = OrderTransitionService(orders, idem)
+
+    command = OrderTransitionCommand(
+        order.internal_order_id,
+        OrderStatus.APPROVED,
+        123,
+        "primary",
+        None,
+        1,
+        "approve-1",
+    )
+
+    first = await service.transition_order(command)
+    second = await service.transition_order(command)
+
+    assert first is second
+    assert orders.transition_calls == 1
+    assert orders.order.status is OrderStatus.APPROVED
+
+
+@pytest.mark.asyncio
+async def test_stale_expected_version_blocks_transition() -> None:
+    order = Order(uuid4(), "ORD-TEST02", OrderStatus.UNDER_REVIEW, 4)
+    orders = FakeOrderRepository(order)
+    idem = FakeIdempotencyRepository()
+    service = OrderTransitionService(orders, idem)
+
+    command = OrderTransitionCommand(
+        order.internal_order_id,
+        OrderStatus.APPROVED,
+        123,
+        "primary",
+        None,
+        3,
+        "approve-stale",
+    )
+
+    with pytest.raises(RuntimeError, match="stale order version"):
+        await service.transition_order(command)
+
+    assert orders.transition_calls == 0
+    assert orders.order.status is OrderStatus.UNDER_REVIEW
+    assert orders.order.version == 4
