@@ -1,0 +1,39 @@
+name: database-tests
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/**'
+      - 'tests/database/**'
+      - '.github/workflows/database-tests.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/**'
+      - 'tests/database/**'
+      - '.github/workflows/database-tests.yml'
+
+jobs:
+  database:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase
+        run: supabase db start
+
+      - name: Rebuild database from migrations
+        run: supabase db reset
+
+      - name: Lint database
+        run: supabase db lint --level error
+
+      - name: Run database contract tests
+        run: supabase test db
