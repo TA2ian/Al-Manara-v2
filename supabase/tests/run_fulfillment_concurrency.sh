@@ -181,8 +181,12 @@ SQL
   wait "$pid_a"
   wait "$pid_b"
 
-  grep -Eq '^[[:space:]]*f[[:space:]]*
-  grep -Eq '^[[:space:]]*t[[:space:]]*
+  echo "same-key A stdout:"; cat "$TMP_DIR/a.out"
+  echo "same-key A stderr:"; cat "$TMP_DIR/a.err"
+  echo "same-key B stdout:"; cat "$TMP_DIR/b.out"
+  echo "same-key B stderr:"; cat "$TMP_DIR/b.err"
+  grep -Eq '^[[:space:]]*f[[:space:]]*$' "$TMP_DIR/a.out"
+  grep -Eq '^[[:space:]]*t[[:space:]]*$' "$TMP_DIR/b.out"
 
   psql_cmd <<SQL
 do $$
