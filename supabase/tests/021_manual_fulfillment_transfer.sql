@@ -146,7 +146,7 @@ select is(
   'repeating the same completion request replays without requiring a second confirmation'
 );
 
-select throws_ok($
+select throws_ok($$
   select * from complete_order_fulfillment(
     '00000000-0000-0000-0000-000000002121',
     2,
@@ -158,7 +158,7 @@ select throws_ok($
     (select confirmation_id from test_021_fulfillment_confirmation),
     repeat('b',64)
   )
-$, 'P0001', 'idempotency key belongs to another fulfillment operation', 'reusing a completion idempotency key with different transfer data is rejected');
+$$, 'P0001', 'idempotency key belongs to another fulfillment operation', 'reusing a completion idempotency key with different transfer data is rejected');
 
 select is(
   (
