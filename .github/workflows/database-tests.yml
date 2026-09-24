@@ -17,7 +17,16 @@ jobs:
           version: 2.117.0
 
       - name: Start local Supabase
-        run: supabase db start
+        run: |
+          for attempt in 1 2 3; do
+            if supabase db start; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              sleep $((attempt * 60))
+            fi
+          done
+          exit 1
 
       - name: Rebuild database from migrations
         run: supabase db reset
