@@ -146,7 +146,7 @@ run_same_key_completion() {
   confirmation_id="$(psql_cmd -Atc "select confirmation_id from create_admin_action_confirmation(29001001, 'primary', '00000000-0000-0000-0000-000000009031', 'fulfillment.complete', '$fingerprint')")"
 
   (
-    psql "$DB_URL" -v ON_ERROR_STOP=1 -X >"$TMP_DIR/a.out" 2>"$TMP_DIR/a.err" <<SQL
+    psql "$DB_URL" -v ON_ERROR_STOP=1 -X -t >"$TMP_DIR/a.out" 2>"$TMP_DIR/a.err" <<SQL
 begin;
 select internal_order_id
   from orders
@@ -167,7 +167,7 @@ SQL
   sleep 0.5
 
   (
-    psql "$DB_URL" -v ON_ERROR_STOP=1 -X >"$TMP_DIR/b.out" 2>"$TMP_DIR/b.err" <<SQL
+    psql "$DB_URL" -v ON_ERROR_STOP=1 -X -t >"$TMP_DIR/b.out" 2>"$TMP_DIR/b.err" <<SQL
 select replayed
   from complete_order_fulfillment(
     '$order_id', 1, 29001001, 'primary', '$key',
@@ -217,7 +217,7 @@ run_different_key_completion() {
   confirmation_b="$(psql_cmd -Atc "select confirmation_id from create_admin_action_confirmation(29001001, 'primary', '00000000-0000-0000-0000-000000009031', 'fulfillment.complete', '$fingerprint_b')")"
 
   (
-    psql "$DB_URL" -v ON_ERROR_STOP=1 -X >"$TMP_DIR/c.out" 2>"$TMP_DIR/c.err" <<SQL
+    psql "$DB_URL" -v ON_ERROR_STOP=1 -X -t >"$TMP_DIR/c.out" 2>"$TMP_DIR/c.err" <<SQL
 select * from claim_order_fulfillment(
   '$order_id', 1, 29001001, 'primary', 'concurrency-claim-for-complete',
   '00000000-0000-0000-0000-000000009031'
@@ -244,7 +244,7 @@ SQL
 
   (
     set +e
-    psql "$DB_URL" -v ON_ERROR_STOP=1 -X >"$TMP_DIR/d.out" 2>"$TMP_DIR/d.err" <<SQL
+    psql "$DB_URL" -v ON_ERROR_STOP=1 -X -t >"$TMP_DIR/d.out" 2>"$TMP_DIR/d.err" <<SQL
 select replayed
   from complete_order_fulfillment(
     '$order_id', 2, 29001001, 'primary', 'concurrency-complete-key-b',
@@ -286,7 +286,7 @@ run_same_key_claim() {
   local key="concurrency-claim-same-key"
 
   (
-    psql "$DB_URL" -v ON_ERROR_STOP=1 -X >"$TMP_DIR/e.out" 2>"$TMP_DIR/e.err" <<SQL
+    psql "$DB_URL" -v ON_ERROR_STOP=1 -X -t >"$TMP_DIR/e.out" 2>"$TMP_DIR/e.err" <<SQL
 begin;
 select internal_order_id
   from orders
@@ -305,7 +305,7 @@ SQL
   sleep 0.5
 
   (
-    psql "$DB_URL" -v ON_ERROR_STOP=1 -X >"$TMP_DIR/f.out" 2>"$TMP_DIR/f.err" <<SQL
+    psql "$DB_URL" -v ON_ERROR_STOP=1 -X -t >"$TMP_DIR/f.out" 2>"$TMP_DIR/f.err" <<SQL
 select replayed
   from claim_order_fulfillment(
     '$order_id', 1, 29001001, 'primary', '$key'
