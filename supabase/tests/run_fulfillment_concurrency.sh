@@ -149,7 +149,8 @@ SQL
 select replayed
   from complete_order_fulfillment(
     '$order_id', 1, 29001001, 'primary', '$key',
-    '00000000-0000-0000-0000-000000009031', '$txid'
+    '00000000-0000-0000-0000-000000009031', '$txid',
+    '$confirmation_id', '$fingerprint'
   );
 SQL
   ) &
