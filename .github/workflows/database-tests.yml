@@ -36,3 +36,11 @@ jobs:
 
       - name: Run database contract tests
         run: supabase db test
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Run concurrency integration tests
+        run: bash supabase/tests/run_fulfillment_concurrency.sh
