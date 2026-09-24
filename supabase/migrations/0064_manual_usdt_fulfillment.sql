@@ -96,6 +96,31 @@ begin
      where o.internal_order_id = p_order_id
      for update;
     if not found then raise exception 'order not found'; end if;
+
+    -- Re-check after acquiring the order lock so a concurrent same-key request
+    -- returns the stored result instead of incorrectly failing as stale.
+    select f.result into v_existing
+      from order_fulfillment_idempotency f
+     where f.idempotency_key = btrim(p_idempotency_key)
+       and f.operation = 'complete'
+     for update;
+    if found then
+        if (v_existing->>'internal_order_id')::uuid <> p_order_id
+           or (v_existing->>'admin_telegram_user_id')::bigint <> p_admin_telegram_user_id
+           or coalesce(v_existing->>'transfer_reference','') <> v_reference
+        then
+            raise exception 'idempotency key belongs to another fulfillment operation';
+        end if;
+        return query select
+            (v_existing->>'internal_order_id')::uuid,
+            v_existing->>'public_order_code',
+            (v_existing->>'status')::order_status,
+            (v_existing->>'version')::bigint,
+            (v_existing->>'completed_at')::timestamptz,
+            true;
+        return;
+    end if;
+
     if v_version <> p_expected_version then
         raise exception using errcode='P0001', message='stale order version', detail=format('expected=%s current=%s', p_expected_version, v_version);
     end if;
