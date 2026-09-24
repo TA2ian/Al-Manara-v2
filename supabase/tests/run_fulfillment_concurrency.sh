@@ -118,6 +118,10 @@ run_same_key_completion() {
   local order_id="00000000-0000-0000-0000-000000009021"
   local key="concurrency-complete-same-key"
   local txid="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  local fingerprint="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  local confirmation_id
+
+  confirmation_id="$(psql_cmd -Atc "select confirmation_id from create_admin_action_confirmation(29001001, 'primary', '00000000-0000-0000-0000-000000009031', 'fulfillment.complete', '$fingerprint')")"
 
   (
     psql "$DB_URL" -v ON_ERROR_STOP=1 -X >"$TMP_DIR/a.out" 2>"$TMP_DIR/a.err" <<SQL
@@ -130,7 +134,8 @@ select pg_sleep(2);
 select replayed
   from complete_order_fulfillment(
     '$order_id', 1, 29001001, 'primary', '$key',
-    '00000000-0000-0000-0000-000000009031', '$txid'
+    '00000000-0000-0000-0000-000000009031', '$txid',
+    '$confirmation_id', '$fingerprint'
   );
 commit;
 SQL
@@ -180,6 +185,13 @@ SQL
 
 run_different_key_completion() {
   local order_id="00000000-0000-0000-0000-000000009022"
+  local fingerprint_a="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  local fingerprint_b="cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  local confirmation_a
+  local confirmation_b
+
+  confirmation_a="$(psql_cmd -Atc "select confirmation_id from create_admin_action_confirmation(29001001, 'primary', '00000000-0000-0000-0000-000000009031', 'fulfillment.complete', '$fingerprint_a')")"
+  confirmation_b="$(psql_cmd -Atc "select confirmation_id from create_admin_action_confirmation(29001001, 'primary', '00000000-0000-0000-0000-000000009031', 'fulfillment.complete', '$fingerprint_b')")"
 
   (
     psql "$DB_URL" -v ON_ERROR_STOP=1 -X >"$TMP_DIR/c.out" 2>"$TMP_DIR/c.err" <<SQL
@@ -197,7 +209,8 @@ select replayed
   from complete_order_fulfillment(
     '$order_id', 2, 29001001, 'primary', 'concurrency-complete-key-a',
     '00000000-0000-0000-0000-000000009031',
-    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    '$confirmation_a', '$fingerprint_a'
   );
 commit;
 SQL
@@ -213,7 +226,8 @@ select replayed
   from complete_order_fulfillment(
     '$order_id', 2, 29001001, 'primary', 'concurrency-complete-key-b',
     '00000000-0000-0000-0000-000000009031',
-    'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'
+    'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+    '$confirmation_b', '$fingerprint_b'
   );
 SQL
     printf '%s' "$?" >"$TMP_DIR/d.status"
