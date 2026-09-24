@@ -115,11 +115,11 @@ begin
     insert into order_fulfillment_claims (internal_order_id, admin_telegram_user_id, claimed_at)
     values (p_order_id, p_admin_telegram_user_id, v_claimed_at);
 
-    update orders
-       set version = version + 1,
+    update orders as o
+       set version = o.version + 1,
            updated_at = now()
-     where internal_order_id = p_order_id
-       and version = p_expected_version;
+     where o.internal_order_id = p_order_id
+       and o.version = p_expected_version;
     if not found then raise exception 'order changed concurrently'; end if;
 
     insert into audit_logs (
