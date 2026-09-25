@@ -16,7 +16,7 @@ class AdminActionConfirmationRepository(Protocol):
 
 
 class AdminActionConfirmationService:
-    ALLOWED_OPERATIONS = frozenset({"order.recover", "fulfillment.complete", "admin_payment_account.upsert", "admin_payment_account.status"})
+    ALLOWED_OPERATIONS = frozenset({"order.reopen_receipt", "fulfillment.complete", "admin_payment_account.upsert", "admin_payment_account.status"})
 
     def __init__(self, repository: AdminActionConfirmationRepository) -> None:
         self._repository = repository
