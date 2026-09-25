@@ -1,4 +1,4 @@
--- Controlled admin receipt reopen: move only CLARIFICATION_REQUIRED orders back to UNDER_REVIEW.
+-- Controlled admin receipt reopen: move only CLARIFICATION_REQUIRED orders back to PENDING_PAYMENT.
 -- This operation never changes financial snapshots, payment amounts, wallet data, or fulfillment state.
 
 alter table admin_action_confirmations
