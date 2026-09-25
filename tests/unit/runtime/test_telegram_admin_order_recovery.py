@@ -29,15 +29,15 @@ class FakeConfirmation:
 @pytest.mark.asyncio
 async def test_fingerprint_is_stable_for_same_operation() -> None:
     order_id = uuid4()
-    first = TelegramAdminOrderRecoveryHandler.fingerprint(order_id, 2, 100, "primary", "same reason")
-    second = TelegramAdminOrderRecoveryHandler.fingerprint(order_id, 2, 100, "primary", "same reason")
+    first = TelegramAdminReceiptReopenHandler.fingerprint(order_id, 2, 100, "primary", "same reason")
+    second = TelegramAdminReceiptReopenHandler.fingerprint(order_id, 2, 100, "primary", "same reason")
     assert first == second
     assert len(first) == 64
 
 
 @pytest.mark.asyncio
 async def test_handler_requires_service_contract() -> None:
-    handler = TelegramAdminOrderRecoveryHandler(FakeService(), FakeResolver(), FakeConfirmation())
+    handler = TelegramAdminReceiptReopenHandler(FakeService(), FakeResolver(), FakeConfirmation())
     response = await handler.handle(
         admin_user_id=100,
         actor_type="primary",
