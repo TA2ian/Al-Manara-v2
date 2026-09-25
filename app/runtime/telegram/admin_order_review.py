@@ -28,6 +28,8 @@ class TelegramAdminReviewInput:
     reason: str | None = None
     idempotency_key: str = ""
     session_id: UUID | None = None
+    confirmation_id: UUID | None = None
+    request_fingerprint: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +67,10 @@ class TelegramAdminOrderReviewHandler:
             return TelegramAdminReviewResponse(False, message="A review action is required.")
         if not isinstance(request.session_id, UUID):
             return TelegramAdminReviewResponse(False, message="A recent admin session is required.")
+        if not isinstance(request.confirmation_id, UUID):
+            return TelegramAdminReviewResponse(False, message="An additional admin confirmation is required.")
+        if not isinstance(request.request_fingerprint, str) or len(request.request_fingerprint) != 64 or any(c not in "0123456789abcdef" for c in request.request_fingerprint):
+            return TelegramAdminReviewResponse(False, message=REVIEW_ERROR_MESSAGE)
         if self._session_validator is None:
             return TelegramAdminReviewResponse(False, message=REVIEW_ERROR_MESSAGE)
 
@@ -98,6 +104,8 @@ class TelegramAdminOrderReviewHandler:
                     reason=request.reason,
                     idempotency_key=request.idempotency_key,
                     session_id=request.session_id,
+                    confirmation_id=request.confirmation_id,
+                    request_fingerprint=request.request_fingerprint,
                 )
             )
         except ValueError:
