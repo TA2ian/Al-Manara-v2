@@ -164,7 +164,7 @@ def build_telegram_runtime(settings: TelegramBotSettings) -> tuple[Bot, Dispatch
     dispatcher.include_router(build_admin_order_actions_router(admin.review, admin.session, admin.actor_type))
     dispatcher.include_router(build_admin_order_review_details_router(admin.review_details, admin.actor_type, admin.session))
     dispatcher.include_router(build_admin_order_closure_router(admin.closure, admin.session, admin.actor_type))
-    dispatcher.include_router(build_admin_order_recovery_router(admin.recovery, admin.session))
+    dispatcher.include_router(build_admin_receipt_reopen_router(admin.recovery, admin.session))
     dispatcher.include_router(build_fulfillment_router(admin.fulfillment, admin.session, admin.actor_type))
     dispatcher.include_router(build_customer_router(build_customer_composition(client)))
     dispatcher.errors.register(log_telegram_error)
