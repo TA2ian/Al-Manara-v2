@@ -12,7 +12,7 @@ from aiogram.types import CallbackQuery, Message
 from app.application.customer_order_details import GetCustomerOrderDetailsCommand
 from app.application.submit_customer_receipt import SubmitCustomerReceiptCommand
 from app.composition_root import CustomerComposition
-from app.domain.receipt_attempt import ReceiptAttemptStatus, ReceiptInputType, SUPPORTED_RECEIPT_MIME_TYPES, MAX_TRANSACTION_REFERENCE_LENGTH
+from app.domain.receipt_attempt import ReceiptAttemptStatus, SUPPORTED_RECEIPT_MIME_TYPES
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
 
 MAX_RECEIPT_BYTES = 5 * 1024 * 1024
@@ -23,16 +23,16 @@ ORDER_CODE_MAX_LENGTH = 100
 
 class CustomerReceiptState(StatesGroup):
     awaiting_image = State()
-    awaiting_text = State()
 
 
 class ReceiptMessages:
     PROMPT = (
-        "أرسل رقم عملية شام كاش كنص، أو أرسل صورة إيصال "
+        "أرسل الآن صورة إيصال شام كاش للطلب. "
         "المسموح: JPG أو PNG أو WEBP، وبحد أقصى 5 MB."
     )
     INVALID = "بيانات الإيصال غير صالحة."
     UNSUPPORTED_FORMAT = "يرجى إرسال صورة الإيصال بصيغة JPG أو PNG أو WEBP."
+    PDF_NOT_SUPPORTED = "ملفات PDF غير مدعومة. يرجى فتح الإيصال والتقاط صورة واضحة له ثم إرسال الصورة هنا."
     TOO_LARGE = "حجم الإيصال يتجاوز الحد المسموح وهو 5 MB."
     ACCEPTED = "تم استلام الإيصال وإدخاله في قائمة المراجعة. الموافقة المالية النهائية يحددها الأدمن يدويًا."
     FAILED = "تعذر معالجة الإيصال. أرسل صورة واضحة وصالحة وحاول مرة أخرى."
@@ -119,43 +119,6 @@ def build_customer_receipt_router(composition: CustomerComposition) -> Router:
         await query.answer()
         await query.message.answer(ReceiptMessages.PROMPT)
 
-    @router.message(CustomerReceiptState.awaiting_image, F.text)
-    async def receive_text(message: Message, state: FSMContext) -> None:
-        if not is_private_message(message):
-            await state.clear()
-            return
-        user_id = authenticated_telegram_user_id(message)
-        data = await state.get_data()
-        try:
-            order_id = UUID(str(data["receipt_order_id"]))
-        except (KeyError, TypeError, ValueError):
-            await state.clear()
-            await message.answer(ReceiptMessages.INVALID)
-            return
-        reference = " ".join((message.text or "").split())
-        if user_id is None or not reference or len(reference) > MAX_TRANSACTION_REFERENCE_LENGTH:
-            await message.answer("رقم العملية غير صالح.")
-            return
-        try:
-            result = await composition.customer_receipt.submit(SubmitCustomerReceiptCommand(
-                order_id=order_id,
-                telegram_user_id=user_id,
-                idempotency_key=f"receipt:{user_id}:{order_id}:{message.message_id}",
-                input_type=ReceiptInputType.TEXT,
-                transaction_reference=reference,
-            ))
-        except ValueError:
-            await message.answer(ReceiptMessages.FAILED)
-            return
-        except Exception:
-            await message.answer(ReceiptMessages.ERROR)
-            return
-        if result.status not in {ReceiptAttemptStatus.SUBMITTED, ReceiptAttemptStatus.VERIFIED}:
-            await message.answer(ReceiptMessages.ERROR)
-            return
-        await state.clear()
-        await message.answer(f"{ReceiptMessages.ACCEPTED}\nرقم العملية: {reference}")
-
     @router.message(CustomerReceiptState.awaiting_image, F.photo)
     async def receive_photo(message: Message, state: FSMContext) -> None:
         await _receive_image(message, state, composition, "image/jpeg")
@@ -163,6 +126,9 @@ def build_customer_receipt_router(composition: CustomerComposition) -> Router:
     @router.message(CustomerReceiptState.awaiting_image, F.document)
     async def receive_document(message: Message, state: FSMContext) -> None:
         mime = (message.document.mime_type or "").strip().lower() if message.document else ""
+        if mime == "application/pdf":
+            await message.answer(ReceiptMessages.PDF_NOT_SUPPORTED)
+            return
         if mime not in SUPPORTED_RECEIPT_MIME_TYPES:
             await message.answer(ReceiptMessages.UNSUPPORTED_FORMAT)
             return
@@ -197,8 +163,6 @@ async def _receive_image(message: Message, state: FSMContext, composition: Custo
 
     try:
         actual_declared_mime, content = await _download_receipt(message)
-        # For Telegram photos the declared type is fixed to JPEG; for documents
-        # use Telegram's declaration but validate the actual bytes in the domain.
         if actual_declared_mime != declared_mime:
             declared_mime = actual_declared_mime
         result = await composition.customer_receipt.submit(
