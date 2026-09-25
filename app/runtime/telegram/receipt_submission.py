@@ -12,7 +12,7 @@ from aiogram.types import CallbackQuery, Message
 from app.application.customer_order_details import GetCustomerOrderDetailsCommand
 from app.application.submit_customer_receipt import SubmitCustomerReceiptCommand
 from app.composition_root import CustomerComposition
-from app.domain.receipt_attempt import ReceiptAttemptStatus, SUPPORTED_RECEIPT_MIME_TYPES
+from app.domain.receipt_attempt import ReceiptAttemptStatus, ReceiptInputType, SUPPORTED_RECEIPT_MIME_TYPES, MAX_TRANSACTION_REFERENCE_LENGTH
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
 
 MAX_RECEIPT_BYTES = 5 * 1024 * 1024
@@ -23,11 +23,12 @@ ORDER_CODE_MAX_LENGTH = 100
 
 class CustomerReceiptState(StatesGroup):
     awaiting_image = State()
+    awaiting_text = State()
 
 
 class ReceiptMessages:
     PROMPT = (
-        "أرسل الآن صورة إيصال شام كاش للطلب. "
+        "أرسل رقم عملية شام كاش كنص، أو أرسل صورة إيصال "
         "المسموح: JPG أو PNG أو WEBP، وبحد أقصى 5 MB."
     )
     INVALID = "بيانات الإيصال غير صالحة."
@@ -117,6 +118,43 @@ def build_customer_receipt_router(composition: CustomerComposition) -> Router:
         await state.set_state(CustomerReceiptState.awaiting_image)
         await query.answer()
         await query.message.answer(ReceiptMessages.PROMPT)
+
+    @router.message(CustomerReceiptState.awaiting_image, F.text)
+    async def receive_text(message: Message, state: FSMContext) -> None:
+        if not is_private_message(message):
+            await state.clear()
+            return
+        user_id = authenticated_telegram_user_id(message)
+        data = await state.get_data()
+        try:
+            order_id = UUID(str(data["receipt_order_id"]))
+        except (KeyError, TypeError, ValueError):
+            await state.clear()
+            await message.answer(ReceiptMessages.INVALID)
+            return
+        reference = " ".join((message.text or "").split())
+        if user_id is None or not reference or len(reference) > MAX_TRANSACTION_REFERENCE_LENGTH:
+            await message.answer("رقم العملية غير صالح.")
+            return
+        try:
+            result = await composition.customer_receipt.submit(SubmitCustomerReceiptCommand(
+                order_id=order_id,
+                telegram_user_id=user_id,
+                idempotency_key=f"receipt:{user_id}:{order_id}:{message.message_id}",
+                input_type=ReceiptInputType.TEXT,
+                transaction_reference=reference,
+            ))
+        except ValueError:
+            await message.answer(ReceiptMessages.FAILED)
+            return
+        except Exception:
+            await message.answer(ReceiptMessages.ERROR)
+            return
+        if result.status not in {ReceiptAttemptStatus.SUBMITTED, ReceiptAttemptStatus.VERIFIED}:
+            await message.answer(ReceiptMessages.ERROR)
+            return
+        await state.clear()
+        await message.answer(f"{ReceiptMessages.ACCEPTED}\nرقم العملية: {reference}")
 
     @router.message(CustomerReceiptState.awaiting_image, F.photo)
     async def receive_photo(message: Message, state: FSMContext) -> None:
