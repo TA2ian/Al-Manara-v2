@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.runtime.telegram.admin_order_recovery import TelegramAdminOrderRecoveryHandler
+from app.runtime.telegram.admin_order_reopen import TelegramAdminOrderRecoveryHandler
 
 
 class FakeResolver:
@@ -14,7 +14,7 @@ class FakeService:
     def __init__(self):
         self.commands = []
 
-    async def recover_to_review(self, command):
+    async def reopen_for_receipt(self, command):
         self.commands.append(command)
         class Result:
             version = 4
