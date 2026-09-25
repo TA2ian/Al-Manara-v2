@@ -11,7 +11,7 @@ from app.application.admin_order_review_details import AdminOrderReviewDetailsSe
 from app.runtime.telegram.admin_session import TelegramAdminSessionHandler
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
 from app.runtime.telegram.fulfillment import fulfillment_action_markup
-from app.runtime.telegram.admin_order_recovery import recovery_markup
+from app.runtime.telegram.admin_order_recovery import receipt_reopen_markup
 
 ADMIN_DASHBOARD_CALLBACK = "admin:dashboard"
 ADMIN_IDENTITY_CALLBACK = "admin:identity_pending"
