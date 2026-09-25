@@ -27,6 +27,8 @@ class ReceiptImageValidationError(ValueError):
 
 class ReceiptImageInspectorImpl:
     async def inspect_bytes(self, content: bytes, declared_mime_type: str) -> InspectedReceiptImage:
+        if not isinstance(content, bytes):
+            raise ReceiptImageValidationError("receipt image content must be bytes")
         if not content:
             raise ReceiptImageValidationError("receipt image is empty")
         if len(content) > MAX_RECEIPT_BYTES:
@@ -37,7 +39,10 @@ class ReceiptImageInspectorImpl:
             "image/png": "PNG",
             "image/webp": "WEBP",
         }
-        expected_format = expected_formats.get(declared_mime_type)
+        if not isinstance(declared_mime_type, str):
+            raise ReceiptImageValidationError("unsupported receipt image type")
+        normalized_mime = declared_mime_type.strip().lower()
+        expected_format = expected_formats.get(normalized_mime)
         if expected_format is None:
             raise ReceiptImageValidationError("unsupported receipt image type")
 
@@ -54,13 +59,15 @@ class ReceiptImageInspectorImpl:
                 if width * height > MAX_RECEIPT_PIXELS:
                     raise ReceiptImageValidationError("receipt image contains too many pixels")
                 image.verify()
-        except UnidentifiedImageError as exc:
-            raise ReceiptImageValidationError("file is not a valid supported image") from exc
-        except OSError as exc:
+        except ReceiptImageValidationError:
+            raise
+        except Image.DecompressionBombError as exc:
+            raise ReceiptImageValidationError("receipt image exceeds safe decoding limits") from exc
+        except (UnidentifiedImageError, OSError, SyntaxError) as exc:
             raise ReceiptImageValidationError("image could not be safely decoded") from exc
 
         return InspectedReceiptImage(
-            mime_type=declared_mime_type,
+            mime_type=normalized_mime,
             width=width,
             height=height,
             size_bytes=len(content),
