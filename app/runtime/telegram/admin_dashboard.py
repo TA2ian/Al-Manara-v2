@@ -102,6 +102,8 @@ def _render_orders(
                 )
             else:
                 lines.append("  التنفيذ مستلم من مدير آخر؛ لا يمكن إتمامه من هذا الحساب.")
+        elif item.status == "CLARIFICATION_REQUIRED":
+            rows.extend(recovery_markup(item.internal_order_id, item.version).inline_keyboard)
     if page.total_count > page.page_size:
         lines.append(f"\nالصفحة {page.page + 1}")
     return "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
