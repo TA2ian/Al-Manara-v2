@@ -76,7 +76,7 @@ class TelegramAdminReceiptReopenHandler:
         confirmation_id: UUID,
         request_fingerprint: str,
         reason: str,
-    ) -> RecoveryHandlerResponse:
+    ) -> ReceiptReopenResponse:
         try:
             result = await self._service.reopen_for_receipt(
                 AdminOrderRecoveryCommand(
@@ -92,8 +92,8 @@ class TelegramAdminReceiptReopenHandler:
                 )
             )
         except Exception:
-            return RecoveryHandlerResponse(False, "تعذر إعادة فتح الطلب للمراجعة. افتح الطلب من جديد وحاول مرة أخرى.")
-        return RecoveryHandlerResponse(
+            return ReceiptReopenResponse(False, "تعذر إعادة فتح الطلب للمراجعة. افتح الطلب من جديد وحاول مرة أخرى.")
+        return ReceiptReopenResponse(
             True,
             "تم فتح الطلب لاستقبال إيصال جديد.",
             result.version,
@@ -104,27 +104,27 @@ def receipt_reopen_markup(order_id: UUID, expected_version: int) -> InlineKeyboa
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(
             text="إعادة طلب الإيصال",
-            callback_data=f"admin:recovery:request:{order_id}:{expected_version}",
+            callback_data=f"admin:receipt-reopen:request:{order_id}:{expected_version}",
         )
     ]])
 
 
 def _confirm_reopen_markup(order_id: UUID, expected_version: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="تأكيد الاستعادة", callback_data=f"admin:recovery:confirm:{order_id}:{expected_version}"),
-        InlineKeyboardButton(text="إلغاء", callback_data=f"admin:recovery:cancel:{order_id}:{expected_version}"),
+        InlineKeyboardButton(text="تأكيد إعادة طلب الإيصال", callback_data=f"admin:receipt-reopen:confirm:{order_id}:{expected_version}"),
+        InlineKeyboardButton(text="إلغاء", callback_data=f"admin:receipt-reopen:cancel:{order_id}:{expected_version}"),
     ]])
 
 
 def build_admin_receipt_reopen_router(
-    handler: TelegramAdminOrderRecoveryHandler,
+    handler: TelegramAdminReceiptReopenHandler,
     session_handler: TelegramAdminSessionHandler,
 ) -> Router:
     router = Router(name="admin-order-recovery")
 
-    @router.callback_query(F.data.regexp(RECOVERY_CALLBACK.pattern))
+    @router.callback_query(F.data.regexp(REOPEN_RECEIPT_CALLBACK.pattern))
     async def callback(query: CallbackQuery, state: FSMContext) -> None:
-        match = RECOVERY_CALLBACK.fullmatch(query.data or "")
+        match = REOPEN_RECEIPT_CALLBACK.fullmatch(query.data or "")
         if match is None or query.message is None or not is_private_message(query.message):
             await query.answer("هذا الطلب غير صالح.", show_alert=True)
             return
@@ -152,7 +152,7 @@ def build_admin_receipt_reopen_router(
                 expected_version=version,
                 session_id=str(session.session.session_id),
             )
-            await state.set_state(RecoveryState.reason)
+            await state.set_state(ReceiptReopenState.reason)
             await query.answer("أرسل سبب إعادة طلب الإيصال.", show_alert=True)
             await query.message.answer(
                 f"أرسل سبب إعادة طلب الإيصال (من {MIN_REASON_LENGTH} إلى {MAX_REASON_LENGTH} حرفًا)."
@@ -168,7 +168,7 @@ def build_admin_receipt_reopen_router(
             await state.clear()
             await query.answer("تم الإلغاء.")
             return
-        if await state.get_state() != RecoveryState.confirmation.state:
+        if await state.get_state() != ReceiptReopenState.confirmation.state:
             await query.answer("أكمل سبب إعادة طلب الإيصال أولًا.", show_alert=True)
             return
 
@@ -195,7 +195,7 @@ def build_admin_receipt_reopen_router(
         await state.clear()
         await query.answer(result.message, show_alert=not result.ok)
 
-    @router.message(RecoveryState.reason, F.text)
+    @router.message(ReceiptReopenState.reason, F.text)
     async def reason(message: Message, state: FSMContext) -> None:
         if not is_private_message(message):
             await state.clear()
@@ -232,7 +232,7 @@ def build_admin_receipt_reopen_router(
             fingerprint=fingerprint,
             confirmation_id=str(confirmation_id),
         )
-        await state.set_state(RecoveryState.confirmation)
+        await state.set_state(ReceiptReopenState.confirmation)
         await message.answer(
             f"العملية: إعادة طلب إيصال جديد\nالسبب:\n{text}\n\nهل تريد المتابعة؟",
             reply_markup=_confirm_markup(UUID(str(data["order_id"])), int(data["expected_version"])),
