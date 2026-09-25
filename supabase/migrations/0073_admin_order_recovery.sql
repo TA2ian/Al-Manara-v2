@@ -138,7 +138,7 @@ begin
     if p_idempotency_key is null or length(btrim(p_idempotency_key)) not between 1 and 128 then
         raise exception 'idempotency key is invalid';
     end if;
-    if v_reason !~ '^.{5,1000}$' then
+    if length(v_reason) < 5 or length(v_reason) > 1000 then
         raise exception 'recovery reason is required';
     end if;
     if p_request_fingerprint is null or p_request_fingerprint !~ '^[0-9a-f]{64}$' then
