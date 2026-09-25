@@ -22,10 +22,10 @@ from app.runtime.telegram.admin_session import TelegramAdminSessionHandler
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
 
 
-RECOVERY_CALLBACK = re.compile(r"^admin:recovery:(request|confirm|cancel):([0-9a-fA-F-]{36}):(\d+)$")
+REOPEN_RECEIPT_CALLBACK = re.compile(r"^admin:receipt-reopen:(request|confirm|cancel):([0-9a-fA-F-]{36}):(\d+)$")
 
 
-class RecoveryState(StatesGroup):
+class ReceiptReopenState(StatesGroup):
     reason = State()
     confirmation = State()
 
@@ -35,13 +35,13 @@ class ActorResolver(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
-class RecoveryHandlerResponse:
+class ReceiptReopenResponse:
     ok: bool
     message: str
     version: int | None = None
 
 
-class TelegramAdminOrderRecoveryHandler:
+class TelegramAdminReceiptReopenHandler:
     def __init__(self, service: AdminOrderRecoveryService, resolver: ActorResolver, confirmations: AdminActionConfirmationService) -> None:
         self._service = service
         self._resolver = resolver
@@ -92,7 +92,7 @@ class TelegramAdminOrderRecoveryHandler:
                 )
             )
         except Exception:
-            return RecoveryHandlerResponse(False, "تعذر استعادة الطلب للمراجعة. افتح الطلب من جديد وحاول مرة أخرى.")
+            return RecoveryHandlerResponse(False, "تعذر إعادة فتح الطلب للمراجعة. افتح الطلب من جديد وحاول مرة أخرى.")
         return RecoveryHandlerResponse(
             True,
             "تم فتح الطلب لاستقبال إيصال جديد.",
@@ -100,7 +100,7 @@ class TelegramAdminOrderRecoveryHandler:
         )
 
 
-def recovery_markup(order_id: UUID, expected_version: int) -> InlineKeyboardMarkup:
+def receipt_reopen_markup(order_id: UUID, expected_version: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(
             text="إعادة طلب الإيصال",
@@ -109,14 +109,14 @@ def recovery_markup(order_id: UUID, expected_version: int) -> InlineKeyboardMark
     ]])
 
 
-def _confirm_markup(order_id: UUID, expected_version: int) -> InlineKeyboardMarkup:
+def _confirm_reopen_markup(order_id: UUID, expected_version: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="تأكيد الاستعادة", callback_data=f"admin:recovery:confirm:{order_id}:{expected_version}"),
         InlineKeyboardButton(text="إلغاء", callback_data=f"admin:recovery:cancel:{order_id}:{expected_version}"),
     ]])
 
 
-def build_admin_order_recovery_router(
+def build_admin_receipt_reopen_router(
     handler: TelegramAdminOrderRecoveryHandler,
     session_handler: TelegramAdminSessionHandler,
 ) -> Router:
