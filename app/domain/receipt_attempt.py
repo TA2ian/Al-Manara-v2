@@ -7,6 +7,7 @@ from uuid import UUID
 
 
 class ReceiptInputType(StrEnum):
+    # TEXT remains readable for legacy persisted records, but new submissions are image-only.
     TEXT = "TEXT"
     IMAGE = "IMAGE"
 
@@ -21,7 +22,6 @@ class ReceiptAttemptStatus(StrEnum):
 
 SUPPORTED_RECEIPT_MIME_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})
 MAX_RECEIPT_ATTEMPTS = 3
-MAX_TRANSACTION_REFERENCE_LENGTH = 128
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,22 +47,18 @@ class ReceiptAttempt:
         file_id = self.telegram_file_id.strip() if self.telegram_file_id is not None else None
         mime = self.mime_type.strip().lower() if self.mime_type is not None else None
 
+        # Customer receipt submissions are intentionally image-only.
+        # TEXT is retained only so legacy persisted rows can still be represented.
         if self.input_type is ReceiptInputType.TEXT:
-            if not reference or len(reference) > MAX_TRANSACTION_REFERENCE_LENGTH:
-                raise ValueError("text receipt requires a valid transaction reference")
-            if any(ord(char) < 32 or ord(char) == 127 for char in reference):
-                raise ValueError("transaction reference contains control characters")
-            if file_id is not None or mime is not None:
-                raise ValueError("text receipt cannot contain image fields")
-        elif self.input_type is ReceiptInputType.IMAGE:
-            if mime not in SUPPORTED_RECEIPT_MIME_TYPES:
-                raise ValueError("unsupported receipt MIME type")
-            if not file_id:
-                raise ValueError("image receipt requires a Telegram file id")
-            if reference is not None:
-                raise ValueError("image receipt cannot contain a transaction reference")
-        else:
+            raise ValueError("text receipt submission is not supported")
+        if self.input_type is not ReceiptInputType.IMAGE:
             raise ValueError("unsupported receipt input type")
+        if mime not in SUPPORTED_RECEIPT_MIME_TYPES:
+            raise ValueError("unsupported receipt MIME type")
+        if not file_id:
+            raise ValueError("image receipt requires a Telegram file id")
+        if reference is not None:
+            raise ValueError("image receipt cannot contain a transaction reference")
 
         if self.status in (ReceiptAttemptStatus.FAILED, ReceiptAttemptStatus.ESCALATED):
             if not (self.failure_reason or "").strip():
