@@ -132,13 +132,23 @@ def build_admin_receipt_reopen_router(
         if admin_id is None:
             await query.answer("تعذر التحقق من هوية المدير.", show_alert=True)
             return
-        actor = await handler._resolver.resolve_actor_type(admin_id)
+        try:
+            actor = await handler._resolver.resolve_actor_type(admin_id)
+        except Exception:
+            await query.answer("تعذر التحقق من صلاحيات المدير.", show_alert=True)
+            return
         if actor not in {"primary", "backup"}:
             await query.answer("غير مصرح لك.", show_alert=True)
             return
         action, order_id_text, version_text = match.groups()
-        order_id = UUID(order_id_text)
-        version = int(version_text)
+        try:
+            order_id = UUID(order_id_text)
+            version = int(version_text)
+            if version < 1:
+                raise ValueError("invalid order version")
+        except (ValueError, TypeError):
+            await query.answer("بيانات الطلب غير صالحة.", show_alert=True)
+            return
         if action == "request":
             session = await session_handler.create(admin_id, actor)
             if not session.ok or session.session is None:
@@ -212,7 +222,12 @@ def build_admin_receipt_reopen_router(
         if not MIN_REASON_LENGTH <= len(text) <= MAX_REASON_LENGTH:
             await message.answer(f"السبب يجب أن يكون بين {MIN_REASON_LENGTH} و{MAX_REASON_LENGTH} حرفًا.")
             return
-        actor = await handler._resolver.resolve_actor_type(admin_id)
+        try:
+            actor = await handler._resolver.resolve_actor_type(admin_id)
+        except Exception:
+            await message.answer("تعذر التحقق من صلاحيات المدير.")
+            await state.clear()
+            return
         if actor not in {"primary", "backup"}:
             await state.clear()
             await message.answer("غير مصرح لك.")
