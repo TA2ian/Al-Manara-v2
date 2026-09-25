@@ -87,7 +87,7 @@ async def test_submit_rejects_mixed_text_and_image_payload():
         text_data(telegram_file_id="unexpected-file")
     )
     assert response.ok is False
-    assert response.text == ReceiptMessages.UNSUPPORTED_FORMAT
+    assert response.text == ReceiptMessages.INVALID
     assert service.calls == []
 
 
