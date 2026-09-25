@@ -58,6 +58,51 @@ begin
 end;
 $$;
 
+create or replace function consume_admin_action_confirmation(
+    p_admin_telegram_user_id bigint,
+    p_actor_type admin_actor_type,
+    p_session_id uuid,
+    p_confirmation_id uuid,
+    p_operation text,
+    p_request_fingerprint text
+)
+returns boolean
+language plpgsql security invoker set search_path = public
+as $$
+declare
+    v_changed boolean;
+begin
+    if p_admin_telegram_user_id is null or p_admin_telegram_user_id <= 0
+       or p_actor_type is null or p_session_id is null or p_confirmation_id is null then
+        raise exception 'admin confirmation is required';
+    end if;
+    if p_operation not in ('admin_payment_account.upsert','admin_payment_account.status','fulfillment.complete','order.recover') then
+        raise exception 'unsupported admin confirmation operation';
+    end if;
+    if p_request_fingerprint is null or p_request_fingerprint !~ '^[0-9a-f]{64}$' then
+        raise exception 'invalid admin confirmation fingerprint';
+    end if;
+    if not validate_admin_session(p_admin_telegram_user_id,p_actor_type,p_session_id) then
+        raise exception 'admin session is invalid or expired';
+    end if;
+    update admin_action_confirmations
+       set consumed_at=now()
+     where id=p_confirmation_id
+       and admin_telegram_user_id=p_admin_telegram_user_id
+       and actor_type=p_actor_type
+       and session_id=p_session_id
+       and operation=p_operation
+       and request_fingerprint=p_request_fingerprint
+       and consumed_at is null
+       and expires_at > now();
+    v_changed:=found;
+    if not v_changed then
+        raise exception 'admin action confirmation is invalid, expired, or already consumed';
+    end if;
+    return true;
+end;
+$$;
+
 create or replace function admin_recover_order_to_review(
     p_order_id uuid,
     p_expected_version bigint,
