@@ -1,6 +1,6 @@
 begin;
 
-select plan(9);
+select plan(12);
 
 select ok(
   to_regprocedure('public.admin_reopen_order_for_receipt(uuid,bigint,bigint,admin_actor_type,uuid,uuid,text,text,text)') is not null,
@@ -54,6 +54,18 @@ from create_admin_action_confirmation(
   'order.reopen_receipt',repeat('c',64)
 );
 
+select * into temporary test_023_wrong_operation_confirmation
+from create_admin_action_confirmation(
+  23001001,'primary','00000000-0000-0000-0000-000000002331',
+  'fulfillment.complete',repeat('e',64)
+);
+
+select * into temporary test_023_tamper_confirmation
+from create_admin_action_confirmation(
+  23001001,'primary','00000000-0000-0000-0000-000000002331',
+  'order.reopen_receipt',repeat('f',64)
+);
+
 select lives_ok($$
   select * from admin_reopen_order_for_receipt(
     '00000000-0000-0000-0000-000000002321',5,23001001,'primary',
@@ -89,13 +101,31 @@ select throws_ok($$
   )
 $$,'admin action confirmation is invalid, expired, or already consumed','a consumed confirmation cannot authorize a second mutation');
 
-select throws_ok($$
+select throws_ok($
   select * from admin_reopen_order_for_receipt(
     '00000000-0000-0000-0000-000000002321',6,23001001,'primary',
     '00000000-0000-0000-0000-000000002331',
     gen_random_uuid(),repeat('d',64),'wrong state','recover-2302'
   )
-$$,'admin action confirmation is invalid, expired, or already consumed','a fabricated confirmation cannot authorize reopen');
+$,'admin action confirmation is invalid, expired, or already consumed','a fabricated confirmation cannot authorize reopen');
+
+select throws_ok($
+  select * from admin_reopen_order_for_receipt(
+    '00000000-0000-0000-0000-000000002321',6,23001001,'primary',
+    '00000000-0000-0000-0000-000000002331',
+    (select confirmation_id from test_023_wrong_operation_confirmation),
+    repeat('e',64),'wrong operation','recover-2304'
+  )
+$,'admin action confirmation is invalid, expired, or already consumed','a fulfillment confirmation cannot authorize receipt reopen');
+
+select throws_ok($
+  select * from admin_reopen_order_for_receipt(
+    '00000000-0000-0000-0000-000000002321',6,23001001,'primary',
+    '00000000-0000-0000-0000-000000002331',
+    (select confirmation_id from test_023_tamper_confirmation),
+    repeat('a',64),'tampered fingerprint','recover-2305'
+  )
+$,'admin action confirmation is invalid, expired, or already consumed','a mismatched fingerprint cannot authorize receipt reopen');
 
 select ok(
   exists(
