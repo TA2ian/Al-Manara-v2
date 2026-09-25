@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.application.admin_order_reopen import (
+from app.application.admin_order_recovery import (
     AdminOrderRecoveryCommand,
     AdminOrderRecoveryResult,
     AdminOrderRecoveryService,
