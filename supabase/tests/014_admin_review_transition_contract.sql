@@ -18,7 +18,7 @@ select ok(
 );
 
 select ok(
-    has_function_privilege('service_role', 'admin_review_order_transition_idempotent(uuid,order_status,bigint,bigint,admin_actor_type,text,jsonb,uuid)', 'EXECUTE'),
+    has_function_privilege('service_role', 'admin_review_order_transition_idempotent(uuid,order_status,bigint,bigint,admin_actor_type,text,jsonb,uuid,uuid,text)', 'EXECUTE'),
     'service_role can execute admin review transition'
 );
 
@@ -155,7 +155,9 @@ from admin_review_order_transition_idempotent(
     'primary',
     'admin-review-contract-001',
     '{}'::jsonb,
-    (select session_id from _admin_review_session)
+    (select session_id from _admin_review_session),
+    (select confirmation_id from _admin_review_confirmation),
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 );
 
 select is(
