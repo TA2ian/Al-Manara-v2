@@ -55,7 +55,7 @@ from app.infrastructure.persistence.receipt_attempt_repository import SupabaseRe
 from app.infrastructure.persistence.wallet_repository import SupabaseWalletRepository
 from app.runtime.telegram.admin_customer_identity import TelegramAdminCustomerIdentityHandler
 from app.runtime.telegram.admin_order_closure import TelegramAdminOrderClosureHandler
-from app.runtime.telegram.admin_order_recovery import TelegramAdminOrderRecoveryHandler
+from app.runtime.telegram.admin_order_recovery import TelegramAdminReceiptReopenHandler
 from app.runtime.telegram.admin_order_listing import TelegramAdminOrderListingHandler
 from app.runtime.telegram.admin_order_review import TelegramAdminOrderReviewHandler
 from app.runtime.telegram.admin_order_review_details import build_admin_order_review_details_router
@@ -74,7 +74,7 @@ class AdminComposition:
     review_details: AdminOrderReviewDetailsService
     listing: TelegramAdminOrderListingHandler
     closure: TelegramAdminOrderClosureHandler
-    recovery: TelegramAdminOrderRecoveryHandler
+    recovery: TelegramAdminReceiptReopenHandler
     session: TelegramAdminSessionHandler
     fulfillment: TelegramFulfillmentHandler
     payment_accounts: TelegramAdminPaymentAccountHandler
