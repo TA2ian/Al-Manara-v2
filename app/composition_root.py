@@ -116,7 +116,7 @@ def build_admin_composition(client: Any, order_uow: UnitOfWork | None = None, *,
         authorization,
     )
     return AdminComposition(
-        review=TelegramAdminOrderReviewHandler(review_service, authorization, authorization),
+        review=TelegramAdminOrderReviewHandler(review_service, authorization, authorization, confirmation_service),
         review_details=review_details_service,
         listing=TelegramAdminOrderListingHandler(listing_service, authorization),
         closure=TelegramAdminOrderClosureHandler(closure_service, authorization),
