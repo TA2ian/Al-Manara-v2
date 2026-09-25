@@ -32,7 +32,7 @@ class AdminOrderRecoveryResult:
 
 
 class AdminOrderRecoveryRepository(Protocol):
-    async def recover_to_review(
+    async def reopen_for_receipt(
         self,
         internal_order_id: UUID,
         expected_version: int,
@@ -52,7 +52,7 @@ class AdminOrderRecoveryService:
     def __init__(self, repository: AdminOrderRecoveryRepository) -> None:
         self._repository = repository
 
-    async def recover_to_review(self, command: AdminOrderRecoveryCommand) -> AdminOrderRecoveryResult:
+    async def reopen_for_receipt(self, command: AdminOrderRecoveryCommand) -> AdminOrderRecoveryResult:
         if not isinstance(command.internal_order_id, UUID):
             raise ValueError("order id is required")
         if not isinstance(command.admin_telegram_user_id, int) or command.admin_telegram_user_id <= 0:
@@ -75,7 +75,7 @@ class AdminOrderRecoveryService:
         key = command.idempotency_key.strip()
         if not 1 <= len(key) <= 128:
             raise ValueError("idempotency key has invalid length")
-        return await self._repository.recover_to_review(
+        return await self._repository.reopen_for_receipt(
             command.internal_order_id,
             command.expected_version,
             command.admin_telegram_user_id,
