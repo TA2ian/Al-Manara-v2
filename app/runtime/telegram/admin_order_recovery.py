@@ -11,6 +11,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+from app.application.admin_action_confirmation import AdminActionConfirmationService
 from app.application.admin_order_recovery import (
     AdminOrderRecoveryService,
     AdminOrderRecoveryCommand,
@@ -41,9 +42,10 @@ class RecoveryHandlerResponse:
 
 
 class TelegramAdminOrderRecoveryHandler:
-    def __init__(self, service: AdminOrderRecoveryService, resolver: ActorResolver) -> None:
+    def __init__(self, service: AdminOrderRecoveryService, resolver: ActorResolver, confirmations: AdminActionConfirmationService) -> None:
         self._service = service
         self._resolver = resolver
+        self._confirmations = confirmations
 
     @staticmethod
     def fingerprint(
@@ -218,7 +220,7 @@ def build_admin_order_recovery_router(
         session_id = UUID(str(data["session_id"]))
         fingerprint = handler.fingerprint(UUID(str(data["order_id"])), int(data["expected_version"]), admin_id, actor, text)
         # The confirmation is created only after the exact operation fingerprint exists.
-        confirmation = await _create_confirmation(handler._service, admin_id, actor, session_id, fingerprint)
+        confirmation = await _create_confirmation(handler._confirmations, admin_id, actor, session_id, fingerprint)
         if confirmation is None:
             await state.clear()
             await message.answer("تعذر إنشاء تأكيد العملية.")
@@ -239,13 +241,9 @@ def build_admin_order_recovery_router(
     return router
 
 
-async def _create_confirmation(service: object, admin_id: int, actor: str, session_id: UUID, fingerprint: str):
-    # The application service deliberately receives a narrow protocol rather than exposing
-    # the Supabase client to Telegram.
-    creator = getattr(service, "create_confirmation", None)
-    if creator is None:
-        return None
+async def _create_confirmation(service: AdminActionConfirmationService, admin_id: int, actor: str, session_id: UUID, fingerprint: str):
     try:
-        return await creator(admin_id, actor, session_id, "order.recover", fingerprint)
+        confirmation_id = await service.create(admin_id, actor, session_id, "order.recover", fingerprint)
+        return confirmation_id, None
     except Exception:
         return None
