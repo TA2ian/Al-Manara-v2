@@ -63,7 +63,11 @@ class AdminOrderRecoveryService:
             raise ValueError("expected version must be positive")
         if not isinstance(command.session_id, UUID) or not isinstance(command.confirmation_id, UUID):
             raise ValueError("admin session and confirmation are required")
-        if not isinstance(command.request_fingerprint, str) or len(command.request_fingerprint) != 64:
+        if (
+            not isinstance(command.request_fingerprint, str)
+            or len(command.request_fingerprint) != 64
+            or any(char not in "0123456789abcdefABCDEF" for char in command.request_fingerprint)
+        ):
             raise ValueError("invalid request fingerprint")
         if not isinstance(command.reason, str):
             raise ValueError("recovery reason is required")
