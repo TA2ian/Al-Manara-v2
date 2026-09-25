@@ -56,7 +56,7 @@ class TelegramAdminOrderRecoveryHandler:
         reason: str,
     ) -> str:
         canonical = "|".join((
-            "order.recover",
+            "order.reopen_receipt",
             str(order_id),
             str(expected_version),
             str(admin_user_id),
@@ -78,7 +78,7 @@ class TelegramAdminOrderRecoveryHandler:
         reason: str,
     ) -> RecoveryHandlerResponse:
         try:
-            result = await self._service.recover_to_review(
+            result = await self._service.reopen_for_receipt(
                 AdminOrderRecoveryCommand(
                     internal_order_id=order_id,
                     admin_telegram_user_id=admin_user_id,
@@ -95,7 +95,7 @@ class TelegramAdminOrderRecoveryHandler:
             return RecoveryHandlerResponse(False, "تعذر استعادة الطلب للمراجعة. افتح الطلب من جديد وحاول مرة أخرى.")
         return RecoveryHandlerResponse(
             True,
-            "تمت إعادة الطلب إلى المراجعة البشرية.",
+            "تم فتح الطلب لاستقبال إيصال جديد.",
             result.version,
         )
 
@@ -103,7 +103,7 @@ class TelegramAdminOrderRecoveryHandler:
 def recovery_markup(order_id: UUID, expected_version: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(
-            text="إعادة إلى المراجعة",
+            text="إعادة طلب الإيصال",
             callback_data=f"admin:recovery:request:{order_id}:{expected_version}",
         )
     ]])
@@ -153,9 +153,9 @@ def build_admin_order_recovery_router(
                 session_id=str(session.session.session_id),
             )
             await state.set_state(RecoveryState.reason)
-            await query.answer("أرسل سبب الاستعادة.", show_alert=True)
+            await query.answer("أرسل سبب إعادة طلب الإيصال.", show_alert=True)
             await query.message.answer(
-                f"أرسل سبب الاستعادة (من {MIN_REASON_LENGTH} إلى {MAX_REASON_LENGTH} حرفًا)."
+                f"أرسل سبب إعادة طلب الإيصال (من {MIN_REASON_LENGTH} إلى {MAX_REASON_LENGTH} حرفًا)."
             )
             return
 
@@ -169,7 +169,7 @@ def build_admin_order_recovery_router(
             await query.answer("تم الإلغاء.")
             return
         if await state.get_state() != RecoveryState.confirmation.state:
-            await query.answer("أكمل سبب الاستعادة أولًا.", show_alert=True)
+            await query.answer("أكمل سبب إعادة طلب الإيصال أولًا.", show_alert=True)
             return
 
         try:
@@ -234,7 +234,7 @@ def build_admin_order_recovery_router(
         )
         await state.set_state(RecoveryState.confirmation)
         await message.answer(
-            f"العملية: إعادة الطلب للمراجعة\nالسبب:\n{text}\n\nهل تريد المتابعة؟",
+            f"العملية: إعادة طلب إيصال جديد\nالسبب:\n{text}\n\nهل تريد المتابعة؟",
             reply_markup=_confirm_markup(UUID(str(data["order_id"])), int(data["expected_version"])),
         )
 
@@ -243,7 +243,7 @@ def build_admin_order_recovery_router(
 
 async def _create_confirmation(service: AdminActionConfirmationService, admin_id: int, actor: str, session_id: UUID, fingerprint: str):
     try:
-        confirmation_id = await service.create(admin_id, actor, session_id, "order.recover", fingerprint)
+        confirmation_id = await service.create(admin_id, actor, session_id, "order.reopen_receipt", fingerprint)
         return confirmation_id, None
     except Exception:
         return None
