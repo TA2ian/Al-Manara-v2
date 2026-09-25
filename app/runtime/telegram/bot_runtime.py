@@ -25,7 +25,7 @@ from app.runtime.telegram.admin_order_actions import build_admin_order_actions_r
 from app.runtime.telegram.admin_payment_account_router import build_admin_payment_account_router
 from app.runtime.telegram.admin_order_review_details import build_admin_order_review_details_router
 from app.runtime.telegram.admin_order_closure import build_admin_order_closure_router
-from app.runtime.telegram.admin_order_recovery import build_admin_order_recovery_router
+from app.runtime.telegram.admin_order_recovery import build_admin_receipt_reopen_router
 from app.runtime.telegram.fulfillment import build_fulfillment_router
 from app.runtime.telegram.router import build_customer_router
 from app.runtime.telegram.rate_limit import TelegramRateLimitMiddleware
