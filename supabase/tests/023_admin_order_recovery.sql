@@ -3,17 +3,17 @@ begin;
 select plan(9);
 
 select ok(
-  to_regprocedure('public.admin_recover_order_to_review(uuid,bigint,bigint,admin_actor_type,uuid,uuid,text,text,text)') is not null,
-  'order recovery RPC exists'
+  to_regprocedure('public.admin_reopen_order_for_receipt(uuid,bigint,bigint,admin_actor_type,uuid,uuid,text,text,text)') is not null,
+  'order reopen RPC exists'
 );
 
 select ok(
   has_function_privilege(
     'anon',
-    'public.admin_recover_order_to_review(uuid,bigint,bigint,admin_actor_type,uuid,uuid,text,text,text)',
+    'public.admin_reopen_order_for_receipt(uuid,bigint,bigint,admin_actor_type,uuid,uuid,text,text,text)',
     'EXECUTE'
   ) = false,
-  'order recovery is not executable by anon'
+  'order reopen is not executable by anon'
 );
 
 insert into admin_users (telegram_user_id, actor_type, enabled, emergency_only)
@@ -31,7 +31,7 @@ insert into wallets (
   '0x0000000000000000000000000000000000002301',
   '0x0000000000000000000000000000000000002301',
   'VERIFIED',
-  'recovery test',
+  'reopen test',
   'QR-2301'
 );
 
@@ -48,62 +48,62 @@ from payment_methods where code='SHAM_CASH';
 insert into admin_sessions (id,admin_telegram_user_id,expires_at)
 values ('00000000-0000-0000-0000-000000002331',23001001,now()+interval '10 minutes');
 
-select * into temporary test_023_recovery_confirmation
+select * into temporary test_023_reopen_confirmation
 from create_admin_action_confirmation(
   23001001,'primary','00000000-0000-0000-0000-000000002331',
-  'order.recover',repeat('c',64)
+  'order.reopen_receipt',repeat('c',64)
 );
 
 select lives_ok($$
-  select * from admin_recover_order_to_review(
+  select * from admin_reopen_order_for_receipt(
     '00000000-0000-0000-0000-000000002321',5,23001001,'primary',
     '00000000-0000-0000-0000-000000002331',
-    (select confirmation_id from test_023_recovery_confirmation),
+    (select confirmation_id from test_023_reopen_confirmation),
     repeat('c',64),'customer corrected receipt','recover-2301'
   )
-$$,'valid clarification recovery succeeds');
+$$,'valid clarification reopen succeeds');
 
 select is(
   (select status::text from orders where internal_order_id='00000000-0000-0000-0000-000000002321'),
-  'UNDER_REVIEW','recovery returns order to human review'
+  'PENDING_PAYMENT','reopen returns order to human review'
 );
 
 select is(
   (select version from orders where internal_order_id='00000000-0000-0000-0000-000000002321'),
-  6::bigint,'recovery increments version exactly once'
+  6::bigint,'reopen increments version exactly once'
 );
 
 select is(
   (select count(*)::integer from audit_logs
    where target_id='00000000-0000-0000-0000-000000002321'
      and action='order.recovered_to_review'),
-  1,'recovery is audited once'
+  1,'reopen is audited once'
 );
 
 select throws_ok($$
-  select * from admin_recover_order_to_review(
+  select * from admin_reopen_order_for_receipt(
     '00000000-0000-0000-0000-000000002321',6,23001001,'primary',
     '00000000-0000-0000-0000-000000002331',
-    (select confirmation_id from test_023_recovery_confirmation),
-    repeat('c',64),'second recovery','recover-2303'
+    (select confirmation_id from test_023_reopen_confirmation),
+    repeat('c',64),'second reopen','recover-2303'
   )
 $$,'admin action confirmation is invalid, expired, or already consumed','a consumed confirmation cannot authorize a second mutation');
 
 select throws_ok($$
-  select * from admin_recover_order_to_review(
+  select * from admin_reopen_order_for_receipt(
     '00000000-0000-0000-0000-000000002321',6,23001001,'primary',
     '00000000-0000-0000-0000-000000002331',
     gen_random_uuid(),repeat('d',64),'wrong state','recover-2302'
   )
-$$,'admin action confirmation is invalid, expired, or already consumed','a fabricated confirmation cannot authorize recovery');
+$$,'admin action confirmation is invalid, expired, or already consumed','a fabricated confirmation cannot authorize reopen');
 
 select ok(
   exists(
     select 1 from order_transition_idempotency
     where idempotency_key='recover-2301'
-      and (result->>'operation')='order.recover'
+      and (result->>'operation')='order.reopen_receipt'
   ),
-  'recovery idempotency result is persisted'
+  'reopen idempotency result is persisted'
 );
 
 select * from finish();
