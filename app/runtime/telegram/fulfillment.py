@@ -321,13 +321,10 @@ def build_fulfillment_router(
         if response.ok:
             await state.clear()
         await query.answer(response.message, show_alert=not response.ok)
-        if response.ok and response.version is not None:
-            try:
-                await query.message.edit_reply_markup(
-                    reply_markup=fulfillment_action_markup(stored_order, response.version, claimed=True)
-                )
-            except Exception:
-                pass
+        if response.ok:
+            await query.message.answer(
+                "تم استلام الطلب للتنفيذ. افتح قائمة «الطلبات المعتمدة للتنفيذ» مجددًا لتحديث حالة الاستلام."
+            )
 
     @router.message(AdminFulfillmentActionState.transfer_reference)
     async def handle_transfer_reference(message: Message, state: FSMContext) -> None:
