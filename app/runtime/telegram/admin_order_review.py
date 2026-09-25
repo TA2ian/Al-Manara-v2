@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
 
-from app.application.admin_order_review import AdminOrderReviewService, AdminReviewOrderCommand
+from app.application.admin_action_confirmation import AdminActionConfirmationService
+from app.application.admin_order_review import AdminOrderReviewService, AdminReviewOrderCommand, ADMIN_REVIEW_OPERATION
 from app.application.ports import PersistedOrderTransition
 
 REVIEW_ERROR_MESSAGE = "The order could not be updated. Please retry."
@@ -51,10 +52,34 @@ class TelegramAdminOrderReviewHandler:
         service: AdminReviewApplication | AdminOrderReviewService,
         actor_type_resolver: AdminActorTypeResolver | None = None,
         session_validator: AdminSessionValidator | None = None,
+        confirmations: AdminActionConfirmationService | None = None,
     ) -> None:
         self._service = service
         self._actor_type_resolver = actor_type_resolver
         self._session_validator = session_validator
+        self._confirmations = confirmations
+
+    async def create_confirmation(self, request: TelegramAdminReviewInput) -> UUID:
+        if self._confirmations is None:
+            raise RuntimeError("admin review confirmation service is unavailable")
+        if not isinstance(request.session_id, UUID):
+            raise ValueError("recent admin session is required")
+        fingerprint = request.request_fingerprint or AdminOrderReviewService.review_fingerprint(
+            request.order_id,
+            request.expected_version,
+            request.admin_user_id,
+            request.actor_type.strip().lower(),
+            request.action,
+            request.reason,
+            request.idempotency_key,
+        )
+        return await self._confirmations.create(
+            request.admin_user_id,
+            request.actor_type.strip().lower(),
+            request.session_id,
+            ADMIN_REVIEW_OPERATION,
+            fingerprint,
+        )
 
     async def handle(self, request: TelegramAdminReviewInput) -> TelegramAdminReviewResponse:
         if request.admin_user_id <= 0:
