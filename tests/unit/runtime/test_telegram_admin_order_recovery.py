@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.runtime.telegram.admin_order_reopen import TelegramAdminOrderRecoveryHandler
+from app.runtime.telegram.admin_order_recovery import TelegramAdminReceiptReopenHandler
 
 
 class FakeResolver:
