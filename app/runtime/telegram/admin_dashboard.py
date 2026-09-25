@@ -11,6 +11,7 @@ from app.application.admin_order_review_details import AdminOrderReviewDetailsSe
 from app.runtime.telegram.admin_session import TelegramAdminSessionHandler
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
 from app.runtime.telegram.fulfillment import fulfillment_action_markup
+from app.runtime.telegram.admin_order_recovery import recovery_markup
 
 ADMIN_DASHBOARD_CALLBACK = "admin:dashboard"
 ADMIN_IDENTITY_CALLBACK = "admin:identity_pending"
@@ -81,6 +82,8 @@ def _render_orders(
             rows.append([InlineKeyboardButton(text="عرض الإيصال والتفاصيل", callback_data=receipt_callback_data(item.internal_order_id))])
             rows.extend(order_action_markup(item.internal_order_id, item.version).inline_keyboard)
         elif fulfillment_actions:
+            if item.status == "CLARIFICATION_REQUIRED":
+                rows.extend(recovery_markup(item.internal_order_id, item.version).inline_keyboard)
             if item.fulfillment_claimed_by is None:
                 rows.extend(
                     fulfillment_action_markup(
