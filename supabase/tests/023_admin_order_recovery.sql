@@ -1,6 +1,6 @@
 begin;
 
-select plan(12);
+select plan(11);
 
 select ok(
   to_regprocedure('public.admin_reopen_order_for_receipt(uuid,bigint,bigint,admin_actor_type,uuid,uuid,text,text,text)') is not null,
