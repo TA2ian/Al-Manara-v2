@@ -13,7 +13,7 @@ where n.nspname = 'public'
 limit 1;
 
 select ok(
-    has_function_privilege('public', 'admin_review_order_transition_idempotent(uuid,order_status,bigint,bigint,admin_actor_type,text,jsonb,uuid)', 'EXECUTE') = false,
+    has_function_privilege('public', 'admin_review_order_transition_idempotent(uuid,order_status,bigint,bigint,admin_actor_type,text,jsonb,uuid,uuid,text)', 'EXECUTE') = false,
     'public cannot execute admin review transition'
 );
 
@@ -92,6 +92,17 @@ create temporary table _admin_review_session(session_id uuid) on commit drop;
 insert into _admin_review_session
 select session_id from create_admin_session(910000001, 'primary');
 
+create temporary table _admin_review_confirmation(confirmation_id uuid) on commit drop;
+insert into _admin_review_confirmation
+select confirmation_id
+from create_admin_action_confirmation(
+    910000001,
+    'primary',
+    (select session_id from _admin_review_session),
+    'order.admin_review',
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+);
+
 create temporary table _admin_review_result on commit drop as
 select *
 from admin_review_order_transition_idempotent(
@@ -102,7 +113,9 @@ from admin_review_order_transition_idempotent(
     'primary',
     'admin-review-contract-001',
     '{}'::jsonb,
-    (select session_id from _admin_review_session)
+    (select session_id from _admin_review_session),
+    (select confirmation_id from _admin_review_confirmation),
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 );
 
 select is(
@@ -176,7 +189,9 @@ begin
             'primary',
             'admin-review-contract-001',
             '{}'::jsonb,
-            (select session_id from _admin_review_session)
+            (select session_id from _admin_review_session),
+            (select confirmation_id from _admin_review_confirmation),
+            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
         );
         insert into _revoked_replay_check values (false);
     exception when others then
