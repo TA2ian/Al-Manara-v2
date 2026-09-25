@@ -235,7 +235,7 @@ def build_admin_receipt_reopen_router(
         await state.set_state(ReceiptReopenState.confirmation)
         await message.answer(
             f"العملية: إعادة طلب إيصال جديد\nالسبب:\n{text}\n\nهل تريد المتابعة؟",
-            reply_markup=_confirm_markup(UUID(str(data["order_id"])), int(data["expected_version"])),
+            reply_markup=_confirm_reopen_markup(UUID(str(data["order_id"])), int(data["expected_version"])),
         )
 
     return router
