@@ -23,7 +23,7 @@ class SupabaseAdminOrderRecoveryRepository(AdminOrderRecoveryRepository):
     def __init__(self, client: SupabaseRpcClient) -> None:
         self._client = client
 
-    async def recover_to_review(
+    async def reopen_for_receipt(
         self,
         internal_order_id: UUID,
         expected_version: int,
@@ -38,7 +38,7 @@ class SupabaseAdminOrderRecoveryRepository(AdminOrderRecoveryRepository):
         try:
             response = await asyncio.to_thread(
                 self._client.rpc(
-                    "admin_recover_order_to_review",
+                    "admin_reopen_order_for_receipt",
                     {
                         "p_order_id": str(internal_order_id),
                         "p_expected_version": expected_version,
@@ -72,7 +72,7 @@ class SupabaseAdminOrderRecoveryRepository(AdminOrderRecoveryRepository):
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise AdminOrderRecoveryPersistenceError("invalid order recovery payload") from exc
-        if result.internal_order_id != internal_order_id or result.status != "UNDER_REVIEW":
+        if result.internal_order_id != internal_order_id or result.status != "PENDING_PAYMENT":
             raise AdminOrderRecoveryPersistenceError("order recovery returned inconsistent state")
         return result
 
