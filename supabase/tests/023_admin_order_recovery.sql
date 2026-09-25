@@ -85,7 +85,7 @@ select throws_ok($$
     '00000000-0000-0000-0000-000000002321',6,23001001,'primary',
     '00000000-0000-0000-0000-000000002331',
     (select confirmation_id from test_023_recovery_confirmation),
-    repeat('c',64),'second recovery','recover-2301'
+    repeat('c',64),'second recovery','recover-2303'
   )
 $$,'admin action confirmation is invalid, expired, or already consumed','a consumed confirmation cannot authorize a second mutation');
 
