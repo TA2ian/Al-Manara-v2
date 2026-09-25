@@ -38,6 +38,8 @@ class SupabaseAdminOrderReviewRepository:
         idempotency_key: str,
         event_payload: dict[str, object] | None,
         session_id: UUID,
+        confirmation_id: UUID,
+        request_fingerprint: str,
     ) -> PersistedOrderTransition:
         rows = await self._rpc(
             {
@@ -49,6 +51,8 @@ class SupabaseAdminOrderReviewRepository:
                 "p_idempotency_key": idempotency_key.strip(),
                 "p_event_payload": event_payload or {},
                 "p_session_id": str(session_id),
+                "p_confirmation_id": str(confirmation_id),
+                "p_request_fingerprint": request_fingerprint,
             }
         )
         if not rows:
