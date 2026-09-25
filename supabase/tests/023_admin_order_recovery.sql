@@ -1,6 +1,6 @@
 begin;
 
-select plan(12);
+select plan(9);
 
 select ok(
   to_regprocedure('public.admin_recover_order_to_review(uuid,bigint,bigint,admin_actor_type,uuid,uuid,text,text,text)') is not null,
