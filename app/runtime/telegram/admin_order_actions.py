@@ -10,6 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+from app.application.admin_order_review import AdminOrderReviewService
 from app.runtime.telegram.admin_order_review import TelegramAdminOrderReviewHandler, TelegramAdminReviewInput
 from app.runtime.telegram.admin_session import TelegramAdminSessionHandler
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
@@ -154,12 +155,30 @@ def build_admin_order_actions_router(
                 expected_version=parsed.expected_version,
                 actor_type=actor_type,
                 session_id=str(session_response.session.session_id),
+                idempotency_key=f"review:{uuid4().hex}",
             )
+            try:
+                session_id = UUID(str((await state.get_data())["session_id"]))
+                values = await state.get_data()
+                idempotency_key = str(values["idempotency_key"])
+                fingerprint = AdminOrderReviewService.review_fingerprint(
+                    parsed.order_id, parsed.expected_version, admin_user_id, actor_type,
+                    parsed.action, None, idempotency_key
+                )
+                confirmation_id = await handler.create_confirmation(TelegramAdminReviewInput(
+                    admin_user_id=admin_user_id, actor_type=actor_type, order_id=parsed.order_id,
+                    expected_version=parsed.expected_version, action=parsed.action,
+                    idempotency_key=idempotency_key, session_id=session_id,
+                    request_fingerprint=fingerprint,
+                ))
+                await state.update_data(confirmation_id=str(confirmation_id), request_fingerprint=fingerprint)
+            except Exception:
+                await state.clear()
+                await query.answer("تعذر تجهيز تأكيد العملية. افتح الطلب من جديد.", show_alert=True)
+                return
             await state.set_state(AdminOrderActionState.confirmation)
-            await query.answer("تم إنشاء جلسة إدارية حديثة. راجع العملية ثم أكد التنفيذ.", show_alert=True)
-            await query.message.edit_reply_markup(
-                reply_markup=_confirmation_markup(parsed.order_id, parsed.expected_version)
-            )
+            await query.answer("تم إنشاء جلسة إدارية حديثة وتأكيد إضافي للعملية. راجع العملية ثم أكد التنفيذ.", show_alert=True)
+            await query.message.edit_reply_markup(reply_markup=_confirmation_markup(parsed.order_id, parsed.expected_version))
             return
 
         if pending_admin != admin_user_id or pending_order != str(parsed.order_id) or pending_version != parsed.expected_version:
@@ -196,8 +215,10 @@ def build_admin_order_actions_router(
                 expected_version=expected_version,
                 action=action,
                 reason=str(data.get("reason")) if data.get("reason") is not None else None,
-                idempotency_key=str(uuid4()),
+                idempotency_key=str(data["idempotency_key"]),
                 session_id=session_id,
+                confirmation_id=UUID(str(data["confirmation_id"])),
+                request_fingerprint=str(data["request_fingerprint"]),
             )
         )
         await state.clear()
@@ -248,14 +269,38 @@ def build_admin_order_actions_router(
             await message.answer(session_response.message or "تعذر إنشاء جلسة إدارية حديثة.")
             return
 
+        idempotency_key = f"review:{uuid4().hex}"
+        session_id = session_response.session.session_id
+        fingerprint = AdminOrderReviewService.review_fingerprint(
+            order_id, expected_version, admin_user_id, actor_type, action, reason, idempotency_key
+        )
+        try:
+            confirmation_id = await handler.create_confirmation(TelegramAdminReviewInput(
+                admin_user_id=admin_user_id,
+                actor_type=actor_type,
+                order_id=order_id,
+                expected_version=expected_version,
+                action=action,
+                reason=reason,
+                idempotency_key=idempotency_key,
+                session_id=session_id,
+                request_fingerprint=fingerprint,
+            ))
+        except Exception:
+            await state.clear()
+            await message.answer("تعذر تجهيز تأكيد العملية. افتح الطلب من جديد.")
+            return
         await state.update_data(
             reason=reason,
             actor_type=actor_type,
-            session_id=str(session_response.session.session_id),
+            session_id=str(session_id),
+            idempotency_key=idempotency_key,
+            confirmation_id=str(confirmation_id),
+            request_fingerprint=fingerprint,
         )
         await state.set_state(AdminOrderActionState.confirmation)
         await message.answer(
-            f"العملية: {action}\nسبب العملية:\n{reason}\n\nتم إنشاء جلسة إدارية حديثة. هل تريد تأكيد التنفيذ؟",
+            f"العملية: {action}\nسبب العملية:\n{reason}\n\nتم إنشاء جلسة إدارية حديثة وتأكيد إضافي للعملية. هل تريد تأكيد التنفيذ؟",
             reply_markup=_confirmation_markup(order_id, expected_version),
         )
 
