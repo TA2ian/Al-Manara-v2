@@ -14,15 +14,15 @@ def receipt(amount: str | None, currency: str | None = "USD") -> ExtractedReceip
 
 
 def test_amount_inside_absolute_tolerance_is_verified() -> None:
-    result = match_receipt_amount(Decimal("100.00"), receipt("100.04"))
+    result = match_receipt_amount(Decimal("100.00"), receipt("100.01"))
     assert result.decision is VerificationDecision.VERIFIED
     assert result.absolute_difference == ABSOLUTE_TOLERANCE
 
 
 def test_amount_outside_absolute_tolerance_is_mismatch() -> None:
-    result = match_receipt_amount(Decimal("100.00"), receipt("100.05"))
+    result = match_receipt_amount(Decimal("100.00"), receipt("100.02"))
     assert result.decision is VerificationDecision.MISMATCH
-    assert result.absolute_difference == Decimal("0.05")
+    assert result.absolute_difference == Decimal("0.02")
 
 
 def test_missing_amount_is_insufficient_data() -> None:
