@@ -6,7 +6,7 @@ from enum import StrEnum
 from uuid import UUID
 
 
-ABSOLUTE_TOLERANCE = Decimal("0.04")
+ABSOLUTE_TOLERANCE = Decimal("0.01")
 
 
 class VerificationDecision(StrEnum):
