@@ -39,7 +39,7 @@ class FakeActorResolver:
         return "primary"
 
 
-def review_input(*, action="approve", reason=None, session_id=None, confirmation_id=None, fingerprint=None):
+def review_input(*, action="approve", reason=None, session_id=None, confirmation_id=None, fingerprint=None, use_default_session=True):
     order_id = UUID("00000000-0000-0000-0000-000000000001")
     key = "review-test"
     fingerprint = fingerprint or AdminOrderReviewService.review_fingerprint(
@@ -53,7 +53,7 @@ def review_input(*, action="approve", reason=None, session_id=None, confirmation
         action=action,
         reason=reason,
         idempotency_key=key,
-        session_id=session_id or uuid4(),
+        session_id=(session_id if session_id is not None else (uuid4() if use_default_session else None)),
         confirmation_id=confirmation_id or uuid4(),
         request_fingerprint=fingerprint,
     )
@@ -81,7 +81,7 @@ async def test_admin_review_rejects_missing_session_before_service():
     service = FakeService(SimpleNamespace(state_after=OrderStatus.APPROVED))
     handler = TelegramAdminOrderReviewHandler(service, FakeActorResolver(), FakeSessionValidator())
 
-    response = await handler.handle(review_input(session_id=None))
+    response = await handler.handle(review_input(session_id=None, use_default_session=False))
 
     assert response.ok is False
     assert response.message == "A recent admin session is required."
