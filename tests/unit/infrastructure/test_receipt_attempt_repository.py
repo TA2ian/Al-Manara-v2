@@ -97,7 +97,7 @@ async def test_replayed_reservation_is_mapped():
     client = FakeClient(FakeResponse(data=[{
         "submission_id": str(uuid4()), "internal_order_id": str(order_id),
         "attempt_number": 2, "input_type": "IMAGE", "transaction_reference": None,
-        "telegram_file_id": None, "mime_type": None,
+        "telegram_file_id": "file-2", "mime_type": "image/png",
         "submitted_at": submitted_at.isoformat(), "processing_status": "FAILED",
         "failure_reason": "previous failure", "replayed": True,
     }]))
