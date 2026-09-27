@@ -101,7 +101,7 @@ select throws_ok($$
   )
 $$,'admin action confirmation is invalid, expired, or already consumed','a consumed confirmation cannot authorize a second mutation');
 
-select throws_ok($
+select throws_ok($$
   select * from admin_reopen_order_for_receipt(
     '00000000-0000-0000-0000-000000002321',6,23001001,'primary',
     '00000000-0000-0000-0000-000000002331',
@@ -109,7 +109,7 @@ select throws_ok($
   )
 $,'admin action confirmation is invalid, expired, or already consumed','a fabricated confirmation cannot authorize reopen');
 
-select throws_ok($
+select throws_ok($$
   select * from admin_reopen_order_for_receipt(
     '00000000-0000-0000-0000-000000002321',6,23001001,'primary',
     '00000000-0000-0000-0000-000000002331',
@@ -118,7 +118,7 @@ select throws_ok($
   )
 $,'admin action confirmation is invalid, expired, or already consumed','a fulfillment confirmation cannot authorize receipt reopen');
 
-select throws_ok($
+select throws_ok($$
   select * from admin_reopen_order_for_receipt(
     '00000000-0000-0000-0000-000000002321',6,23001001,'primary',
     '00000000-0000-0000-0000-000000002331',
