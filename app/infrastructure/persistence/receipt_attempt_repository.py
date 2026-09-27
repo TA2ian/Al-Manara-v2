@@ -54,6 +54,11 @@ class SupabaseReceiptAttemptRepository(ReceiptAttemptRepository):
         mime_type: str | None,
         telegram_file_id: str | None,
     ) -> ReceiptReservation:
+        if input_type is ReceiptInputType.TEXT:
+            raise ReceiptPersistenceConflictError(
+                "customer receipt submission requires an image"
+            )
+
         params = {
             "p_order_id": str(order_id),
             "p_telegram_user_id": telegram_user_id,
