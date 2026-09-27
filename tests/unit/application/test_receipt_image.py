@@ -87,7 +87,8 @@ async def test_dimensions_are_bounded_before_decode() -> None:
 @pytest.mark.asyncio
 async def test_pixel_budget_is_enforced() -> None:
     inspector = ReceiptImageInspectorImpl()
-    width = MAX_RECEIPT_PIXELS // 2 + 1
-    content = _image_bytes("PNG", (width, 2))
+    width = 5000
+    height = MAX_RECEIPT_PIXELS // width + 1
+    content = _image_bytes("PNG", (width, height))
     with pytest.raises(ReceiptImageValidationError, match="too many pixels"):
         await inspector.inspect_bytes(content, "image/png")
