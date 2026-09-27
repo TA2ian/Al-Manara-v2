@@ -73,25 +73,21 @@ async def test_reserve_maps_unified_image_payload():
 
 
 @pytest.mark.asyncio
-async def test_reserve_maps_unified_text_payload():
+async def test_reserve_rejects_legacy_text_payload_at_submission_boundary():
     order_id = uuid4()
     submitted_at = datetime(2026, 8, 29, 18, 30, tzinfo=timezone.utc)
     client = FakeClient(FakeResponse(data=[{
         "submission_id": str(uuid4()), "internal_order_id": str(order_id),
         "attempt_number": 1, "input_type": "TEXT", "transaction_reference": "SC-123456",
-        "telegram_file_id": None, "mime_type": None,
+        "telegram_file_id": "file-1", "mime_type": "image/png",
         "submitted_at": submitted_at.isoformat(), "processing_status": "PROCESSING", "replayed": False,
     }]))
 
-    reservation = await SupabaseReceiptAttemptRepository(client).reserve_next_attempt(
-        order_id, 7001, "update-123", submitted_at, ReceiptInputType.TEXT,
-        "SC-123456", None, None,
-    )
-
-    assert reservation.attempt.input_type is ReceiptInputType.TEXT
-    assert reservation.attempt.transaction_reference == "SC-123456"
-    assert reservation.attempt.telegram_file_id is None
-    assert reservation.attempt.mime_type is None
+    with pytest.raises(ReceiptPersistenceConflictError, match="invalid receipt input type|customer receipt submission requires an image"):
+        await SupabaseReceiptAttemptRepository(client).reserve_next_attempt(
+            order_id, 7001, "update-123", submitted_at, ReceiptInputType.TEXT,
+            "SC-123456", None, None,
+        )
 
 
 @pytest.mark.asyncio
@@ -100,18 +96,18 @@ async def test_replayed_reservation_is_mapped():
     submitted_at = datetime(2026, 8, 29, 18, 30, tzinfo=timezone.utc)
     client = FakeClient(FakeResponse(data=[{
         "submission_id": str(uuid4()), "internal_order_id": str(order_id),
-        "attempt_number": 2, "input_type": "TEXT", "transaction_reference": "SC-2",
+        "attempt_number": 2, "input_type": "IMAGE", "transaction_reference": None,
         "telegram_file_id": None, "mime_type": None,
         "submitted_at": submitted_at.isoformat(), "processing_status": "FAILED",
         "failure_reason": "previous failure", "replayed": True,
     }]))
 
     reservation = await SupabaseReceiptAttemptRepository(client).reserve_next_attempt(
-        order_id, 7001, "update-123", submitted_at, ReceiptInputType.TEXT, "SC-2", None, None
+        order_id, 7001, "update-123", submitted_at, ReceiptInputType.IMAGE, None, "image/png", "file-2"
     )
     assert reservation.replayed is True
     assert reservation.attempt.status is ReceiptAttemptStatus.FAILED
-    assert reservation.attempt.transaction_reference == "SC-2"
+    assert reservation.attempt.transaction_reference is None
 
 
 @pytest.mark.asyncio
@@ -120,7 +116,7 @@ async def test_finalize_maps_unified_payload():
     submitted_at = datetime(2026, 8, 29, 18, 30, tzinfo=timezone.utc)
     client = FakeClient(FakeResponse(data=[{
         "submission_id": str(submission_id), "internal_order_id": str(order_id),
-        "attempt_number": 1, "input_type": "TEXT", "transaction_reference": "SC-123",
+        "attempt_number": 1, "input_type": "IMAGE", "transaction_reference": None,
         "telegram_file_id": None, "mime_type": None,
         "submitted_at": submitted_at.isoformat(), "processing_status": "SUCCEEDED",
         "linkage_status": "LINKED", "failure_reason": None,
@@ -129,8 +125,8 @@ async def test_finalize_maps_unified_payload():
     result = await SupabaseReceiptAttemptRepository(client).finalize(submission_id, ReceiptAttemptStatus.VERIFIED)
 
     assert result.status is ReceiptAttemptStatus.VERIFIED
-    assert result.input_type is ReceiptInputType.TEXT
-    assert result.transaction_reference == "SC-123"
+    assert result.input_type is ReceiptInputType.IMAGE
+    assert result.transaction_reference is None
 
 
 @pytest.mark.asyncio
