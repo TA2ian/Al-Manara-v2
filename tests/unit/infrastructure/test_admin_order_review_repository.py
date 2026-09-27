@@ -62,6 +62,8 @@ async def test_maps_admin_review_rpc_result_and_session() -> None:
         "review-5",
         None,
         session_id,
+        uuid4(),
+        "a" * 64,
     )
 
     assert result.order.internal_order_id == order_id
@@ -100,6 +102,8 @@ async def test_rejects_inconsistent_admin_review_payload() -> None:
             "review-6",
             {"reason": "payment mismatch"},
             uuid4(),
+            uuid4(),
+            "b" * 64,
         )
 
 
@@ -117,4 +121,6 @@ async def test_rejects_rpc_errors_without_exposing_transport_details() -> None:
             "review-7",
             None,
             uuid4(),
+            uuid4(),
+            "c" * 64,
         )
