@@ -47,18 +47,24 @@ class ReceiptAttempt:
         file_id = self.telegram_file_id.strip() if self.telegram_file_id is not None else None
         mime = self.mime_type.strip().lower() if self.mime_type is not None else None
 
-        # Customer receipt submissions are intentionally image-only.
-        # TEXT is retained only so legacy persisted rows can still be represented.
+        # TEXT remains representable only for legacy persisted records.
+        # New customer submissions are rejected at the application/database input boundary.
         if self.input_type is ReceiptInputType.TEXT:
-            raise ValueError("text receipt submission is not supported")
-        if self.input_type is not ReceiptInputType.IMAGE:
+            if not reference:
+                raise ValueError("text receipt requires a transaction reference")
+            if mime is not None or file_id is not None:
+                raise ValueError("text receipt cannot contain image fields")
+            if any(ord(char) < 32 or ord(char) == 127 for char in reference):
+                raise ValueError("transaction reference contains control characters")
+        elif self.input_type is ReceiptInputType.IMAGE:
+            if mime not in SUPPORTED_RECEIPT_MIME_TYPES:
+                raise ValueError("unsupported receipt MIME type")
+            if not file_id:
+                raise ValueError("image receipt requires a Telegram file id")
+            if reference is not None:
+                raise ValueError("image receipt cannot contain a transaction reference")
+        else:
             raise ValueError("unsupported receipt input type")
-        if mime not in SUPPORTED_RECEIPT_MIME_TYPES:
-            raise ValueError("unsupported receipt MIME type")
-        if not file_id:
-            raise ValueError("image receipt requires a Telegram file id")
-        if reference is not None:
-            raise ValueError("image receipt cannot contain a transaction reference")
 
         if self.status in (ReceiptAttemptStatus.FAILED, ReceiptAttemptStatus.ESCALATED):
             if not (self.failure_reason or "").strip():
