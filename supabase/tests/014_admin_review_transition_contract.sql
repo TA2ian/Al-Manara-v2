@@ -23,12 +23,9 @@ select ok(
 );
 
 with fn as (
-    select pg_get_functiondef(p.oid) as body
-    from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public'
-      and p.proname = 'admin_review_order_transition_idempotent'
-    limit 1
+    select pg_get_functiondef(
+        'public.admin_review_order_transition_idempotent(uuid,order_status,bigint,bigint,admin_actor_type,text,jsonb,uuid,uuid,text)'::regprocedure
+    ) as body
 )
 select ok(
     position('s.revoked_at is null' in body) > 0
