@@ -36,7 +36,6 @@ declare
     v_current_status text;
     v_order_version bigint;
     v_public_order_code text;
-    v_input_type text;
 begin
     if p_processing_status not in ('SUBMITTED','SUCCEEDED','FAILED','ESCALATED') then
         raise exception 'invalid receipt processing status';
@@ -52,7 +51,7 @@ begin
 
     select r.internal_order_id, r.attempt_number, r.processing_status,
            r.input_type
-      into v_order_id, v_attempt_number, v_current_status, v_input_type
+      into v_order_id, v_attempt_number, v_current_status
       from receipt_submissions r
      where r.id = p_submission_id
      for update;
