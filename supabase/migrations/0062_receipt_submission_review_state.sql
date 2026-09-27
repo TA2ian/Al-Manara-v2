@@ -49,8 +49,7 @@ begin
         raise exception 'failure reason is required';
     end if;
 
-    select r.internal_order_id, r.attempt_number, r.processing_status,
-           r.input_type
+    select r.internal_order_id, r.attempt_number, r.processing_status
       into v_order_id, v_attempt_number, v_current_status
       from receipt_submissions r
      where r.id = p_submission_id
