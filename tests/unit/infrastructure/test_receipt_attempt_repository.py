@@ -117,7 +117,7 @@ async def test_finalize_maps_unified_payload():
     client = FakeClient(FakeResponse(data=[{
         "submission_id": str(submission_id), "internal_order_id": str(order_id),
         "attempt_number": 1, "input_type": "IMAGE", "transaction_reference": None,
-        "telegram_file_id": None, "mime_type": None,
+        "telegram_file_id": "file-1", "mime_type": "image/png",
         "submitted_at": submitted_at.isoformat(), "processing_status": "SUCCEEDED",
         "linkage_status": "LINKED", "failure_reason": None,
     }]))
