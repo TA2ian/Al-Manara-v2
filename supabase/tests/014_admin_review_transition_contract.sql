@@ -28,9 +28,9 @@ with fn as (
     ) as body
 )
 select ok(
-    position('s.revoked_at is null' in body) > 0
-    and position('s.expires_at > now()' in body) > 0
-    and position('s.admin_telegram_user_id = p_admin_telegram_user_id' in body) > 0
+    position('validate_admin_session(' in body) > 0
+    and position('au.enabled' in body) > 0
+    and position('au.actor_type = p_actor_type' in body) > 0
     and position('v_registered_actor_type <> p_actor_type' in body) > 0,
     'admin review transition binds an active session to the authoritative admin actor'
 ) from fn;
