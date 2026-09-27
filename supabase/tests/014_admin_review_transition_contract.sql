@@ -30,7 +30,7 @@ with fn as (
 select ok(
     position('validate_admin_session(' in body) > 0
     and position('au.enabled' in body) > 0
-    and position('au.actor_type = p_actor_type' in body) > 0
+    and position('(au.actor_type = ''primary'' or au.emergency_only)' in body) > 0
     and position('v_registered_actor_type <> p_actor_type' in body) > 0,
     'admin review transition binds an active session to the authoritative admin actor'
 ) from fn;
