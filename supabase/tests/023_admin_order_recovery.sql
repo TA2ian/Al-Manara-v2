@@ -107,7 +107,7 @@ select throws_ok($$
     '00000000-0000-0000-0000-000000002331',
     gen_random_uuid(),repeat('d',64),'wrong state','recover-2302'
   )
-$,'admin action confirmation is invalid, expired, or already consumed','a fabricated confirmation cannot authorize reopen');
+$$,'admin action confirmation is invalid, expired, or already consumed','a fabricated confirmation cannot authorize reopen');
 
 select throws_ok($$
   select * from admin_reopen_order_for_receipt(
@@ -116,7 +116,7 @@ select throws_ok($$
     (select confirmation_id from test_023_wrong_operation_confirmation),
     repeat('e',64),'wrong operation','recover-2304'
   )
-$,'admin action confirmation is invalid, expired, or already consumed','a fulfillment confirmation cannot authorize receipt reopen');
+$$,'admin action confirmation is invalid, expired, or already consumed','a fulfillment confirmation cannot authorize receipt reopen');
 
 select throws_ok($$
   select * from admin_reopen_order_for_receipt(
@@ -125,7 +125,7 @@ select throws_ok($$
     (select confirmation_id from test_023_tamper_confirmation),
     repeat('a',64),'tampered fingerprint','recover-2305'
   )
-$,'admin action confirmation is invalid, expired, or already consumed','a mismatched fingerprint cannot authorize receipt reopen');
+$$,'admin action confirmation is invalid, expired, or already consumed','a mismatched fingerprint cannot authorize receipt reopen');
 
 select ok(
   exists(
