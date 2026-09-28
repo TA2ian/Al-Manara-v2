@@ -44,7 +44,9 @@ def snapshot_row(order_id):
         "network_code": "TRC20",
         "wallet_address": "TExampleWalletAddress",
         "expected_reference": "SC-12345",
-        "tolerance": "0.04",
+        "tolerance": "0.01",
+        "order_created_at": "2026-08-29T08:00:00+00:00",
+        "receipt_deadline_at": "2026-08-29T09:00:00+00:00",
     }
 
 
@@ -64,7 +66,9 @@ async def test_maps_authoritative_snapshot_to_context() -> None:
     assert context.network_code == "TRC20"
     assert context.wallet_address == "TExampleWalletAddress"
     assert context.expected_reference == "SC-12345"
-    assert context.tolerance == Decimal("0.04")
+    assert context.tolerance == Decimal("0.01")
+    assert context.order_created_at.isoformat() == "2026-08-29T08:00:00+00:00"
+    assert context.receipt_deadline_at.isoformat() == "2026-08-29T09:00:00+00:00"
     assert client.calls == [
         ("get_receipt_verification_snapshot", {"p_order_id": str(order_id)})
     ]
