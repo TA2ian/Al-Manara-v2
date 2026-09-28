@@ -47,12 +47,17 @@ class FeePolicySnapshot:
 @dataclass(frozen=True, slots=True)
 class PurchaseQuote:
     financials: OrderFinancials
+    issued_at: datetime
     exchange_rate_snapshot: ExchangeRateSnapshot | None
     fee_policy_snapshot: FeePolicySnapshot
     expires_at: datetime
 
     def __post_init__(self) -> None:
+        if self.issued_at.tzinfo is None:
+            raise ValueError("quote issuance must be timezone-aware")
         if self.expires_at.tzinfo is None:
             raise ValueError("quote expiry must be timezone-aware")
+        if self.expires_at <= self.issued_at:
+            raise ValueError("quote expiry must be after quote issuance")
         if self.exchange_rate_snapshot is None and self.financials.payment_currency != "USD":
             raise ValueError("non-USD quote requires exchange rate snapshot")
