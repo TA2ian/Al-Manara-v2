@@ -1,4 +1,6 @@
 from decimal import Decimal
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from uuid import uuid4
 
 from app.domain.receipt_verification import (
@@ -10,7 +12,7 @@ from app.domain.receipt_verification import (
 
 
 def receipt(amount: str | None, currency: str | None = "USD") -> ExtractedReceiptData:
-    return ExtractedReceiptData(uuid4(), Decimal(amount) if amount is not None else None, currency, None, None, Decimal("0.95"))
+    return ExtractedReceiptData(uuid4(), Decimal(amount) if amount is not None else None, currency, None, None, Decimal("0.95"), datetime(2026, 9, 28, 12, 30, tzinfo=ZoneInfo("Asia/Damascus")))
 
 
 def test_amount_inside_absolute_tolerance_is_verified() -> None:
