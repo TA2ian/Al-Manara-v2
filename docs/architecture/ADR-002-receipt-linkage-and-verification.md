@@ -62,3 +62,7 @@ Rejected because `receipt_source` is provenance metadata, not a business-rule sw
 ### Admin-uploaded receipt evidence
 
 Rejected because the admin can inspect the customer's submitted receipt together with the persisted order and financial snapshot directly. A second admin-uploaded evidence path would duplicate evidence handling, complicate provenance/attempt semantics, and add unnecessary attack surface without improving the manual review decision.
+
+
+### Receipt timing boundary
+The quote validity window is separate from the customer receipt window. `quote_ttl` remains a 10-minute price-validity window. The receipt submission window defaults to 60 minutes and is admin-configurable up to the established 90-minute operational ceiling. The selected window is snapshotted into the order at creation as `orders.expires_at`; later setting changes do not alter existing orders. Customer receipt reservation rejects new submissions after this deadline. OCR also extracts the receipt transaction date/time and verifies it against the authoritative order creation timestamp and snapshotted receipt deadline using the `Asia/Damascus` timezone. A receipt may reach `VERIFIED` when the evidence matches policy; this does not replace the separate manual admin financial authorization.
