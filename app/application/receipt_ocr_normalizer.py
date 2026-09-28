@@ -32,7 +32,7 @@ def normalize_currency_field(raw: str) -> CurrencyCode | None:
 def normalize_transaction_datetime(raw: str) -> datetime | None:
     value = raw.strip().translate(_ARABIC_DIGITS)
     value = re.sub(r"\s+", " ", value)
-    for fmt in ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%d-%m-%Y %H:%M:%S", "%d-%m-%Y %H:%M",
+    for fmt in ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%d/%m/%y %H:%M:%S", "%d/%m/%y %H:%M", "%d-%m-%Y %H:%M:%S", "%d-%m-%Y %H:%M", "%d-%m-%y %H:%M:%S", "%d-%m-%y %H:%M",
                 "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
         try:
             return datetime.strptime(value, fmt).replace(tzinfo=_DAMASCUS)
