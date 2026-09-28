@@ -42,11 +42,19 @@ def build_verification_evidence(
     elif extracted.reference:
         reference = EvidenceMatch.NOT_CHECKED
 
+    if extracted.transaction_datetime is None:
+        transaction_datetime = EvidenceMatch.UNAVAILABLE
+    elif "transaction_time_before_order_creation" in result.reasons or "transaction_time_after_receipt_deadline" in result.reasons:
+        transaction_datetime = EvidenceMatch.MISMATCHED
+    else:
+        transaction_datetime = EvidenceMatch.MATCHED
+
     return VerificationEvidence(
         amount=amount,
         currency=currency,
         network=network,
         reference=reference,
+        transaction_datetime=transaction_datetime,
         ocr_confidence=extracted.confidence,
         tolerance_used=context.tolerance,
         reasons=result.reasons,
