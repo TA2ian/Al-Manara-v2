@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
+from typing import Awaitable, Callable
 
 from app.application.receipt_image import ReceiptImageInspectorImpl
 from app.application.receipt_orchestrator import ReceiptSubmission, ReceiptSubmissionOrchestrator
@@ -19,7 +20,7 @@ class SubmitCustomerReceiptCommand:
     idempotency_key: str
 
 
-class SubmitCustomerReceiptService:
+ProgressCallback = Callable[[int, str], Awaitable[None]]\n\n\nclass SubmitCustomerReceiptService:
     """Validates a Telegram image, reserves it, then queues it for human review.
 
     This boundary deliberately does not perform financial approval or infer payment
@@ -39,7 +40,7 @@ class SubmitCustomerReceiptService:
         self._clock = clock
         self._orchestrator = orchestrator
 
-    async def submit(self, command: SubmitCustomerReceiptCommand, image_bytes: bytes) -> ReceiptAttempt:
+    async def submit(self, command: SubmitCustomerReceiptCommand, image_bytes: bytes, progress: ProgressCallback | None = None) -> ReceiptAttempt:
         if not isinstance(command.order_id, UUID):
             raise ValueError("order id is required")
         if not isinstance(command.telegram_user_id, int) or command.telegram_user_id <= 0:
@@ -83,5 +84,4 @@ class SubmitCustomerReceiptService:
                 telegram_file_id=file_id,
                 mime_type=submitted.mime_type or mime,
             ),
-            image_bytes,
-        )
+            image_bytes,\n            progress=progress,\n        )
