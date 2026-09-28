@@ -1,5 +1,6 @@
 -- Separate the quote price-validity window from the customer receipt window.
 alter table settings add column if not exists receipt_submission_window_minutes integer not null default 60;
+update settings set absolute_tolerance=0.01 where id=true;
 alter table settings drop constraint if exists settings_receipt_window_valid;
 alter table settings add constraint settings_receipt_window_valid check (receipt_submission_window_minutes between 1 and 90);
 
