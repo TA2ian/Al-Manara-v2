@@ -131,7 +131,9 @@ returns table (
     network_code network_code,
     wallet_address text,
     expected_reference text,
-    tolerance numeric(24,9)
+    tolerance numeric(24,9),
+    order_created_at timestamptz,
+    receipt_deadline_at timestamptz
 )
 language sql
 security invoker
@@ -147,7 +149,9 @@ as $$
         o.network_code,
         w.address,
         null::text,
-        st.absolute_tolerance
+        st.absolute_tolerance,
+        o.created_at,
+        o.expires_at
     from orders o
     join order_financial_snapshots s
       on s.internal_order_id = o.internal_order_id
