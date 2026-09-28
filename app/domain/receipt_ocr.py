@@ -12,6 +12,7 @@ class OcrField(StrEnum):
     CURRENCY = "currency"
     REFERENCE = "reference"
     NETWORK = "network"
+    TRANSACTION_DATETIME = "transaction_datetime"
 
 
 @dataclass(frozen=True, slots=True)
