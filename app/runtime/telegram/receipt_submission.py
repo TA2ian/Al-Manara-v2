@@ -26,6 +26,13 @@ class CustomerReceiptState(StatesGroup):
     awaiting_image = State()
 
 
+def _render_verification_progress(percent: int, stage: str) -> str:
+    bounded = max(0, min(100, percent))
+    filled = bounded // 10
+    bar = "█" * filled + "░" * (10 - filled)
+    return f"جاري التحقق من الإيصال\n[{bar}] {bounded}%\n{stage}"
+
+
 class ReceiptMessages:
     PROMPT = (
         "أرسل الآن صورة إيصال شام كاش للطلب. "
@@ -163,6 +170,14 @@ async def _receive_image(message: Message, state: FSMContext, composition: Custo
         await message.answer(ReceiptMessages.INVALID)
         return
 
+    progress_message = await message.answer(_render_verification_progress(0, "بدء فحص الإيصال"))
+
+    async def update_progress(percent: int, stage: str) -> None:
+        try:
+            await progress_message.edit_text(_render_verification_progress(percent, stage))
+        except Exception:
+            pass
+
     try:
         actual_declared_mime, content = await _download_receipt(message)
         if actual_declared_mime != declared_mime:
@@ -176,6 +191,7 @@ async def _receive_image(message: Message, state: FSMContext, composition: Custo
                 idempotency_key=f"receipt:{user_id}:{order_id}:{message.message_id}",
             ),
             content,
+            progress=update_progress,
         )
     except ReceiptPersistenceConflictError as exc:
         if "submission window has expired" in str(exc).lower():
@@ -197,7 +213,8 @@ async def _receive_image(message: Message, state: FSMContext, composition: Custo
         await message.answer(ReceiptMessages.ERROR)
         return
     await state.clear()
-    await message.answer(f"{ReceiptMessages.ACCEPTED}\nرقم الطلب: {public_code}")
+    if result.status is ReceiptAttemptStatus.VERIFIED:
+        final_text = ("تم التحقق آليًا من بيانات الإيصال بنسبة 100%.\\n"\n                      "الموافقة المالية النهائية وإرسال USDT يبقيان بقرار الأدمن يدويًا.")\n    else:\n        final_text = ReceiptMessages.ACCEPTED\n    await message.answer(f"{final_text}\\nرقم الطلب: {public_code}")
 
 
 # Backward-compatible framework-neutral DTOs retained for application tests.
