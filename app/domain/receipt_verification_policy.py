@@ -8,7 +8,7 @@ from decimal import Decimal
 class ReceiptVerificationPolicy:
     minimum_ocr_confidence: Decimal = Decimal("0.70")
     require_network: bool = False
-    require_reference: bool = False
+    require_reference: bool = True
     allow_missing_network_as_suspicious: bool = True
 
     def __post_init__(self) -> None:
