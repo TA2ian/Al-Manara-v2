@@ -95,3 +95,26 @@ async def test_handler_maps_unverified_customer() -> None:
 
     assert response.ok is False
     assert response.text == "لا يمكن إنشاء الطلب قبل اكتمال التحقق المطلوب."
+
+
+@pytest.mark.asyncio
+async def test_handler_forwards_frozen_quote_without_repricing() -> None:
+    request = make_input()
+    frozen_quote = SimpleNamespace(financials=SimpleNamespace(local_amount="125000.00"))
+
+    class QuoteAwareService:
+        def __init__(self) -> None:
+            self.received_quote = None
+
+        async def create(self, command, quote=None):
+            self.received_quote = quote
+            return SimpleNamespace(public_order_code="AM-000777")
+
+    service = QuoteAwareService()
+    handler = TelegramOrderCreationHandler(service)
+
+    response = await handler.handle(request, quote=frozen_quote)
+
+    assert response.ok is True
+    assert response.order_code == "AM-000777"
+    assert service.received_quote is frozen_quote
