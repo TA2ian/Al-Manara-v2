@@ -214,7 +214,13 @@ async def _receive_image(message: Message, state: FSMContext, composition: Custo
         return
     await state.clear()
     if result.status is ReceiptAttemptStatus.VERIFIED:
-        final_text = ("تم التحقق آليًا من بيانات الإيصال بنسبة 100%.\\n"\n                      "الموافقة المالية النهائية وإرسال USDT يبقيان بقرار الأدمن يدويًا.")\n    else:\n        final_text = ReceiptMessages.ACCEPTED\n    await message.answer(f"{final_text}\\nرقم الطلب: {public_code}")
+        final_text = (
+            "تم التحقق آليًا من بيانات الإيصال بنسبة 100%.\\n"
+            "الموافقة المالية النهائية وإرسال USDT يبقيان بقرار الأدمن يدويًا."
+        )
+    else:
+        final_text = ReceiptMessages.ACCEPTED
+    await message.answer(f"{final_text}\\nرقم الطلب: {public_code}")
 
 
 # Backward-compatible framework-neutral DTOs retained for application tests.
