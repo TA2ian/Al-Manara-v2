@@ -80,3 +80,27 @@ def test_suspicious_when_ocr_confidence_is_low_but_financial_match_is_exact() ->
 def test_mismatch_when_amount_exceeds_tolerance() -> None:
     result = verify_receipt(context(), extracted(amount="100.05"))
     assert result.decision is VerificationDecision.MISMATCH
+
+
+def test_mismatch_when_transaction_time_is_before_order_creation() -> None:
+    result = verify_receipt(
+        context(),
+        extracted(transaction_datetime=datetime(2026, 9, 28, 11, 59, tzinfo=ZoneInfo("Asia/Damascus"))),
+    )
+    assert result.decision is VerificationDecision.MISMATCH
+    assert "transaction_time_before_order_creation" in result.reasons
+
+
+def test_mismatch_when_transaction_time_is_after_receipt_deadline() -> None:
+    result = verify_receipt(
+        context(),
+        extracted(transaction_datetime=datetime(2026, 9, 28, 13, 1, tzinfo=ZoneInfo("Asia/Damascus"))),
+    )
+    assert result.decision is VerificationDecision.MISMATCH
+    assert "transaction_time_after_receipt_deadline" in result.reasons
+
+
+def test_insufficient_data_when_transaction_time_is_missing() -> None:
+    result = verify_receipt(context(), extracted(transaction_datetime=None))
+    assert result.decision is VerificationDecision.INSUFFICIENT_DATA
+    assert "transaction_datetime_unavailable" in result.reasons
