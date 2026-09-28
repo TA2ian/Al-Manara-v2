@@ -28,12 +28,13 @@ def extracted(
     currency: str | None = "USD",
     confidence: str = "0.95",
     transaction_datetime: datetime | None = datetime(2026, 9, 28, 12, 30, tzinfo=ZoneInfo("Asia/Damascus")),
+    reference: str | None = "ORD-ABC123DEF456",
 ) -> ExtractedReceiptData:
     return ExtractedReceiptData(
         uuid4(),
         Decimal(amount) if amount else None,
         currency,
-        None,
+        reference,
         "TRC20",
         Decimal(confidence),
         transaction_datetime,
@@ -104,4 +105,15 @@ def test_insufficient_data_when_transaction_time_is_missing() -> None:
     result = verify_receipt(context(), extracted(transaction_datetime=None))
     assert result.decision is VerificationDecision.INSUFFICIENT_DATA
     assert "transaction_datetime_unavailable" in result.reasons
-\n\ndef test_insufficient_data_when_order_reference_is_missing():\n    result = verify_receipt(context(), extracted(reference=None))\n    assert result.decision is VerificationDecision.INSUFFICIENT_DATA\n    assert "reference_required_but_unavailable" in result.reasons\n\n\ndef test_mismatch_when_order_reference_is_wrong():\n    result = verify_receipt(context(), extracted(reference="ORD-WRONG123456"))\n    assert result.decision is VerificationDecision.MISMATCH\n    assert "reference_mismatch" in result.reasons\n
+
+
+def test_insufficient_data_when_order_reference_is_missing():
+    result = verify_receipt(context(), extracted(reference=None))
+    assert result.decision is VerificationDecision.INSUFFICIENT_DATA
+    assert "reference_required_but_unavailable" in result.reasons
+
+
+def test_mismatch_when_order_reference_is_wrong():
+    result = verify_receipt(context(), extracted(reference="ORD-WRONG123456"))
+    assert result.decision is VerificationDecision.MISMATCH
+    assert "reference_mismatch" in result.reasons
