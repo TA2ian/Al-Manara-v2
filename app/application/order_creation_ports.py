@@ -30,6 +30,7 @@ class PaymentSettingsRepository(Protocol):
     async def get_admin_payment_account(
         self, currency: CurrencyCode
     ) -> AdminPaymentAccountSnapshot | None: ...
+    async def get_receipt_submission_window_minutes(self) -> int: ...
 
 
 class WalletOrderRepository(Protocol):
