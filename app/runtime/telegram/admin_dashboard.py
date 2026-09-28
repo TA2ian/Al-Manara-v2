@@ -19,12 +19,14 @@ ADMIN_ORDERS_CALLBACK = "admin:orders"
 ADMIN_REVIEW_ORDERS_CALLBACK = "admin:review_orders"
 ADMIN_FULFILLMENT_CALLBACK = "admin:fulfillment"
 ADMIN_PAYMENT_ACCOUNTS_CALLBACK = "admin:payment_accounts"
+ADMIN_RECEIPT_WINDOW_CALLBACK = "admin:receipt_window"
 ADMIN_ORDER_PAGE_SIZE = 5
 
 
 def admin_dashboard_markup(*, include_orders: bool = False) -> InlineKeyboardMarkup:
     rows = [[InlineKeyboardButton(text="👥 التحقق من المستخدمين", callback_data=ADMIN_IDENTITY_CALLBACK)]]
     rows.append([InlineKeyboardButton(text="💳 حسابات ShamCash", callback_data=ADMIN_PAYMENT_ACCOUNTS_CALLBACK)])
+    rows.append([InlineKeyboardButton(text="⏱ مهلة إرسال الإيصال", callback_data=ADMIN_RECEIPT_WINDOW_CALLBACK)])
     if include_orders:
         rows.append([InlineKeyboardButton(text="📦 الطلبات النشطة", callback_data=ADMIN_ORDERS_CALLBACK)])
         rows.append([InlineKeyboardButton(text="🔎 المدفوعات قيد المراجعة", callback_data=ADMIN_REVIEW_ORDERS_CALLBACK)])
