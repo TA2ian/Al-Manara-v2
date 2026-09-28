@@ -120,7 +120,11 @@ class TesseractReceiptOcr:
             value = currency_match.group(1)
             fields[OcrField.CURRENCY] = OcrFieldValue(value, confidence)
 
-        order_match = re.search(r"\\b(ORD-[A-Z0-9]{12})\\b", normalized, re.IGNORECASE)\n        if order_match is not None:\n            fields[OcrField.REFERENCE] = OcrFieldValue(order_match.group(1).upper(), confidence)\n\n        date_match = re.search(r"\b([0-3]?[0-9][/-][0-1]?[0-9][/-](?:20)?[0-9]{2})\b", normalized)
+        order_match = re.search(r"\b(ORD-[A-Z0-9]{12})\b", normalized, re.IGNORECASE)
+        if order_match is not None:
+            fields[OcrField.REFERENCE] = OcrFieldValue(order_match.group(1).upper(), confidence)
+
+        date_match = re.search(r"\b([0-3]?[0-9][/-][0-1]?[0-9][/-](?:20)?[0-9]{2})\b", normalized)
         time_match = re.search(r"\b([0-2]?[0-9]:[0-5][0-9](?::[0-5][0-9])?)\b", normalized)
         if date_match is not None and time_match is not None:
             fields[OcrField.TRANSACTION_DATETIME] = OcrFieldValue(
