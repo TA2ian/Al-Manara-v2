@@ -55,6 +55,7 @@ def draft() -> PurchaseOrderDraft:
         ),
         quote_issued_at=issued,
         quote_expires_at=datetime(2026, 8, 29, 8, 10, tzinfo=timezone.utc),
+        receipt_deadline_at=datetime(2026, 8, 29, 9, 0, tzinfo=timezone.utc),
         idempotency_key="order:create:123",
     )
 
