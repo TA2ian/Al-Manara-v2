@@ -14,7 +14,8 @@ from app.domain.receipt_ocr import OcrField, OcrPort
 from app.domain.receipt_verification import ExtractedReceiptData, VerificationDecision
 
 
-logger = logging.getLogger(__name__)\nProgressCallback = Callable[[int, str], Awaitable[None]]
+logger = logging.getLogger(__name__)
+ProgressCallback = Callable[[int, str], Awaitable[None]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,9 +42,19 @@ class ReceiptSubmissionOrchestrator:
     async def process(self, submission: ReceiptSubmission, image_bytes: bytes, progress: ProgressCallback | None = None):
         finalized = False
         try:
-            if progress is not None:\n                await progress(0, "بدء فحص الإيصال")\n            inspected = await self._inspector.inspect_bytes(image_bytes, submission.mime_type)
-            if progress is not None:\n                await progress(20, "تم التحقق من سلامة الصورة")\n            normalized = self._normalizer.normalize(inspected.content, inspected.mime_type)\n            if progress is not None:\n                await progress(40, "تم تجهيز الصورة للتحقق")\n            ocr_result = await self._ocr.extract(normalized.content, normalized.mime_type, submission.attempt_id)
-            fields = ocr_result.fields\n            if progress is not None:\n                await progress(65, "تم استخراج بيانات الإيصال")\n
+            if progress is not None:
+                await progress(0, "بدء فحص الإيصال")
+            inspected = await self._inspector.inspect_bytes(image_bytes, submission.mime_type)
+            if progress is not None:
+                await progress(20, "تم التحقق من سلامة الصورة")
+            normalized = self._normalizer.normalize(inspected.content, inspected.mime_type)
+            if progress is not None:
+                await progress(40, "تم تجهيز الصورة للتحقق")
+            ocr_result = await self._ocr.extract(normalized.content, normalized.mime_type, submission.attempt_id)
+            fields = ocr_result.fields
+            if progress is not None:
+                await progress(65, "تم استخراج بيانات الإيصال")
+
             raw_amount = fields[OcrField.AMOUNT].value if OcrField.AMOUNT in fields else None
             raw_currency = fields[OcrField.CURRENCY].value if OcrField.CURRENCY in fields else None
             amount = normalize_amount(raw_amount) if raw_amount else None
@@ -58,14 +69,24 @@ class ReceiptSubmissionOrchestrator:
                 transaction_datetime=(normalize_transaction_datetime(fields[OcrField.TRANSACTION_DATETIME].value) if OcrField.TRANSACTION_DATETIME in fields else None),
             )
             verification = await self._verification.verify(ReceiptVerificationInput(submission.order_id, extracted))
-            decision = verification.evidence.decision\n            if progress is not None:\n                await progress(90, "تمت مقارنة المبلغ والعملة والوقت ورقم الطلب")\n\n            if decision is VerificationDecision.VERIFIED:
+            decision = verification.evidence.decision
+            if progress is not None:
+                await progress(90, "تمت مقارنة المبلغ والعملة والوقت ورقم الطلب")
+
+            if decision is VerificationDecision.VERIFIED:
                 finalized = True
-                result = await self._finalizer.finalize(submission.attempt_id, ReceiptAttemptStatus.VERIFIED)\n                if progress is not None:\n                    await progress(100, "اكتمل التحقق")\n                return result
+                result = await self._finalizer.finalize(submission.attempt_id, ReceiptAttemptStatus.VERIFIED)
+                if progress is not None:
+                    await progress(100, "اكتمل التحقق")
+                return result
 
             reason = ";".join(verification.evidence.reasons) or decision.value
             status = ReceiptAttemptStatus.ESCALATED if decision is VerificationDecision.SUSPICIOUS and submission.attempt_id is not None and await self._is_third_attempt(submission.attempt_id) else ReceiptAttemptStatus.FAILED
             finalized = True
-            result = await self._finalizer.finalize(submission.attempt_id, status, reason)\n            if progress is not None:\n                await progress(100, "اكتمل التحقق")\n            return result
+            result = await self._finalizer.finalize(submission.attempt_id, status, reason)
+            if progress is not None:
+                await progress(100, "اكتمل التحقق")
+            return result
         except Exception:
             if not finalized:
                 logger.exception("receipt processing failed", extra={"receipt_attempt_id": str(submission.attempt_id)})
