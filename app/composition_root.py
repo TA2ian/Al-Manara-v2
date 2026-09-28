@@ -24,6 +24,9 @@ from app.application.register_wallet import RegisterWalletService
 from app.application.uow import UnitOfWork
 from app.application.submit_customer_receipt import SubmitCustomerReceiptService
 from app.application.receipt_image import ReceiptImageInspectorImpl
+from app.application.receipt_image_normalizer import ReceiptImageNormalizer
+from app.application.receipt_orchestrator import ReceiptSubmissionOrchestrator
+from app.application.receipt_verification_service import ReceiptFinancialVerificationService
 from app.infrastructure.persistence.admin_authorization_repository import SupabaseAdminAuthorizationRepository
 from app.infrastructure.persistence.admin_order_closure_repository import SupabaseAdminOrderClosureRepository
 from app.infrastructure.persistence.admin_order_recovery_repository import SupabaseAdminOrderRecoveryRepository
@@ -54,6 +57,8 @@ from app.infrastructure.persistence.quote_support_repository import (
 )
 from app.infrastructure.persistence.supabase_order_uow import SupabaseOrderUnitOfWork
 from app.infrastructure.persistence.receipt_attempt_repository import SupabaseReceiptAttemptRepository
+from app.infrastructure.persistence.receipt_verification_snapshot_repository import SupabaseReceiptVerificationSnapshotRepository
+from app.infrastructure.receipt_ocr_tesseract import TesseractReceiptOcr
 from app.infrastructure.persistence.wallet_repository import SupabaseWalletRepository
 from app.runtime.telegram.admin_customer_identity import TelegramAdminCustomerIdentityHandler
 from app.runtime.telegram.admin_order_closure import TelegramAdminOrderClosureHandler
@@ -166,6 +171,16 @@ def build_customer_composition(client: Any) -> CustomerComposition:
         registration=RegisterWalletService(wallet_repository),
         disabling=DisableWalletService(wallet_repository, SupabaseAuditLogger(client)),
     )
+    receipt_attempts = SupabaseReceiptAttemptRepository(client)
+    receipt_orchestrator = ReceiptSubmissionOrchestrator(
+        inspector=ReceiptImageInspectorImpl(),
+        normalizer=ReceiptImageNormalizer(),
+        ocr=TesseractReceiptOcr(),
+        verification=ReceiptFinancialVerificationService(
+            SupabaseReceiptVerificationSnapshotRepository(client)
+        ),
+        finalizer=receipt_attempts,
+    )
     return CustomerComposition(
         order_creation=TelegramOrderCreationHandler(order_service),
         wallets=wallet_handler,
@@ -174,9 +189,10 @@ def build_customer_composition(client: Any) -> CustomerComposition:
         ),
         order_details=CustomerOrderDetailsService(SupabaseCustomerOrderDetailsRepository(client)),
         customer_receipt=SubmitCustomerReceiptService(
-            attempts=SupabaseReceiptAttemptRepository(client),
+            attempts=receipt_attempts,
             inspector=ReceiptImageInspectorImpl(),
             clock=UtcQuoteClock(),
+            orchestrator=receipt_orchestrator,
         ),
         identity=TelegramCustomerIdentityHandler(
             CustomerIdentityService(SupabaseCustomerIdentityRepository(client))
