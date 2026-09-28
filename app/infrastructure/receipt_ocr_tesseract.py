@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import csv
+import io
 import os
 import re
 import subprocess
@@ -38,6 +40,7 @@ class TesseractReceiptOcr:
                 self._EXECUTABLE,
                 str(input_path),
                 "stdout",
+                "--tsv",
                 "-l",
                 self._LANGUAGES,
                 "--psm",
@@ -59,8 +62,8 @@ class TesseractReceiptOcr:
 
         if completed.returncode != 0:
             raise RuntimeError("OCR engine failed")
-        text = completed.stdout.decode("utf-8", errors="replace")
-        fields = self._extract_fields(text)
+        text, confidence = self._parse_tsv(completed.stdout)
+        fields = self._extract_fields(text, confidence)
         version = await self._version()
         return OcrResult(
             receipt_id=receipt_id,
@@ -89,7 +92,7 @@ class TesseractReceiptOcr:
         return first_line[0].strip()[:120]
 
     @classmethod
-    def _extract_fields(cls, text: str) -> dict[OcrField, OcrFieldValue]:
+    def _extract_fields(cls, text: str, confidence: Decimal) -> dict[OcrField, OcrFieldValue]:
         normalized = cls._normalize_digits(text)
         fields: dict[OcrField, OcrFieldValue] = {}
 
@@ -106,7 +109,7 @@ class TesseractReceiptOcr:
             except Exception:
                 parsed = None
             if parsed is not None and parsed.is_finite() and parsed > 0:
-                fields[OcrField.AMOUNT] = OcrFieldValue(format(parsed, "f"), Decimal("0.80"))
+                fields[OcrField.AMOUNT] = OcrFieldValue(format(parsed, "f"), confidence)
 
         currency_match = re.search(
             r"(USD|US\s*DOLLAR|\$|دولار|SYP|ل\.س|ليرة(?:\s+سورية)?|سورية)",
@@ -128,5 +131,33 @@ class TesseractReceiptOcr:
         return fields
 
     @staticmethod
-    def _normalize_digits(value: str) -> str:
+    def _parse_tsv(raw: bytes) -> tuple[str, Decimal]:
+        rows = csv.reader(io.StringIO(raw.decode("utf-8", errors="replace")), delimiter="\t")
+        words: list[str] = []
+        confidences: list[Decimal] = []
+        try:
+            header = next(rows)
+        except StopIteration:
+            return "", Decimal("0")
+        if "text" not in header or "conf" not in header:
+            return "", Decimal("0")
+        text_index = header.index("text")
+        conf_index = header.index("conf")
+        for row in rows:
+            if len(row) <= max(text_index, conf_index):
+                continue
+            value = row[text_index].strip()
+            if value:
+                words.append(value)
+            try:
+                conf = Decimal(row[conf_index])
+            except Exception:
+                continue
+            if Decimal("0") <= conf <= Decimal("100"):
+                confidences.append(conf / Decimal("100"))
+        confidence = (sum(confidences, Decimal("0")) / Decimal(len(confidences))) if confidences else Decimal("0")
+        return " ".join(words), confidence.quantize(Decimal("0.001"))
+
+    @staticmethod
+    def _normalize_digits(value: str:
         return value.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789"))
