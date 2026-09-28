@@ -87,4 +87,6 @@ class SubmitCustomerReceiptService:
                 telegram_file_id=file_id,
                 mime_type=submitted.mime_type or mime,
             ),
-            image_bytes,\n            progress=progress,\n        )
+            image_bytes,
+            progress=progress,
+        )
