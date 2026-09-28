@@ -67,6 +67,18 @@ class SupabasePaymentSettingsRepository:
         except (KeyError, TypeError, ValueError) as exc:
             raise OrderSupportPersistenceError("invalid admin payment account payload") from exc
 
+    async def get_receipt_submission_window_minutes(self) -> int:
+        rows = await _execute_rpc(self._client, "get_receipt_submission_window", {})
+        if len(rows) != 1:
+            raise OrderSupportPersistenceError("invalid receipt window settings payload")
+        try:
+            minutes = int(rows[0]["receipt_submission_window_minutes"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise OrderSupportPersistenceError("invalid receipt window setting") from exc
+        if not 1 <= minutes <= 90:
+            raise OrderSupportPersistenceError("receipt window setting is outside the allowed range")
+        return minutes
+
 
 class SupabaseNetworkOrderRepository:
     def __init__(self, client: SupabaseRpcClient) -> None:
