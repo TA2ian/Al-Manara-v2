@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
@@ -25,12 +26,15 @@ class ExtractedReceiptData:
     reference: str | None
     network: str | None
     confidence: Decimal
+    transaction_datetime: datetime | None
 
     def __post_init__(self) -> None:
         if not self.confidence.is_finite() or not Decimal("0") <= self.confidence <= Decimal("1"):
             raise ValueError("receipt confidence must be between 0 and 1")
         if self.amount is not None and (not self.amount.is_finite() or self.amount <= 0):
             raise ValueError("receipt amount must be positive and finite")
+        if self.transaction_datetime is not None and self.transaction_datetime.tzinfo is None:
+            raise ValueError("receipt transaction datetime must be timezone-aware")
 
 
 @dataclass(frozen=True, slots=True)
