@@ -20,6 +20,7 @@ class PurchaseOrderDraft:
     financials: OrderFinancials
     quote_issued_at: datetime
     quote_expires_at: datetime
+    receipt_deadline_at: datetime
     idempotency_key: str
 
     def __post_init__(self) -> None:
@@ -27,5 +28,7 @@ class PurchaseOrderDraft:
             raise ValueError("quote timestamps must be timezone-aware")
         if self.quote_expires_at <= self.quote_issued_at:
             raise ValueError("quote expiry must be after quote issuance")
+        if self.receipt_deadline_at <= self.quote_issued_at:
+            raise ValueError("receipt deadline must be after order creation")
         if not self.idempotency_key.strip():
             raise ValueError("idempotency key is required")
