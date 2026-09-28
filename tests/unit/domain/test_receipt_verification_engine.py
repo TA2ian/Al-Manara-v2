@@ -1,4 +1,6 @@
 from decimal import Decimal
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from uuid import uuid4
 
 from app.domain.receipt_verification import ExtractedReceiptData, VerificationDecision
@@ -16,6 +18,8 @@ def context(currency: str = "USD", amount: str = "100.00") -> ReceiptVerificatio
         rounding_policy_version="v1",
         network_code="TRC20",
         wallet_address="T9yD14Nj9j7xAB4dbGeiX9h8unkM4Jx7nQ",
+        order_created_at=datetime(2026, 9, 28, 12, 0, tzinfo=ZoneInfo("Asia/Damascus")),
+        receipt_deadline_at=datetime(2026, 9, 28, 13, 0, tzinfo=ZoneInfo("Asia/Damascus")),
     )
 
 
@@ -23,6 +27,7 @@ def extracted(
     amount: str | None = "100.00",
     currency: str | None = "USD",
     confidence: str = "0.95",
+    transaction_datetime: datetime | None = datetime(2026, 9, 28, 12, 30, tzinfo=ZoneInfo("Asia/Damascus")),
 ) -> ExtractedReceiptData:
     return ExtractedReceiptData(
         uuid4(),
@@ -31,6 +36,7 @@ def extracted(
         None,
         "TRC20",
         Decimal(confidence),
+        transaction_datetime,
     )
 
 
