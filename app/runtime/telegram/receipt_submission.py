@@ -13,6 +13,7 @@ from app.application.customer_order_details import GetCustomerOrderDetailsComman
 from app.application.submit_customer_receipt import SubmitCustomerReceiptCommand
 from app.composition_root import CustomerComposition
 from app.domain.receipt_attempt import ReceiptAttemptStatus, SUPPORTED_RECEIPT_MIME_TYPES
+from app.infrastructure.persistence.receipt_attempt_repository import ReceiptPersistenceConflictError
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
 
 MAX_RECEIPT_BYTES = 5 * 1024 * 1024
@@ -37,6 +38,7 @@ class ReceiptMessages:
     ACCEPTED = "تم استلام الإيصال وإدخاله في قائمة المراجعة. الموافقة المالية النهائية يحددها الأدمن يدويًا."
     FAILED = "تعذر معالجة الإيصال. أرسل صورة واضحة وصالحة وحاول مرة أخرى."
     ERROR = "تعذر معالجة الإيصال حاليًا. حاول مرة أخرى."
+    DEADLINE_EXPIRED = "انتهت مهلة إرسال الإيصال لهذا الطلب."
 
 
 async def _download_receipt(message: Message) -> tuple[str, bytes]:
@@ -175,6 +177,12 @@ async def _receive_image(message: Message, state: FSMContext, composition: Custo
             ),
             content,
         )
+    except ReceiptPersistenceConflictError as exc:
+        if "submission window has expired" in str(exc).lower():
+            await message.answer(ReceiptMessages.DEADLINE_EXPIRED)
+        else:
+            await message.answer(ReceiptMessages.FAILED)
+        return
     except ValueError as exc:
         if "size limit" in str(exc).lower():
             await message.answer(ReceiptMessages.TOO_LARGE)
