@@ -20,7 +20,10 @@ class SubmitCustomerReceiptCommand:
     idempotency_key: str
 
 
-ProgressCallback = Callable[[int, str], Awaitable[None]]\n\n\nclass SubmitCustomerReceiptService:
+ProgressCallback = Callable[[int, str], Awaitable[None]]
+
+
+class SubmitCustomerReceiptService:
     """Validates a Telegram image, reserves it, then queues it for human review.
 
     This boundary deliberately does not perform financial approval or infer payment
