@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from uuid import UUID, uuid4
 
@@ -10,6 +11,8 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.composition_root import CustomerComposition
+from app.application.quote import ExchangeRateSnapshot, FeePolicySnapshot, PurchaseQuote
+from app.domain.money import OrderFinancials
 from app.runtime.telegram.contracts import TelegramOrderInput
 from app.runtime.telegram.customer_order_listing import TelegramCustomerOrderListingInput
 from app.runtime.telegram.shared.actor import authenticated_telegram_user_id, is_private_message
@@ -69,7 +72,7 @@ def _build_input(data: dict[str, object], user_id: int) -> TelegramOrderInput:
         idempotency_key=str(data.get("idempotency_key", "")),
     )
 
-def _quote_fingerprint(quote: object) -> tuple[str, ...]:
+def _quote_fingerprint(quote: PurchaseQuote) -> tuple[str, ...]:
     financials = quote.financials
     rate = quote.exchange_rate_snapshot
     return (
@@ -80,7 +83,96 @@ def _quote_fingerprint(quote: object) -> tuple[str, ...]:
         str(rate.rate if rate else ""),
     )
 
-def render_confirmation(data: dict[str, object], quote: object) -> str:
+def _serialize_quote(quote: PurchaseQuote) -> dict[str, object]:
+    financials = quote.financials
+    rate = quote.exchange_rate_snapshot
+    fee = quote.fee_policy_snapshot
+    return {
+        "issued_at": quote.issued_at.isoformat(),
+        "expires_at": quote.expires_at.isoformat(),
+        "financials": {
+            "requested_amount": str(financials.requested_amount),
+            "fee_percent": str(financials.fee_percent),
+            "fee_amount": str(financials.fee_amount),
+            "network_fee_amount": str(financials.network_fee_amount),
+            "net_usdt_amount": str(financials.net_usdt_amount),
+            "payment_currency": financials.payment_currency,
+            "exchange_rate": str(financials.exchange_rate) if financials.exchange_rate is not None else None,
+            "local_amount": str(financials.local_amount),
+            "rounding_policy_version": financials.rounding_policy_version,
+        },
+        "fee_policy": {
+            "percent": str(fee.percent),
+            "version": fee.version,
+            "effective_at": fee.effective_at.isoformat(),
+            "network_fee_amount": str(fee.network_fee_amount),
+        },
+        "exchange_rate_snapshot": None if rate is None else {
+            "currency": rate.currency,
+            "rate": str(rate.rate),
+            "captured_at": rate.captured_at.isoformat(),
+            "source": rate.source,
+            "version": rate.version,
+        },
+    }
+
+
+def _parse_datetime(value: object) -> datetime:
+    if not isinstance(value, str):
+        raise ValueError("invalid quote timestamp")
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        raise ValueError("quote timestamp must be timezone-aware")
+    return parsed.astimezone(timezone.utc)
+
+
+def _deserialize_quote(raw: object) -> PurchaseQuote:
+    if not isinstance(raw, dict):
+        raise ValueError("quote snapshot is missing")
+    financials_raw = raw.get("financials")
+    fee_raw = raw.get("fee_policy")
+    rate_raw = raw.get("exchange_rate_snapshot")
+    if not isinstance(financials_raw, dict) or not isinstance(fee_raw, dict):
+        raise ValueError("quote snapshot is malformed")
+    exchange_rate = financials_raw.get("exchange_rate")
+    financials = OrderFinancials(
+        requested_amount=Decimal(str(financials_raw["requested_amount"])),
+        fee_percent=Decimal(str(financials_raw["fee_percent"])),
+        fee_amount=Decimal(str(financials_raw["fee_amount"])),
+        network_fee_amount=Decimal(str(financials_raw["network_fee_amount"])),
+        net_usdt_amount=Decimal(str(financials_raw["net_usdt_amount"])),
+        payment_currency=str(financials_raw["payment_currency"]),
+        exchange_rate=Decimal(str(exchange_rate)) if exchange_rate is not None else None,
+        local_amount=Decimal(str(financials_raw["local_amount"])),
+        rounding_policy_version=str(financials_raw["rounding_policy_version"]),
+    )
+    fee = FeePolicySnapshot(
+        percent=Decimal(str(fee_raw["percent"])),
+        version=str(fee_raw["version"]),
+        effective_at=_parse_datetime(fee_raw["effective_at"]),
+        network_fee_amount=Decimal(str(fee_raw["network_fee_amount"])),
+    )
+    rate = None
+    if rate_raw is not None:
+        if not isinstance(rate_raw, dict):
+            raise ValueError("exchange rate snapshot is malformed")
+        rate = ExchangeRateSnapshot(
+            currency=str(rate_raw["currency"]),
+            rate=Decimal(str(rate_raw["rate"])),
+            captured_at=_parse_datetime(rate_raw["captured_at"]),
+            source=str(rate_raw["source"]),
+            version=str(rate_raw["version"]),
+        )
+    return PurchaseQuote(
+        financials=financials,
+        exchange_rate_snapshot=rate,
+        fee_policy_snapshot=fee,
+        issued_at=_parse_datetime(raw["issued_at"]),
+        expires_at=_parse_datetime(raw["expires_at"]),
+    )
+
+
+def render_confirmation(data: dict[str, object], quote: PurchaseQuote) -> str:
     financials = quote.financials
     rate = quote.exchange_rate_snapshot
     lines = [
@@ -94,7 +186,7 @@ def render_confirmation(data: dict[str, object], quote: object) -> str:
     ]
     if rate is not None:
         lines.append(f"• سعر الصرف: {rate.rate} {financials.payment_currency}/USDT")
-    lines.extend(["", "عرض السعر صالح لمدة 10 دقائق تقريبًا، ويُعاد التحقق منه لحظة التأكيد."])
+    lines.extend(["", "عرض السعر صالح لمدة 10 دقائق. عند إنشاء الطلب يُثبّت هذا السعر ولا يُعاد احتسابه."])
     return "\n".join(lines)
 
 def render_created_order(order_text: str) -> str:
@@ -236,7 +328,7 @@ def build_customer_purchase_order_router(composition: CustomerComposition) -> Ro
         if not preview.ok or preview.quote is None:
             await query.answer(preview.text or ORDER_RETRY_MESSAGE, show_alert=True)
             return
-        await state.update_data(quote_fingerprint=_quote_fingerprint(preview.quote))
+        await state.update_data(quote_fingerprint=_quote_fingerprint(preview.quote), quote_snapshot=_serialize_quote(preview.quote))
         await state.set_state(PurchaseOrderState.confirmation)
         await query.answer()
         await query.message.answer(render_confirmation(data, preview.quote), reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -260,19 +352,17 @@ def build_customer_purchase_order_router(composition: CustomerComposition) -> Ro
             await state.clear()
             await query.answer("بيانات الطلب غير مكتملة. ابدأ من جديد.", show_alert=True)
             return
-        preview = await composition.order_creation.preview(request)
-        if not preview.ok or preview.quote is None:
-            await query.answer(preview.text or ORDER_RETRY_MESSAGE, show_alert=True)
+        try:
+            quote = _deserialize_quote(data.get("quote_snapshot"))
+        except (KeyError, TypeError, ValueError, InvalidOperation):
+            await state.clear()
+            await query.answer("انتهت جلسة عرض السعر. ابدأ الطلب من جديد.", show_alert=True)
             return
-        if tuple(data.get("quote_fingerprint", ())) != _quote_fingerprint(preview.quote):
-            await state.update_data(quote_fingerprint=_quote_fingerprint(preview.quote))
-            await query.answer("تغير السعر أو الرسوم. راجع العرض المحدث ثم أكد مرة أخرى.", show_alert=True)
-            await query.message.answer(render_confirmation(data, preview.quote), reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="تأكيد الطلب", callback_data=CONFIRM_CALLBACK)],
-                [InlineKeyboardButton(text="إلغاء", callback_data=CANCEL_CALLBACK)],
-            ]))
+        if tuple(data.get("quote_fingerprint", ())) != _quote_fingerprint(quote):
+            await state.clear()
+            await query.answer("تعذر التحقق من ثبات عرض السعر. ابدأ الطلب من جديد.", show_alert=True)
             return
-        response = await composition.order_creation.handle(request)
+        response = await composition.order_creation.handle(request, quote=quote)
         await query.answer()
         if not response.ok:
             await query.message.answer(response.text or ORDER_RETRY_MESSAGE)
