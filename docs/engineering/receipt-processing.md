@@ -29,3 +29,7 @@ A replay must return the existing attempt without re-running image inspection, O
 `finalize_receipt_submission` accepts only terminal processing states: `SUCCEEDED`, `FAILED`, or `ESCALATED`. It locks the submission row, rejects finalization of a non-`PROCESSING` submission, and requires a failure reason for `FAILED` and `ESCALATED` states.
 
 The finalization RPC returns the complete persisted attempt payload so the application layer does not need to reconstruct domain state from partial database data.
+
+
+### Timing and OCR verification
+Customer receipt processing is image-only. Local Tesseract OCR extracts amount, currency, and transaction date/time. The transaction timestamp is interpreted in `Asia/Damascus` when no explicit offset is present. Verification requires the transaction timestamp to fall within the order creation timestamp and the order's snapshotted receipt deadline. The upload reservation itself also rejects new submissions after the deadline. Quote TTL is independent and remains the price-validity period only. Admin review remains OCR-free and upload-free.
