@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from uuid import UUID
+from datetime import datetime
 import logging
 
 from app.application.receipt_image import ReceiptImageInspectorImpl
 from app.application.receipt_image_normalizer import ReceiptImageNormalizer
-from app.application.receipt_ocr_normalizer import normalize_amount, normalize_currency_field
+from app.application.receipt_ocr_normalizer import normalize_amount, normalize_currency_field, normalize_transaction_datetime
 from app.application.receipt_verification_service import ReceiptFinancialVerificationService, ReceiptVerificationInput
 from app.domain.receipt_attempt import ReceiptAttemptStatus
 from app.domain.receipt_ocr import OcrField, OcrPort
@@ -56,6 +57,7 @@ class ReceiptSubmissionOrchestrator:
                 reference=fields[OcrField.REFERENCE].value if OcrField.REFERENCE in fields else None,
                 network=fields[OcrField.NETWORK].value if OcrField.NETWORK in fields else None,
                 confidence=min((field.confidence for field in fields.values()), default=0),
+                transaction_datetime=(normalize_transaction_datetime(fields[OcrField.TRANSACTION_DATETIME].value) if OcrField.TRANSACTION_DATETIME in fields else None),
             )
             verification = await self._verification.verify(ReceiptVerificationInput(submission.order_id, extracted))
             decision = verification.evidence.decision
