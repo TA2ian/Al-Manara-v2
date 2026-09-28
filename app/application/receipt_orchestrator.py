@@ -14,7 +14,8 @@ from app.domain.receipt_ocr import OcrField, OcrPort
 from app.domain.receipt_verification import ExtractedReceiptData, VerificationDecision
 
 
-logger = logging.getLogger(__name__)\nProgressCallback = Callable[[int, str], Awaitable[None]]\n
+logger = logging.getLogger(__name__)\nProgressCallback = Callable[[int, str], Awaitable[None]]
+
 
 @dataclass(frozen=True, slots=True)
 class ReceiptSubmission:
