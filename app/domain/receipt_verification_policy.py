@@ -7,7 +7,7 @@ from decimal import Decimal
 @dataclass(frozen=True, slots=True)
 class ReceiptVerificationPolicy:
     minimum_ocr_confidence: Decimal = Decimal("0.70")
-    require_network: bool = True
+    require_network: bool = False
     require_reference: bool = False
     allow_missing_network_as_suspicious: bool = True
 
