@@ -118,14 +118,14 @@ class TesseractReceiptOcr:
         )
         if currency_match is not None:
             value = currency_match.group(1)
-            fields[OcrField.CURRENCY] = OcrFieldValue(value, Decimal("0.80"))
+            fields[OcrField.CURRENCY] = OcrFieldValue(value, confidence)
 
         date_match = re.search(r"\b([0-3]?[0-9][/-][0-1]?[0-9][/-](?:20)?[0-9]{2})\b", normalized)
         time_match = re.search(r"\b([0-2]?[0-9]:[0-5][0-9](?::[0-5][0-9])?)\b", normalized)
         if date_match is not None and time_match is not None:
             fields[OcrField.TRANSACTION_DATETIME] = OcrFieldValue(
                 f"{date_match.group(1)} {time_match.group(1)}",
-                Decimal("0.80"),
+                confidence,
             )
 
         return fields
@@ -159,5 +159,5 @@ class TesseractReceiptOcr:
         return " ".join(words), confidence.quantize(Decimal("0.001"))
 
     @staticmethod
-    def _normalize_digits(value: str:
+    def _normalize_digits(value: str) -> str:
         return value.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789"))
