@@ -5,6 +5,7 @@ from datetime import datetime
 from uuid import UUID
 
 from app.application.receipt_image import ReceiptImageInspectorImpl
+from app.application.receipt_orchestrator import ReceiptSubmission, ReceiptSubmissionOrchestrator
 from app.application.receipt_ports import ReceiptAttemptRepository, ReceiptClock
 from app.domain.receipt_attempt import ReceiptAttempt, ReceiptAttemptStatus, ReceiptInputType, SUPPORTED_RECEIPT_MIME_TYPES
 
@@ -31,10 +32,12 @@ class SubmitCustomerReceiptService:
         attempts: ReceiptAttemptRepository,
         inspector: ReceiptImageInspectorImpl,
         clock: ReceiptClock,
+        orchestrator: ReceiptSubmissionOrchestrator | None = None,
     ) -> None:
         self._attempts = attempts
         self._inspector = inspector
         self._clock = clock
+        self._orchestrator = orchestrator
 
     async def submit(self, command: SubmitCustomerReceiptCommand, image_bytes: bytes) -> ReceiptAttempt:
         if not isinstance(command.order_id, UUID):
@@ -67,7 +70,18 @@ class SubmitCustomerReceiptService:
         )
         if reservation.replayed:
             return reservation.attempt
-        return await self._attempts.finalize(
+        submitted = await self._attempts.finalize(
             reservation.attempt.attempt_id,
             ReceiptAttemptStatus.SUBMITTED,
+        )
+        if self._orchestrator is None:
+            return submitted
+        return await self._orchestrator.process(
+            ReceiptSubmission(
+                order_id=submitted.order_id,
+                attempt_id=submitted.attempt_id,
+                telegram_file_id=file_id,
+                mime_type=submitted.mime_type or mime,
+            ),
+            image_bytes,
         )
