@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from uuid import UUID
-from datetime import datetime
 import logging
 
 from app.application.receipt_image import ReceiptImageInspectorImpl
