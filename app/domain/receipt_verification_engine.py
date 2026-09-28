@@ -30,6 +30,14 @@ def verify_receipt(
     if extracted.currency is None or extracted.amount is None:
         return VerificationEngineResult(VerificationDecision.INSUFFICIENT_DATA, None, tuple(reasons + ["missing_amount_or_currency"]))
 
+    if extracted.transaction_datetime is None:
+        return VerificationEngineResult(VerificationDecision.INSUFFICIENT_DATA, None, tuple(reasons + ["transaction_datetime_unavailable"]))
+    transaction_at = extracted.transaction_datetime
+    if transaction_at < context.order_created_at:
+        return VerificationEngineResult(VerificationDecision.MISMATCH, None, tuple(reasons + ["transaction_time_before_order_creation"]))
+    if transaction_at > context.receipt_deadline_at:
+        return VerificationEngineResult(VerificationDecision.MISMATCH, None, tuple(reasons + ["transaction_time_after_receipt_deadline"]))
+
     normalized_extracted_currency = normalize_currency(extracted.currency)
     if normalized_extracted_currency is None:
         return VerificationEngineResult(VerificationDecision.SUSPICIOUS, None, tuple(reasons + ["unknown_currency"]))
