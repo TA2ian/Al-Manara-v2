@@ -28,6 +28,7 @@ create or replace function create_purchase_order_atomic(
     p_admin_payment_qr_file_id_snapshot text,
     p_quote_issued_at timestamptz,
     p_quote_expires_at timestamptz,
+    p_receipt_deadline_at timestamptz,
     p_idempotency_key text,
     p_operation text default 'create_purchase_order'
 )
