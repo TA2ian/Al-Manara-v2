@@ -200,6 +200,8 @@ exception
 end;
 $$;
 
+drop function if exists get_receipt_verification_snapshot(uuid);
+
 create or replace function get_receipt_verification_snapshot(p_order_id uuid)
 returns table (
     order_id uuid,
