@@ -118,3 +118,19 @@ async def test_handler_forwards_frozen_quote_without_repricing() -> None:
     assert response.ok is True
     assert response.order_code == "AM-000777"
     assert service.received_quote is frozen_quote
+
+
+@pytest.mark.asyncio
+async def test_handler_maps_expired_frozen_quote() -> None:
+    from app.application.create_purchase_order import QuoteExpiredError
+
+    class ExpiredQuoteService:
+        async def create(self, command, quote=None):
+            raise QuoteExpiredError("quote has expired")
+
+    response = await TelegramOrderCreationHandler(ExpiredQuoteService()).handle(
+        make_input(), quote=SimpleNamespace()
+    )
+
+    assert response.ok is False
+    assert response.text == "انتهت صلاحية عرض السعر. اعرض السعر الجديد ثم أكد الطلب مرة أخرى."
