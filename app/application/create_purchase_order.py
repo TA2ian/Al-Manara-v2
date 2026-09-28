@@ -23,6 +23,7 @@ from app.domain.payment_identity import AdminPaymentAccountSnapshot
 from app.domain.wallet_selection import validate_wallet_for_order
 
 DEFAULT_QUOTE_TTL = timedelta(minutes=10)
+MAX_RECEIPT_SUBMISSION_WINDOW = timedelta(minutes=90)
 
 @dataclass(frozen=True, slots=True)
 class CreatePurchaseOrderCommand:
@@ -58,6 +59,10 @@ class CreatePurchaseOrderService:
     async def create(self, command: CreatePurchaseOrderCommand) -> object:
         now = self._clock.now()
         identity, wallet, network, payment_account, quote = await self._prepare(command, now)
+        receipt_minutes = await self._payments.get_receipt_submission_window_minutes()
+        receipt_window = timedelta(minutes=receipt_minutes)
+        if receipt_window <= timedelta(0) or receipt_window > MAX_RECEIPT_SUBMISSION_WINDOW:
+            raise RuntimeError("configured receipt submission window is invalid")
         draft = PurchaseOrderDraft(
             internal_order_id=uuid4(),
             public_order_code=self._public_codes.generate(),
@@ -70,6 +75,7 @@ class CreatePurchaseOrderService:
             financials=quote.financials,
             quote_issued_at=now,
             quote_expires_at=quote.expires_at,
+            receipt_deadline_at=now + receipt_window,
             idempotency_key=command.idempotency_key.strip(),
         )
         return await self._orders.create_order_atomically(draft)
