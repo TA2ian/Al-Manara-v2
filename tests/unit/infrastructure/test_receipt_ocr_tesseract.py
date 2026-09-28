@@ -26,3 +26,4 @@ def test_tesseract_tsv_confidence_is_bounded():
     text, confidence = TesseractReceiptOcr._parse_tsv(raw)
     assert text == "USD"
     assert confidence == Decimal("0.900")
+\n\ndef test_tesseract_parser_extracts_order_code_from_shamcash_notes():\n    fields = TesseractReceiptOcr._extract_fields(\n        "رقم الطلب: ORD-ABC123DEF456 المبلغ: 100 USD",\n        Decimal("0.91"),\n    )\n    assert fields[OcrField.REFERENCE].value == "ORD-ABC123DEF456"\n
