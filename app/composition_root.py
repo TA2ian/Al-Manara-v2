@@ -11,6 +11,7 @@ from app.application.admin_order_listing import AdminOrderListingService
 from app.application.admin_order_review import AdminOrderReviewService
 from app.application.admin_order_review_details import AdminOrderReviewDetailsService
 from app.application.admin_payment_account import AdminPaymentAccountService
+from app.application.admin_receipt_settings import AdminReceiptSettingsService
 from app.application.admin_session import AdminSessionService
 from app.application.create_purchase_order import CreatePurchaseOrderService
 from app.application.customer_identity import CustomerIdentityService
@@ -31,6 +32,7 @@ from app.infrastructure.persistence.admin_order_listing_repository import Supaba
 from app.infrastructure.persistence.admin_order_review_repository import SupabaseAdminOrderReviewRepository
 from app.infrastructure.persistence.admin_order_review_details_repository import SupabaseAdminOrderReviewDetailsRepository
 from app.infrastructure.persistence.admin_payment_account_repository import SupabaseAdminPaymentAccountRepository
+from app.infrastructure.persistence.admin_receipt_settings_repository import SupabaseAdminReceiptSettingsRepository
 from app.infrastructure.persistence.admin_session_repository import SupabaseAdminSessionRepository
 from app.infrastructure.persistence.audit_logger import SupabaseAuditLogger
 from app.infrastructure.persistence.customer_identity_repository import SupabaseCustomerIdentityRepository
@@ -60,6 +62,7 @@ from app.runtime.telegram.admin_order_listing import TelegramAdminOrderListingHa
 from app.runtime.telegram.admin_order_review import TelegramAdminOrderReviewHandler
 from app.runtime.telegram.admin_order_review_details import build_admin_order_review_details_router
 from app.runtime.telegram.admin_payment_account import TelegramAdminPaymentAccountHandler
+from app.runtime.telegram.admin_receipt_settings import TelegramAdminReceiptSettingsHandler
 from app.runtime.telegram.admin_session import TelegramAdminSessionHandler
 from app.runtime.telegram.customer_identity import TelegramCustomerIdentityHandler
 from app.runtime.telegram.customer_order_listing import TelegramCustomerOrderListingHandler
@@ -78,6 +81,7 @@ class AdminComposition:
     session: TelegramAdminSessionHandler
     fulfillment: TelegramFulfillmentHandler
     payment_accounts: TelegramAdminPaymentAccountHandler
+    receipt_settings: TelegramAdminReceiptSettingsHandler
     identity_review: TelegramAdminCustomerIdentityHandler
     actor_type: SupabaseAdminAuthorizationRepository
 
@@ -111,6 +115,10 @@ def build_admin_composition(client: Any, order_uow: UnitOfWork | None = None, *,
         SupabaseAdminPaymentAccountRepository(client),
         emergency_mode=emergency_mode,
     )
+    receipt_settings_service = AdminReceiptSettingsService(
+        SupabaseAdminReceiptSettingsRepository(client),
+        emergency_mode=emergency_mode,
+    )
     identity_review = TelegramAdminCustomerIdentityHandler(
         CustomerIdentityService(SupabaseCustomerIdentityRepository(client)),
         authorization,
@@ -124,6 +132,7 @@ def build_admin_composition(client: Any, order_uow: UnitOfWork | None = None, *,
         session=TelegramAdminSessionHandler(session_service),
         fulfillment=TelegramFulfillmentHandler(fulfillment_service, authorization, authorization),
         payment_accounts=TelegramAdminPaymentAccountHandler(payment_account_service),
+        receipt_settings=TelegramAdminReceiptSettingsHandler(receipt_settings_service),
         identity_review=identity_review,
         actor_type=authorization,
     )
