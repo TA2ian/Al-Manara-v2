@@ -52,6 +52,7 @@ class SupabaseOrderCreationRepository:
             "p_admin_payment_qr_file_id_snapshot": draft.admin_payment_account.qr_image_file_id,
             "p_quote_issued_at": draft.quote_issued_at.isoformat(),
             "p_quote_expires_at": draft.quote_expires_at.isoformat(),
+            "p_receipt_deadline_at": draft.receipt_deadline_at.isoformat(),
             "p_idempotency_key": draft.idempotency_key.strip(),
         }
 
