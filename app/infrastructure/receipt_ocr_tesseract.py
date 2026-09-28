@@ -98,8 +98,6 @@ class TesseractReceiptOcr:
             normalized,
             re.IGNORECASE,
         )
-        if amount_match is None:
-            amount_match = re.search(r"(?<![0-9])[0-9]{1,9}(?:[,.][0-9]{1,3})?(?![0-9])", normalized)
         if amount_match is not None:
             raw = amount_match.group(1) if amount_match.lastindex else amount_match.group(0)
             amount = re.sub(r"[^0-9,.-]", "", raw).replace(",", "")
