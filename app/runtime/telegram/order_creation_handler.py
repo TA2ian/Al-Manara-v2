@@ -3,12 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from app.application.create_purchase_order import CreatePurchaseOrderCommand
+from app.application.create_purchase_order import CreatePurchaseOrderCommand, QuoteExpiredError
 from app.application.quote import PurchaseQuote
 from app.runtime.telegram.contracts import TelegramOrderInput, TelegramOrderMessages, TelegramOrderResponse
 
 class OrderCreationService(Protocol):
-    async def create(self, command: CreatePurchaseOrderCommand) -> object: ...
+    async def create(self, command: CreatePurchaseOrderCommand, quote: PurchaseQuote | None = None) -> object: ...
     async def preview(self, command: CreatePurchaseOrderCommand) -> PurchaseQuote: ...
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +29,8 @@ class TelegramOrderCreationHandler:
     @staticmethod
     def _error(exc: Exception) -> str:
         message = str(exc)
+        if isinstance(exc, QuoteExpiredError):
+            return "انتهت صلاحية عرض السعر. اعرض السعر الجديد ثم أكد الطلب مرة أخرى."
         if "payment identity" in message:
             return TelegramOrderMessages.NOT_VERIFIED
         if "network" in message.lower():
@@ -46,9 +48,9 @@ class TelegramOrderCreationHandler:
             return TelegramOrderQuoteResponse(False, text=self._error(exc))
         return TelegramOrderQuoteResponse(True, quote=quote)
 
-    async def handle(self, data: TelegramOrderInput) -> TelegramOrderResponse:
+    async def handle(self, data: TelegramOrderInput, quote: PurchaseQuote | None = None) -> TelegramOrderResponse:
         try:
-            result = await self.service.create(self._command(data))
+            result = await self.service.create(self._command(data), quote=quote)
         except Exception as exc:
             return TelegramOrderResponse(False, self._error(exc))
         order_code = getattr(result, "public_order_code", None) or getattr(result, "order_code", None)
