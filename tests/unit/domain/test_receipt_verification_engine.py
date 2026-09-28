@@ -19,7 +19,8 @@ def context(currency: str = "USD", amount: str = "100.00") -> ReceiptVerificatio
         network_code="TRC20",
         wallet_address="T9yD14Nj9j7xAB4dbGeiX9h8unkM4Jx7nQ",
         order_created_at=datetime(2026, 9, 28, 12, 0, tzinfo=ZoneInfo("Asia/Damascus")),
-        receipt_deadline_at=datetime(2026, 9, 28, 13, 0, tzinfo=ZoneInfo("Asia/Damascus")),\n        expected_reference="ORD-ABC123DEF456",
+        receipt_deadline_at=datetime(2026, 9, 28, 13, 0, tzinfo=ZoneInfo("Asia/Damascus")),
+        expected_reference="ORD-ABC123DEF456",
     )
 
 
