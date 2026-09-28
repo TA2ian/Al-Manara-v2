@@ -16,7 +16,7 @@ from app.application.order_creation_ports import (
 from app.application.quote import PurchaseQuote
 from app.application.quote_ports import ExchangeRateProvider, FeePolicyProvider, QuoteClock, RoundingPolicyProvider
 from app.domain.currency import CurrencyCode, normalize_currency
-from app.domain.money import OrderFinancials
+from app.domain.money import OrderFinancials, USDT_QUANTUM
 from app.domain.network import normalize_network
 from app.domain.order_draft import PurchaseOrderDraft
 from app.domain.payment_identity import AdminPaymentAccountSnapshot
@@ -72,7 +72,7 @@ class CreatePurchaseOrderService:
                 raise QuoteExpiredError("quote has expired")
             if quote.issued_at > now:
                 raise ValueError("quote issuance is in the future")
-            if quote.financials.requested_amount != command.requested_amount:
+            if command.requested_amount.quantize(USDT_QUANTUM) != quote.financials.requested_amount:
                 raise ValueError("quote amount does not match order request")
             if quote.financials.payment_currency != command.payment_currency:
                 raise ValueError("quote payment currency does not match order request")
