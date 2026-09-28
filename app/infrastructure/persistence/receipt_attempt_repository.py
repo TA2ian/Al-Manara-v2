@@ -238,6 +238,7 @@ class SupabaseReceiptAttemptRepository(ReceiptAttemptRepository):
                 "image receipt requires a file id",
                 "text receipt cannot contain image fields",
                 "image receipt cannot contain a transaction reference",
+                "receipt submission window has expired",
             )
         ):
             raise ReceiptPersistenceConflictError(
