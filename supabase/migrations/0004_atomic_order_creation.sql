@@ -153,7 +153,7 @@ begin
         payment_method_id, status, version, expires_at
     ) values (
         p_internal_order_id, btrim(p_public_order_code), v_user_id, p_wallet_id,
-        p_network_code::network_code, v_payment_method_id, 'DRAFT', 1, p_quote_expires_at
+        p_network_code::network_code, v_payment_method_id, 'DRAFT', 1, p_receipt_deadline_at
     ) returning orders.status, orders.version into v_status, v_version;
 
     insert into order_financial_snapshots (
