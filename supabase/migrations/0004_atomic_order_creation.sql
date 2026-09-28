@@ -67,6 +67,7 @@ begin
     if p_public_order_code is null or length(btrim(p_public_order_code)) < 4 then raise exception 'public order code is required'; end if;
     if p_idempotency_key is null or length(btrim(p_idempotency_key)) = 0 then raise exception 'idempotency key is required'; end if;
     if p_quote_issued_at is null or p_quote_expires_at is null or p_quote_expires_at <= p_quote_issued_at then raise exception 'invalid quote window'; end if;
+    if p_receipt_deadline_at is null or p_receipt_deadline_at <= p_quote_issued_at then raise exception 'invalid receipt deadline'; end if;
     if p_payment_currency not in ('USD', 'NEW.SYP') then raise exception 'unsupported payment currency'; end if;
 
     select response_json
