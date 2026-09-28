@@ -72,6 +72,7 @@ class QuoteService:
 
         return PurchaseQuote(
             financials=financials,
+            issued_at=issued_at,
             exchange_rate_snapshot=rate_snapshot,
             fee_policy_snapshot=fee_policy,
             expires_at=issued_at + self._ttl,
