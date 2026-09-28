@@ -50,7 +50,11 @@ class TelegramOrderCreationHandler:
 
     async def handle(self, data: TelegramOrderInput, quote: PurchaseQuote | None = None) -> TelegramOrderResponse:
         try:
-            result = await self.service.create(self._command(data), quote=quote)
+            command = self._command(data)
+            if quote is None:
+                result = await self.service.create(command)
+            else:
+                result = await self.service.create(command, quote=quote)
         except Exception as exc:
             return TelegramOrderResponse(False, self._error(exc))
         order_code = getattr(result, "public_order_code", None) or getattr(result, "order_code", None)
