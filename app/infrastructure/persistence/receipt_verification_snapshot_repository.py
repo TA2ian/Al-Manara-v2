@@ -4,6 +4,7 @@ import asyncio
 from decimal import Decimal
 from typing import Any, Protocol
 from uuid import UUID
+from datetime import datetime
 
 from app.domain.receipt_verification_context import ReceiptVerificationContext
 
@@ -94,6 +95,8 @@ class SupabaseReceiptVerificationSnapshotRepository:
                     else None
                 ),
                 tolerance=Decimal(str(row["tolerance"])),
+                order_created_at=datetime.fromisoformat(str(row["order_created_at"])),
+                receipt_deadline_at=datetime.fromisoformat(str(row["receipt_deadline_at"])),
             )
         except (KeyError, TypeError, ValueError, ArithmeticError) as exc:
             raise ReceiptVerificationSnapshotPersistenceError(
