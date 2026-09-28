@@ -20,6 +20,8 @@ class ReceiptVerificationContext:
     wallet_address: str
     expected_reference: str | None = None
     tolerance: Decimal = ABSOLUTE_TOLERANCE
+    order_created_at: datetime | None = None
+    receipt_deadline_at: datetime | None = None
 
     def __post_init__(self) -> None:
         normalized_currency = normalize_currency(str(self.payment_currency))
@@ -45,3 +47,9 @@ class ReceiptVerificationContext:
             raise ValueError("expected reference cannot be blank")
         if not self.tolerance.is_finite() or self.tolerance < 0:
             raise ValueError("tolerance must be finite and non-negative")
+        if self.order_created_at is None or self.receipt_deadline_at is None:
+            raise ValueError("receipt verification requires authoritative order timing")
+        if self.order_created_at.tzinfo is None or self.receipt_deadline_at.tzinfo is None:
+            raise ValueError("order timing must be timezone-aware")
+        if self.receipt_deadline_at <= self.order_created_at:
+            raise ValueError("receipt deadline must be after order creation")
