@@ -20,6 +20,7 @@ class VerificationEvidence:
     currency: EvidenceMatch
     network: EvidenceMatch
     reference: EvidenceMatch
+    transaction_datetime: EvidenceMatch
     ocr_confidence: Decimal
     tolerance_used: Decimal
     reasons: tuple[str, ...]
