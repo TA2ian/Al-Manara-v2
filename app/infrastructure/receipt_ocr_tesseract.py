@@ -120,7 +120,7 @@ class TesseractReceiptOcr:
             value = currency_match.group(1)
             fields[OcrField.CURRENCY] = OcrFieldValue(value, confidence)
 
-        order_match = re.search(r"\b(ORD-[A-Z0-9]{12})\b", normalized, re.IGNORECASE)
+        order_match = re.search(r"\b(ORD-[A-Z0-9]{10})\b", normalized, re.IGNORECASE)
         if order_match is not None:
             fields[OcrField.REFERENCE] = OcrFieldValue(order_match.group(1).upper(), confidence)
 
