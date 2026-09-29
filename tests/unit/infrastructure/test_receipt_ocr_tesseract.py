@@ -30,7 +30,7 @@ def test_tesseract_tsv_confidence_is_bounded():
 
 def test_tesseract_parser_extracts_order_code_from_shamcash_notes():
     fields = TesseractReceiptOcr._extract_fields(
-        "رقم الطلب: ORD-ABC123DEF456 المبلغ: 100 USD",
+        "رقم الطلب: ORD-ABC123DE4F المبلغ: 100 USD",
         Decimal("0.91"),
     )
-    assert fields[OcrField.REFERENCE].value == "ORD-ABC123DEF456"
+    assert fields[OcrField.REFERENCE].value == "ORD-ABC123DE4F"
