@@ -1,4 +1,6 @@
+-- Replace the earlier receipt snapshot function because PostgreSQL does not allow CREATE OR REPLACE to change OUT/RETURNS TABLE shape.
 -- Use the immutable public order code as the ShamCash receipt reference.
+DROP FUNCTION IF EXISTS get_receipt_verification_snapshot(uuid);
 -- The customer is instructed to place this order code in the ShamCash transfer notes.
 create or replace function get_receipt_verification_snapshot(p_order_id uuid)
 returns table (
