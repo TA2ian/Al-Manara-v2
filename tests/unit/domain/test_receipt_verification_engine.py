@@ -20,7 +20,7 @@ def context(currency: str = "USD", amount: str = "100.00") -> ReceiptVerificatio
         wallet_address="T9yD14Nj9j7xAB4dbGeiX9h8unkM4Jx7nQ",
         order_created_at=datetime(2026, 9, 28, 12, 0, tzinfo=ZoneInfo("Asia/Damascus")),
         receipt_deadline_at=datetime(2026, 9, 28, 13, 0, tzinfo=ZoneInfo("Asia/Damascus")),
-        expected_reference="ORD-ABC123DEF456",
+        expected_reference="ORD-ABC123DE4F",
     )
 
 
@@ -29,7 +29,7 @@ def extracted(
     currency: str | None = "USD",
     confidence: str = "0.95",
     transaction_datetime: datetime | None = datetime(2026, 9, 28, 12, 30, tzinfo=ZoneInfo("Asia/Damascus")),
-    reference: str | None = "ORD-ABC123DEF456",
+    reference: str | None = "ORD-ABC123DE4F",
 ) -> ExtractedReceiptData:
     return ExtractedReceiptData(
         uuid4(),
@@ -115,6 +115,6 @@ def test_insufficient_data_when_order_reference_is_missing():
 
 
 def test_mismatch_when_order_reference_is_wrong():
-    result = verify_receipt(context(), extracted(reference="ORD-WRONG123456"))
+    result = verify_receipt(context(), extracted(reference="ORD-WRONG1234"))
     assert result.decision is VerificationDecision.MISMATCH
     assert "reference_mismatch" in result.reasons
