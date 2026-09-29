@@ -17,8 +17,9 @@ The new system models order lifecycle and financial values independently from Te
 The customer purchases `requested_amount` USDT. The service fee is deducted from the USDT amount sent after approval.
 
 ```text
-fee_amount       = requested_amount * fee_percent
-net_usdt_amount  = requested_amount - fee_amount
+fee_amount         = requested_amount * fee_percent
+network_fee_amount = fixed USDT fee for the selected network
+net_usdt_amount    = requested_amount - fee_amount - network_fee_amount
 local_amount     = requested_amount * exchange_rate   # NEW.SYP
 local_amount     = requested_amount                    # USD
 ```
@@ -29,7 +30,7 @@ There is no valid calculation in which `fee_amount` is added to the customer's S
 
 At order creation, the system stores the financial and network policy values used for the quote. Later Settings changes do not mutate historical orders.
 
-The snapshot includes the rounding policy identifier and the exact exchange-rate snapshot.
+The snapshot includes the rounding policy identifier, the exact exchange-rate snapshot, and the network fee/configuration snapshot.
 
 ## Consequences
 
@@ -51,3 +52,8 @@ Rejected because Telegram sessions are not durable business state and can be sta
 ### Automatic approval after receipt MATCH
 
 Rejected. Receipt verification is evidence and linkage assistance; approval remains an explicit administrator decision.
+
+
+### Manual fulfillment
+
+After explicit administrator approval, USDT fulfillment remains manual. The completion operation records the blockchain transaction hash in `manual_usdt_transfer_reference` and only permits BEP20 or TRC20 for the operational transfer workflow. The administrator is responsible for sending the snapshotted `net_usdt_amount`; the bot does not submit blockchain transactions or infer completion from user-provided content.

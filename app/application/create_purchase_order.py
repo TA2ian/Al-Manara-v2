@@ -1,0 +1,158 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from decimal import Decimal
+from uuid import UUID, uuid4
+
+from app.application.order_creation_ports import (
+    CustomerRepository,
+    NetworkOrderRepository,
+    OrderCreationRepository,
+    PaymentSettingsRepository,
+    PublicOrderCodeGenerator,
+    WalletOrderRepository,
+)
+from app.application.quote import PurchaseQuote
+from app.application.quote_ports import ExchangeRateProvider, FeePolicyProvider, QuoteClock, RoundingPolicyProvider
+from app.domain.currency import CurrencyCode, normalize_currency
+from app.domain.money import OrderFinancials, USDT_QUANTUM
+from app.domain.network import normalize_network
+from app.domain.order_draft import PurchaseOrderDraft
+from app.domain.payment_identity import AdminPaymentAccountSnapshot
+from app.domain.wallet_selection import validate_wallet_for_order
+
+DEFAULT_QUOTE_TTL = timedelta(minutes=10)
+MAX_RECEIPT_SUBMISSION_WINDOW = timedelta(minutes=90)
+
+@dataclass(frozen=True, slots=True)
+class CreatePurchaseOrderCommand:
+    user_id: int
+    wallet_id: UUID
+    network_code: str
+    requested_amount: Decimal
+    payment_currency: str
+    idempotency_key: str
+
+class QuoteExpiredError(ValueError):
+    """Raised when a customer tries to create an order from an expired quote."""
+
+
+class CreatePurchaseOrderService:
+    def __init__(self, customers: CustomerRepository, wallets: WalletOrderRepository, networks: NetworkOrderRepository, payments: PaymentSettingsRepository, orders: OrderCreationRepository, public_codes: PublicOrderCodeGenerator, exchange_rates: ExchangeRateProvider, fee_policies: FeePolicyProvider, rounding_policies: RoundingPolicyProvider, clock: QuoteClock, quote_ttl: timedelta = DEFAULT_QUOTE_TTL) -> None:
+        if quote_ttl <= timedelta(0):
+            raise ValueError("quote ttl must be positive")
+        self._customers = customers
+        self._wallets = wallets
+        self._networks = networks
+        self._payments = payments
+        self._orders = orders
+        self._public_codes = public_codes
+        self._exchange_rates = exchange_rates
+        self._fee_policies = fee_policies
+        self._rounding_policies = rounding_policies
+        self._clock = clock
+        self._quote_ttl = quote_ttl
+
+    async def preview(self, command: CreatePurchaseOrderCommand) -> PurchaseQuote:
+        """Validate the complete order context and calculate a non-persistent quote."""
+        now = self._clock.now()
+        _, _, _, _, quote = await self._prepare(command, now)
+        return quote
+
+    async def create(self, command: CreatePurchaseOrderCommand, quote: PurchaseQuote | None = None) -> object:
+        now = self._clock.now()
+        identity, wallet, network, payment_account = await self._prepare_context(command)
+        if quote is None:
+            quote = await self._build_quote(command, now)
+        else:
+            if now.tzinfo is None:
+                raise RuntimeError("application clock must return a timezone-aware datetime")
+            if now >= quote.expires_at:
+                raise QuoteExpiredError("quote has expired")
+            if quote.issued_at > now:
+                raise ValueError("quote issuance is in the future")
+            if command.requested_amount.quantize(USDT_QUANTUM) != quote.financials.requested_amount:
+                raise ValueError("quote amount does not match order request")
+            if quote.financials.payment_currency != command.payment_currency:
+                raise ValueError("quote payment currency does not match order request")
+        receipt_minutes = await self._payments.get_receipt_submission_window_minutes()
+        receipt_window = timedelta(minutes=receipt_minutes)
+        if receipt_window <= timedelta(0) or receipt_window > MAX_RECEIPT_SUBMISSION_WINDOW:
+            raise RuntimeError("configured receipt submission window is invalid")
+        draft = PurchaseOrderDraft(
+            internal_order_id=uuid4(),
+            public_order_code=self._public_codes.generate(),
+            user_id=command.user_id,
+            wallet_id=wallet.wallet_id,
+            network=network.code,
+            wallet_address=wallet.address,
+            customer_payment_identity=identity,
+            admin_payment_account=AdminPaymentAccountSnapshot(account_name=payment_account.account_name, account_number=payment_account.account_number, qr_image_file_id=payment_account.qr_image_file_id),
+            financials=quote.financials,
+            quote_issued_at=quote.issued_at,
+            quote_expires_at=quote.expires_at,
+            receipt_deadline_at=now + receipt_window,
+            idempotency_key=command.idempotency_key.strip(),
+        )
+        return await self._orders.create_order_atomically(draft)
+
+    async def _prepare_context(self, command: CreatePurchaseOrderCommand):
+        if not command.idempotency_key.strip():
+            raise ValueError("idempotency key is required")
+        currency = normalize_currency(command.payment_currency)
+        if currency is None:
+            raise ValueError("unsupported payment currency")
+        network_code = normalize_network(command.network_code)
+        if network_code is None:
+            raise ValueError("unsupported network")
+        identity = await self._customers.get_payment_identity(command.user_id)
+        if identity is None:
+            raise ValueError("customer payment identity is not verified")
+        wallet = await self._wallets.get_verified_for_user(command.wallet_id, command.user_id)
+        if wallet is None:
+            raise LookupError("verified wallet not found for customer")
+        network = await self._networks.get_enabled(network_code.value)
+        if network is None or not network.enabled:
+            raise ValueError("selected network is unavailable")
+        validate_wallet_for_order(wallet, command.user_id, network, command.requested_amount)
+        payment_account = await self._payments.get_admin_payment_account(currency)
+        if payment_account is None:
+            raise RuntimeError("admin payment account is not configured")
+        return identity, wallet, network, payment_account
+
+    async def _build_quote(self, command: CreatePurchaseOrderCommand, now: datetime) -> PurchaseQuote:
+        if now.tzinfo is None:
+            raise RuntimeError("application clock must return a timezone-aware datetime")
+        _, _, network, _ = await self._prepare_context(command)
+        fee_policy = await self._fee_policies.get_current_policy(network.code.value, now)
+        if fee_policy is None:
+            raise RuntimeError("current fee policy is unavailable")
+        rounding_policy_version = await self._rounding_policies.get_current_version()
+        if not rounding_policy_version.strip():
+            raise RuntimeError("current rounding policy is unavailable")
+        currency = normalize_currency(command.payment_currency)
+        if currency is None:
+            raise ValueError("unsupported payment currency")
+        rate_snapshot = None
+        exchange_rate = None
+        if currency is CurrencyCode.NEW_SYP:
+            rate_snapshot = await self._exchange_rates.get_current_rate(currency.value, now)
+            if rate_snapshot is None:
+                raise RuntimeError("current exchange rate is unavailable")
+            exchange_rate = rate_snapshot.rate
+        financials = OrderFinancials.calculate(
+            requested_amount=command.requested_amount,
+            fee_percent=fee_policy.percent,
+            network_fee_amount=network.network_fee_amount,
+            payment_currency=currency.value,
+            exchange_rate=exchange_rate,
+            rounding_policy_version=rounding_policy_version,
+        )
+        return PurchaseQuote(
+            financials=financials,
+            exchange_rate_snapshot=rate_snapshot,
+            fee_policy_snapshot=fee_policy,
+            issued_at=now,
+            expires_at=now + self._quote_ttl,
+        )

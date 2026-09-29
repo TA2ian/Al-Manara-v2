@@ -1,0 +1,1 @@
+Receipt attempts are limited to three sequential submissions per order. Allocation is serialized per order at the PostgreSQL transaction level. A third failure escalates to administration. Supported receipt images are JPEG, PNG, and WEBP; PDF is outside MVP.

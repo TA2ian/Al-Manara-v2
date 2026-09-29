@@ -17,5 +17,8 @@ enabled = false
 [storage]
 enabled = false
 
+[realtime]
+enabled = false
+
 [analytics]
 enabled = false

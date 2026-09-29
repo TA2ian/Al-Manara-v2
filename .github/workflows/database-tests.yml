@@ -1,0 +1,46 @@
+name: database-tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  database:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.117.0
+
+      - name: Start local Supabase
+        run: |
+          for attempt in 1 2 3; do
+            if supabase db start; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              sleep $((attempt * 60))
+            fi
+          done
+          exit 1
+
+      - name: Rebuild database from migrations
+        run: supabase db reset
+
+      - name: Lint database
+        run: supabase db lint
+
+      - name: Run database contract tests
+        run: supabase db test
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Run concurrency integration tests
+        run: bash supabase/tests/run_fulfillment_concurrency.sh
